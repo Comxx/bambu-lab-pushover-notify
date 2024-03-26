@@ -93,6 +93,8 @@ def on_message(client, userdata, msg):
 				if( ('fail_reason' in dataDict['print'] and len(dataDict['print']['fail_reason']) > 1) or ( 'print_error' in dataDict['print'] and dataDict['print']['print_error'] != 0 ) or gcode_state == "FAILED" ):
 					msg_text = msg_text + f"<li>print_error: {dataDict['print']['print_error']}</li>"
 					msg_text = msg_text + f"<li>mc_print_error_code: {dataDict['print']['mc_print_error_code']}</li>"
+					msg_text = msg_text + f"<li>HMS code: {dataDict['print']['hms']}</li>"
+
 					error_code = int(dataDict['print']['mc_print_error_code'])
 					if(error_code == 32778):
 						fail_reason = "Arrr! Swab the poop deck!"
