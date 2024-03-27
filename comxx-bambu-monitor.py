@@ -131,7 +131,7 @@ def main(argv):
 	global host, port, user, password
 	# Logging Set up
 	current_datetime = datetime.datetime.now()
-	datetime_str = current_datetime.strftime("%Y-%m-%d_%H-%M-%S")
+	datetime_str = current_datetime.strftime("%Y-%m-%d_%I-%M-%S%p")
 	logfile_path = "logs/"
 	logfile_name = f"{logfile_path}output_{datetime_str}.log"
 	loglevel = logging.INFO
