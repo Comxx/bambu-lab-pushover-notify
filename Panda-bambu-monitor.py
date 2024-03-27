@@ -115,7 +115,7 @@ def on_message(client, userdata, msg):
 				if(not first_run):
 					msg_text = msg_text + "</ul>"
 					message = po_user.create_message(
-						title="Panda State Changed!",
+						title="Panda Printer",
 						message=msg_text,
 						html=True,
 						sound='magic',
