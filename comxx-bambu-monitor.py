@@ -114,7 +114,7 @@ def on_message(client, userdata, msg):
 				if(not first_run):
 					msg_text = msg_text + "</ul>"
 					message = po_user.create_message(
-						title="Comxx State Changed!",
+						title="Comxx Printer",
 						message=msg_text,
 						html=True,
 						sound='pianobar',
