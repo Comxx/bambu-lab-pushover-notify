@@ -25,7 +25,7 @@ def parse_message(self, message):
 	dataDict = json.loads(message)
 	return dataDict
 
-def on_connect(client, userdata, flags, rc):
+def on_connect(client, userdata, flags, reason_code, properties):
 	client.subscribe("device/"+device_id+"/report",0)
 
 def on_message(client, userdata, msg):
@@ -136,7 +136,7 @@ def main(argv):
 	logging.basicConfig(format='%(asctime)s %(levelname)s: %(message)s', level=loglevel)
 	logging.info("Starting")
 
-	client = paho.Client(paho.CallbackAPIVersion.VERSION1)
+	client = paho.Client(paho.CallbackAPIVersion.VERSION2)
 	client.tls_set(ca_certs=None, certfile=None, keyfile=None, cert_reqs=ssl.CERT_NONE, tls_version=ssl.PROTOCOL_TLS, ciphers=None)
 	client.tls_insecure_set(True)
 	client.username_pw_set(user, password)
