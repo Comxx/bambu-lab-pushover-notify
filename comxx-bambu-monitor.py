@@ -1,8 +1,6 @@
 #!/usr/bin/python3
 from vardata import *
 import paho.mqtt.client as paho
-import http.client, urllib
-import argparse
 import logging
 import json
 import sys
@@ -114,7 +112,7 @@ def on_message(client, userdata, msg):
 				if(not first_run):
 					msg_text = msg_text + "</ul>"
 					message = po_user.create_message(
-						title="Comxx Printer",
+						title="Comxx State Changed!",
 						message=msg_text,
 						html=True,
 						sound='pianobar',
@@ -131,10 +129,15 @@ def on_message(client, userdata, msg):
 
 def main(argv):
 	global host, port, user, password
+	# Logging Set up
+	current_datetime = datetime.datetime.now()
+	datetime_str = current_datetime.strftime("%Y-%m-%d_%H-%M-%S")
+	logfile_path = "logs/"
+	logfile_name = f"{logfile_path}output_{datetime_str}.log"
 	loglevel = logging.INFO
-	logging.basicConfig(format='%(asctime)s %(levelname)s: %(message)s', level=loglevel)
+	logging.basicConfig(filename=logfile_name, format='%(asctime)s %(levelname)s: %(message)s', level=loglevel)
 	logging.info("Starting")
-
+    #Mqtt Set up
 	client = paho.Client(paho.CallbackAPIVersion.VERSION2)
 	client.tls_set(ca_certs=None, certfile=None, keyfile=None, cert_reqs=ssl.CERT_NONE, tls_version=ssl.PROTOCOL_TLS, ciphers=None)
 	client.tls_insecure_set(True)
