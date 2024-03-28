@@ -131,8 +131,9 @@ def on_message(client, userdata, msg):
 def main(argv):
 	global host, port, user, password
 	# Logging Set up
-	current_datetime = datetime.now()
-	datetime_str = current_datetime.strftime("%Y-%m-%d_%I-%M-%S%p") # %I for 12-hour format, %p for AM/PM
+	local_timezone = tzlocal.get_localzone()  # Get the local timezone
+	current_datetime = datetime.now(local_timezone)  # Get the current datetime in the local timezone
+	datetime_str = current_datetime.strftime("%Y-%m-%d_%I-%M-%S%p")  # %I for 12-hour format, %p for AM/PM
 	logfile_path = "logs/"
 	logfile_name = f"{logfile_path}output_{datetime_str}.log"
 	loglevel = logging.INFO
