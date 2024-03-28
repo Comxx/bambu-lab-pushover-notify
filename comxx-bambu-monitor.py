@@ -112,7 +112,7 @@ def on_message(client, userdata, msg):
 				if(not first_run):
 					msg_text = msg_text + "</ul>"
 					message = po_user.create_message(
-						title="Comxx State Changed!",
+						title="Comxx Printer",
 						message=msg_text,
 						html=True,
 						sound='pianobar',
@@ -130,7 +130,7 @@ def on_message(client, userdata, msg):
 def main(argv):
 	global host, port, user, password
 	# Logging Set up
-	current_datetime = datetime.datetime.now()
+	current_datetime = datetime.now()
 	datetime_str = current_datetime.strftime("%Y-%m-%d_%I-%M-%S%p")
 	logfile_path = "logs/"
 	logfile_name = f"{logfile_path}output_{datetime_str}.log"
