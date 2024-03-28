@@ -78,13 +78,13 @@ def on_message(client, userdata, msg):
 
 				# text
 				msg_text = "<ul>"
-				msg_text = msg_text + "<li>State: "+ gcode_state + "</li>"
-				msg_text = msg_text + f"<li>Percent: {percent_done}</li>"
+				msg_text = msg_text + "<li>State: "+ gcode_state + " </li>"
+				msg_text = msg_text + f"<li>Percent: {percent_done}% </li>"
 				if('subtask_name' in dataDict['print']):
-					msg_text = msg_text + "<li>Name: "+ dataDict['print']['subtask_name'] + "</li>"
-				msg_text = msg_text + f"<li>Remaining time: {remaining_time}</li>"
-				msg_text = msg_text + "<li>Started: "+ my_datetime + "</li>"
-				msg_text = msg_text + "<li>Aprox End: "+ my_finish_datetime + "</li>"
+					msg_text = msg_text + "<li>Name: "+ dataDict['print']['subtask_name'] + " </li>"
+				msg_text = msg_text + f"<li>Remaining time: {remaining_time} Mins </li>"
+				msg_text = msg_text + "<li>Started: "+ my_datetime + " </li>"
+				msg_text = msg_text + "<li>Aprox End: "+ my_finish_datetime + " </li>"
 
 				# failed
 				fail_reason = ""
