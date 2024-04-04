@@ -78,41 +78,43 @@ def on_message(client, userdata, msg):
 						if(gcode_state == "FINISH" and time_left_seconds == 0):
 							my_finish_datetime = "Done!"
 
-				# text
-				msg_text = "<ul>"
-				msg_text = msg_text + "<li>State: "+ gcode_state + " </li>"
-				msg_text = msg_text + f"<li>Percent: {percent_done}% </li>"
+					# text
+					msg_text = "<ul>"
+					msg_text = msg_text + "<li>State: "+ gcode_state + " </li>"
+					msg_text = msg_text + f"<li>Percent: {percent_done}% </li>"
 				if('subtask_name' in dataDict['print']):
 					msg_text = msg_text + "<li>Name: "+ dataDict['print']['subtask_name'] + " </li>"
-				msg_text = msg_text + f"<li>Remaining time: {remaining_time} Mins</li>"
-				msg_text = msg_text + "<li>Started: "+ my_datetime + " </li>"
-				msg_text = msg_text + "<li>Aprox End: "+ my_finish_datetime + "</li>"
+					msg_text = msg_text + f"<li>Remaining time: {remaining_time} Mins</li>"
+					msg_text = msg_text + "<li>Started: "+ my_datetime + " </li>"
+					msg_text = msg_text + "<li>Aprox End: "+ my_finish_datetime + "</li>"
 
 				# failed
-				fail_reason = ""
 				if( ('fail_reason' in dataDict['print'] and len(dataDict['print']['fail_reason']) > 1) or ( 'print_error' in dataDict['print'] and dataDict['print']['print_error'] != 0 ) or gcode_state == "FAILED" ):
+					# Build the error message
 					msg_text = msg_text + f"<li>print_error: {dataDict['print']['print_error']}</li>"
 					msg_text = msg_text + f"<li>mc_print_error_code: {dataDict['print']['mc_print_error_code']}</li>"
 					msg_text = msg_text + f"<li>HMS code: {dataDict['print']['hms']}</li>"
 
+					# Assign fail_reason
 					error_code = int(dataDict['print']['mc_print_error_code'])
-					if(error_code == 32778):
-						fail_reason = "Arrr! Swab the poop deck!"
-					elif(error_code == 32771):
-						fail_reason = "Spaghetti and meatballs!"
-					elif(error_code == 32773):
-						fail_reason = "Didn't pull out!"
-					elif(error_code == 32774):
-						fail_reason = "Build plate mismatch!"
-					elif(error_code == 32769):
-						fail_reason = "Let's take a moment to PAUSE!"
-					else:
-						fail_reason = dataDict['print']['fail_reason']
-					msg_text = msg_text + "<li>fail_reason: "+ fail_reason + "</li>"
+					fail_reason = "Print Canceled" if ('fail_reason' in dataDict['print'] and len(dataDict['print']['fail_reason']) > 1 and dataDict['print']['fail_reason'] != '50348044') else dataDict['print']['fail_reason']
+
+					# Set priority and potentially customize fail_reason based on error_code (optional)
 					priority = 1
+					if error_code in (32778, 32771, 32773, 32774, 32769):  # Check for specific error codes (optional)
+						fail_reason = {  # Update fail_reason with custom messages (optional)
+							32778: "Arrr! Swab the poop deck!",
+							32771: "Spaghetti and meatballs!",
+							32773: "Didn't pull out!",
+							32774: "Build plate mismatch!",
+							32769: "Let's take a moment to PAUSE!",
+						}.get(error_code, fail_reason)  # Use default if no custom message found
+
+					# Add fail_reason to message
+					msg_text = msg_text + f"<li>fail_reason: {fail_reason}</li>"
 
 					# Check if the message indicates a fail reason or print error cancel on the print if so turn off lights
-					if ('print_error' in dataDict['print'] and dataDict['print']['print_error'] == '50348044') or ('fail_reason' in dataDict['print'] and dataDict['print']['fail_reason'] == '50348044'):
+				if ('print_error' in dataDict['print'] and dataDict['print']['print_error'] == '50348044') or ('fail_reason' in dataDict['print'] and dataDict['print']['fail_reason'] == '50348044'):
 						# Turn off the WLED light
 						wled_client.turn_off()
 										
