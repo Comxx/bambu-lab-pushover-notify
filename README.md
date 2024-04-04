@@ -13,7 +13,7 @@ Why create this script? The iPhone Bambu Handy app notifications are not insiste
 - mqtt-explorer - Optional
 - Basic knowledge of git, windows scheduled tasks, task scheduler, starting an administrative powershell session, etc.
 - A pushover account [https://pushover.net](https://pushover.net) is required and a pushover application created [https://pushover.net/apps/build](https://pushover.net/apps/build).
-
+- Wled 
 ## Setup
 
 Start Powershell as admin (Windows 10). Assuming you're on the C:\ drive, follow the instructions below:
@@ -35,6 +35,7 @@ py -m pip install -U chump
 py -m pip install -U python-dateutil
 py -m pip install -U datetime
 py -m pip install -U tzlocal
+py -m pip install -U wled
 ```
 
 Optional: Install mqtt-explorer, this can be used to obtain the device ID (serial number) from the printer. You'll need to know your X1C access code, which can be obtained from the X1C screen by navigating to the cog wheel and clicking the network tab.
@@ -53,7 +54,7 @@ The Device ID (serial number) can also be found in Bambu Studio. Navigate to the
 Clone this repo
 ```
 cd\
-git clone https://github.com/ChadDevOps/bambu-lab-pushover-notify.git
+git clone https://github.com/Comxx/bambu-lab-pushover-notify.git
 ```
 
 Update [vardata.py](vardata.py) with your settings.
@@ -72,6 +73,7 @@ port = 8883 # default port
 user = 'bblp' # default user
 password = 'alphanumeric_code' # access code from bambu x1c screen under cog wheel / network tab
 device_id = '0SOMETHING' # use mqtt-explorer to obtain or Bambu Studio, see details above
+WLED_IP_ADDRESS = '127.0.0.7' # IP to the WLED Ligth
 ```
 
 To start monitoring on Windows startup, open task scheduler and import bambu_monitor.xml. Modify paths in xml if you did not clone to the C: drive. This will launch run.bat on windows startup as SYSTEM.

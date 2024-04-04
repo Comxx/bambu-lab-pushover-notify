@@ -12,5 +12,5 @@ user = 'bblp' # default user
 password = 'alphanumeric_code' # access code from bambu x1c screen under cog wheel / network tab
 device_id = '0SOMETHING' # use mqtt-explorer to obtain or Bambu Studio, see readme.md for details
 
-# Connect to the WLED device
+#  WLED device IP
 WLED_IP_ADDRESS = '127.0.0.7' # IP to the WLED Ligth
