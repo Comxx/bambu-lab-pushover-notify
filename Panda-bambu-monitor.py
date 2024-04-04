@@ -10,6 +10,7 @@ from chump import Application
 from dateutil.parser import parse
 from datetime import datetime, timedelta
 import tzlocal
+import wled
 
 dash = '\n-------------------------------------------\n'
 gcode_state_prev = ''
@@ -18,6 +19,7 @@ percent_notify = False
 po_app = Application(my_pushover_app)
 po_user = po_app.get_user(my_pushover_user)
 percent_done = 0
+wled_client = wled.WLEDClient(WLED_IP_ADDRESS)
 
 def parse_message(self, message):
 	dataDict = json.loads(message)
@@ -109,6 +111,33 @@ def on_message(client, userdata, msg):
 					msg_text = msg_text + "<li>fail_reason: "+ fail_reason + "</li>"
 					priority = 1
 
+					# Check if the message indicates a fail reason or print error cancel on the print if so turn off lights
+					if ('print_error' in dataDict['print'] and dataDict['print']['print_error'] == '50348044') or ('fail_reason' in dataDict['print'] and dataDict['print']['fail_reason'] == '50348044'):
+						# Turn off the WLED light
+						wled_client.turn_off()
+										
+						Chamberlight_off = {
+							"system": {
+								"sequence_id": "0",
+								"command": "ledctrl",
+								"led_node": "chamber_light",
+								"led_mode": "off",
+								"led_on_time": 500,
+								"led_off_time": 500,
+								"loop_times": 0,
+								"interval_time": 0
+							}
+						}
+						ChamberLogo_off = {
+							"print": {
+								"sequence_id": "2026",
+								"command": "M960 S5 P0",
+								"param": "\n"
+							},
+							"user_id": "1234567890"
+						}
+						client.publish("device/"+device_id+"/report", json.dumps(Chamberlight_off))
+						client.publish("device/"+device_id+"/report", json.dumps(ChamberLogo_off))
 				# pushover notify
 				if(not first_run):
 					msg_text = msg_text + "</ul>"

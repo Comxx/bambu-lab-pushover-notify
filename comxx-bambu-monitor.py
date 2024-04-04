@@ -114,6 +114,7 @@ def on_message(client, userdata, msg):
 				if ('print_error' in dataDict['print'] and dataDict['print']['print_error'] == '50348044') or ('fail_reason' in dataDict['print'] and dataDict['print']['fail_reason'] == '50348044'):
 					# Turn off the WLED light
 					wled_client.turn_off()
+					
 					Chamberlight_off = {
 						"system": {
 							"sequence_id": "0",
@@ -126,7 +127,16 @@ def on_message(client, userdata, msg):
 							"interval_time": 0
 						}
 					}
+					ChamberLogo_off = {
+						"print": {
+							"sequence_id": "2026",
+							"command": "M960 S5 P0",
+							"param": "\n"
+						},
+						"user_id": "1234567890"
+					}
 					client.publish("device/"+device_id+"/report", json.dumps(Chamberlight_off))
+					client.publish("device/"+device_id+"/report", json.dumps(ChamberLogo_off))
 
 				# pushover notify
 				if(not first_run):
