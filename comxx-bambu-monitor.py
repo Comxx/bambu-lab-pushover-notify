@@ -10,6 +10,7 @@ from chump import Application
 from dateutil.parser import parse
 from datetime import datetime, timedelta
 import tzlocal
+import wled
 
 dash = '\n-------------------------------------------\n'
 gcode_state_prev = ''
@@ -18,6 +19,8 @@ percent_notify = False
 po_app = Application(my_pushover_app)
 po_user = po_app.get_user(my_pushover_user)
 percent_done = 0
+# Connect to the WLED device
+wled_client = wled.WLEDClient(WLED_IP_ADDRESS)
 
 def parse_message(self, message):
 	dataDict = json.loads(message)
@@ -106,7 +109,24 @@ def on_message(client, userdata, msg):
 					else:
 						fail_reason = dataDict['print']['fail_reason']
 					msg_text = msg_text + "<li>fail_reason: "+ fail_reason + "</li>"
-					priority = 1
+					priority = 1   
+					# Check if the message indicates a fail reason or print error cancel on the print if so turn off lights
+				if ('print_error' in dataDict['print'] and dataDict['print']['print_error'] == '50348044') or ('fail_reason' in dataDict['print'] and dataDict['print']['fail_reason'] == '50348044'):
+					# Turn off the WLED light
+					wled_client.turn_off()
+					Chamberlight_off = {
+						"system": {
+							"sequence_id": "0",
+							"command": "ledctrl",
+							"led_node": "chamber_light",
+							"led_mode": "off",
+							"led_on_time": 500,
+							"led_off_time": 500,
+							"loop_times": 0,
+							"interval_time": 0
+						}
+					}
+					client.publish("device/"+device_id+"/report", json.dumps(Chamberlight_off))
 
 				# pushover notify
 				if(not first_run):
@@ -136,7 +156,7 @@ def main(argv):
 	logfile_path = "logs/"
 	logfile_name = f"{logfile_path}output_{datetime_str}.log"
 	loglevel = logging.INFO
-	logging.basicConfig(filename=logfile_name, format='%(asctime)s %(levelname)s: %(message)s', level=loglevel)
+	logging.basicConfig(filename=logfile_name, format='%(asctime)%m-%d-%Y %I:%M:%S %p %(levelname)s: %(message)s', level=loglevel)
 	logging.info("Starting")
     #Mqtt Set up
 	client = paho.Client(paho.CallbackAPIVersion.VERSION2)
@@ -147,7 +167,6 @@ def main(argv):
 	client.on_message = on_message
 	client.connect(host, port, 60)
 	client.loop_forever()
-
 
 if __name__ == "__main__":
 	main(sys.argv[1:])
