@@ -10,7 +10,7 @@ from chump import Application
 from dateutil.parser import parse
 from datetime import datetime, timedelta
 import tzlocal
-import wled
+from wled import WLED
 
 dash = '\n-------------------------------------------\n'
 gcode_state_prev = ''
@@ -19,7 +19,7 @@ percent_notify = False
 po_app = Application(my_pushover_app)
 po_user = po_app.get_user(my_pushover_user)
 percent_done = 0
-wled_client = wled.WLEDClient(WLED_IP_ADDRESS)
+WLED_client = WLED.WLEDClient(WLED_IP_ADDRESS)
 
 def parse_message(self, message):
 	dataDict = json.loads(message)
@@ -116,7 +116,7 @@ def on_message(client, userdata, msg):
 					# Check if the message indicates a fail reason or print error cancel on the print if so turn off lights
 				if ('print_error' in dataDict['print'] and dataDict['print']['print_error'] == '50348044') or ('fail_reason' in dataDict['print'] and dataDict['print']['fail_reason'] == '50348044'):
 						# Turn off the WLED light
-						wled_client.turn_off()
+						WLED_client.turn_off()
 										
 						Chamberlight_off = {
 							"system": {
