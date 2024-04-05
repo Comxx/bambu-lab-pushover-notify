@@ -1,18 +1,56 @@
 import requests
 
-url = "https://e.bambulab.com/query.php?lang=en"
-
-response = requests.get(url)
-
-if response.status_code == 200:
-    data = response.json()
-    english_errors = data["data"]["device_hms"]["en"]
+class ErrorChecker:
+    def __init__(self, attr, code):
+        self.attr = attr
+        self.code = code
     
-for error in english_errors:
-    ecode = error["ecode"]
-    intro = error["intro"]
-    print("Error Code:", ecode)
-    print("Description:", intro)
-    print()
-else:
-    print("Failed to fetch data:", response.status_code)
+    def hms_code(self):
+        if self.attr > 0 and self.code > 0:
+            return f'{int(self.attr / 0x10000):0>4X}_{self.attr & 0xFFFF:0>4X}_{int(self.code / 0x10000):0>4X}_{self.code & 0xFFFF:0>4X}' # 0300_0100_0001_0007
+        return ""
+    
+    def check_errors(self):
+        url = "https://e.bambulab.com/query.php?lang=en"
+        response = requests.get(url)
+        
+        if response.status_code == 200:
+            data = response.json()
+            
+            # Extracting English error codes and descriptions
+            english_errors = data["data"]["device_hms"]["en"]
+            
+            # Create a temporary JSON structure for hms data if it's not present in the response
+            hms_json = data["data"]["device_hms"].get("hms", [])
+            
+            # Function to search for a specific error code
+            def search_error(error_code, error_list):
+                for error in error_list:
+                    if error["ecode"] == error_code:
+                        return error
+                return None
+            
+            # Example: Searching for device_hms error code
+            device_error_code_to_search = self.hms_code()
+            error_code_to_hms_cleaned = device_error_code_to_search.replace("hms_", "")
+            error_code_to_search_cleaned = error_code_to_hms_cleaned.replace("_", "")
+            found_device_error = search_error(error_code_to_search_cleaned, english_errors)
+
+            # Example: Searching for reporting error code
+            reporting_error_code_to_search = self.code
+            found_reporting_error = search_error(reporting_error_code_to_search, hms_json)
+
+            if found_device_error:
+                print("Device Error Code:", device_error_code_to_search)
+                print("Description:", found_device_error["intro"])
+                print("URL:", f"https://wiki.bambulab.com/en/x1/troubleshooting/hmscode/{error_code_to_hms_cleaned}")
+            else:
+                print("Device error code", device_error_code_to_search, "not found.")
+        else:
+            print("Failed to fetch data:", response.status_code)
+
+# Example usage
+attr_value = 50336000
+code_value = 131074
+error_checker = ErrorChecker(attr_value, code_value)
+error_checker.check_errors()
