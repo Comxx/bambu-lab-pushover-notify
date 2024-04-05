@@ -10,7 +10,7 @@ from chump import Application
 from dateutil.parser import parse
 from datetime import datetime, timedelta
 import tzlocal
-from wled import WLED
+
 
 dash = '\n-------------------------------------------\n'
 gcode_state_prev = ''
@@ -19,8 +19,7 @@ percent_notify = False
 po_app = Application(my_pushover_app)
 po_user = po_app.get_user(my_pushover_user)
 percent_done = 0
-# Connect to the WLED device
-WLED_client = WLED.WLEDClient(WLED_IP_ADDRESS)
+
 
 def parse_message(self, message):
 	dataDict = json.loads(message)
@@ -116,9 +115,8 @@ def on_message(client, userdata, msg):
 
 					# Check if the message indicates a fail reason or print error cancel on the print if so turn off lights
 				if ('print_error' in dataDict['print'] and dataDict['print']['print_error'] == '50348044') or ('fail_reason' in dataDict['print'] and dataDict['print']['fail_reason'] == '50348044'):
-						# Turn off the WLED light
-						WLED_client.turn_off()
-														
+						# Turn off the lights
+								
 						Chamberlight_off = {
 							"system": {
 								"sequence_id": "0",
@@ -141,6 +139,7 @@ def on_message(client, userdata, msg):
 						}
 						client.publish("device/"+device_id+"/report", json.dumps(Chamberlight_off))
 						client.publish("device/"+device_id+"/report", json.dumps(ChamberLogo_off))
+				
 				# pushover notify
 				if(not first_run):
 					msg_text = msg_text + "</ul>"
@@ -168,7 +167,7 @@ def main(argv):
 	logfile_path = "logs/"
 	logfile_name = f"{logfile_path}output_{datetime_str}.log"
 	loglevel = logging.INFO
-	logging.basicConfig(filename=logfile_name, format='%(asctime)%m-%d-%Y %I:%M:%S %p %(levelname)s: %(message)s', level=loglevel)
+	logging.basicConfig(filename=logfile_name, format='%(asctime)s %(levelname)s: %(message)s', level=loglevel, datefmt='%m-%d-%Y %I:%M:%S %p')
 	logging.info("Starting")
     #Mqtt Set up
 	client = paho.Client(paho.CallbackAPIVersion.VERSION2)
