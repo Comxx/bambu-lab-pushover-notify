@@ -11,7 +11,6 @@ from dateutil.parser import parse
 from datetime import datetime, timedelta
 import tzlocal
 
-
 dash = '\n-------------------------------------------\n'
 gcode_state_prev = ''
 first_run = False

@@ -20,7 +20,6 @@ po_app = Application(my_pushover_app)
 po_user = po_app.get_user(my_pushover_user)
 percent_done = 0
 
-
 def parse_message(self, message):
 	dataDict = json.loads(message)
 	return dataDict
@@ -33,6 +32,7 @@ def on_message(client, userdata, msg):
 	#logging.info("received message with topic"+msg.topic)
 	msgData = msg.payload.decode('utf-8')
 	dataDict = json.loads(msgData)
+
 	if('print' in dataDict):
 		if('gcode_state' in dataDict['print']):
 			gcode_state = dataDict['print']['gcode_state']
