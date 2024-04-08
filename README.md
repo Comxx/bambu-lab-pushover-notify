@@ -35,7 +35,6 @@ py -m pip install -U chump
 py -m pip install -U python-dateutil
 py -m pip install -U datetime
 py -m pip install -U tzlocal
-py -m pip install -U wled
 ```
 
 Optional: Install mqtt-explorer, this can be used to obtain the device ID (serial number) from the printer. You'll need to know your X1C access code, which can be obtained from the X1C screen by navigating to the cog wheel and clicking the network tab.
