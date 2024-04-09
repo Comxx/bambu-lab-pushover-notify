@@ -13,8 +13,8 @@ import requests
 
 # Constants
 DASH = '\n-------------------------------------------\n'
-PO_TITLE = "Bambu Printer"
-PO_SOUND = 'magic'
+PO_TITLE = "Testing Bambu Printer"
+PO_SOUND = 'classical'
 
 # Global state
 state = {
@@ -40,7 +40,7 @@ def setup_logging():
 def hms_code(attr, code):
     """Generates a formatted HMS code from attributes and code."""
     if attr > 0 and code > 0:
-        return f'{int(attr / 0x10000):0>4X}_{attr & 0xFFFF:0>4X}_{int(code / 0x10000):0>4X}_{code & 0xFFFF:0>4X}'
+        return f'{int(attr / 0x10000):0>4X}_{attr & 0xFFFF:0>4X}_{int(code / 0x10000):0>4X}_{code & 0xFFFF:0>4X}'.replace('[', '').replace(']', '')
     return ""
 
 def fetch_english_errors():
@@ -90,9 +90,10 @@ def process_print_data(dataDict, client, english_errors):
     msg_text = "<ul>"
     priority = 0  # Default priority
     device_error_code_to_search = dataDict['print'].get('hms', 'N/A')
-    found_device_error = fetch_english_errors().get(device_error_code_to_search, {'intro': 'Error description not found'})
+    found_device_error = next((error for error in english_errors if error["ecode"] == device_error_code_to_search), {'intro': 'Error description not found'})
     error_code_to_hms_cleaned = device_error_code_to_search.replace('_', '')
     if 'print' in dataDict:
+    
         if 'gcode_state' in dataDict['print']:
             gcode_state = dataDict['print']['gcode_state']
             logging.info("gcode_state has changed to " + gcode_state)
@@ -144,8 +145,8 @@ def process_print_data(dataDict, client, english_errors):
             msg_text += f"<li>mc_print_error_code: {dataDict['print'].get('mc_print_error_code', 'N/A')}</li>"
             msg_text += f"<li>HMS code: {device_error_code_to_search}</li>"
             msg_text += f"<li>Description: {found_device_error['intro']}</li>"
-            msg_text += f"<li>URL: https://wiki.bambulab.com/en/x1/troubleshooting/hmscode/{error_code_to_hms_cleaned}</li>"
-
+            if device_error_code_to_search:
+                msg_text += f"<li>URL: https://wiki.bambulab.com/en/x1/troubleshooting/hmscode/{error_code_to_hms_cleaned}</li>"
             error_code = int(dataDict['print'].get('mc_print_error_code', 0))
             fail_reason = "Print Canceled" if ('fail_reason' in dataDict['print'] and len(dataDict['print']['fail_reason']) > 1 and dataDict['print']['fail_reason'] != '50348044') else dataDict['print'].get('fail_reason', 'N/A')
 
@@ -195,27 +196,43 @@ def process_print_data(dataDict, client, english_errors):
             if state['gcode_state_prev'] != gcode_state or (state['gcode_state_prev'] != gcode_state and not state['percent_notify'] and state['percent_done'] >= notify_at_percent):
                 if notify_at_percent <= state['percent_done']:
                     state['percent_notify'] = True
-                    # Your logic for handling the message content
-                    # msg_text += "<li>State: " + gcode_state + " </li>"
-                    # And so on...
-        else:
+                   
             state['first_run'] = False
 
         # After processing, send the message if needed
         if msg_text != "<ul>":
             msg_text += "</ul>"
-            message = po_user.create_message(
-                title=PO_TITLE,
-                message=msg_text,
-                html=True,
-                sound=PO_SOUND,
-                priority=priority
-            )
-            message.send()
-            if priority == 1:
-                for x in range(repeat_errors):
-                    time.sleep(pause_error_secs)
+            try:
+                message = po_user.create_message(
+                    title=PO_TITLE,
+                    message=msg_text,
+                    html=True,
+                    sound=PO_SOUND,  # This is where the sound is specified
+                    priority=priority
+                )
+                message.send()
+                if priority == 1:
+                    for x in range(repeat_errors):
+                        time.sleep(pause_error_secs)
+                        message.send()
+            except ValueError as e:
+                logging.error(f"Failed to send Pushover message due to invalid sound: {e}")
+                # Optionally, send the message with a default sound if the specified one is invalid
+                try:
+                    message = po_user.create_message(
+                        title=PO_TITLE,
+                        message=msg_text,
+                        html=True,
+                        sound='pushover',  # Using a default sound
+                        priority=priority
+                    )
                     message.send()
+                    if priority == 1:
+                        for x in range(repeat_errors):
+                            time.sleep(pause_error_secs)
+                            message.send()
+                except Exception as e:
+                    logging.error(f"Unexpected error when sending Pushover message with default sound: {e}")
 
 def main(argv):
     try:
