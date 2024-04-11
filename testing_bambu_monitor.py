@@ -1,21 +1,23 @@
-#!/usr/bin/python3
-from vardata import *
-import paho.mqtt.client as paho
+"""
+Module-level docstring: This script is used for monitoring the Bambu X1C and sending pushover notifications on gcode_state changes.
+"""
 import logging
 import json
 import sys
 import ssl
 import time
-from chump import Application
 from datetime import datetime, timedelta
+import paho.mqtt.client as paho
+from chump import Application
 import tzlocal
 import requests
-
+from vardata import *
 # Constants
 DASH = '\n-------------------------------------------\n'
 PO_TITLE = "Testing Bambu Printer"
 PO_SOUND = 'classical'
-
+# Add a global variable to store the last known gcode_state
+last_gcode_state = ""
 # Global state
 state = {
     'gcode_state_prev': '',
@@ -38,9 +40,27 @@ def setup_logging():
     logging.basicConfig(filename=logfile_name, format='%(asctime)s %(levelname)s: %(message)s', level=logging.INFO, datefmt='%m-%d-%Y %I:%M:%S %p')
 
 def hms_code(attr, code):
-    """Generates a formatted HMS code from attributes and code."""
+    """Generates a formatted HMS code from attributes and code.
+
+    Args:
+        attr (int): The attribute.
+        code (int): The code.
+
+    Returns:
+        str: The formatted HMS code.
+
+    Raises:
+        ValueError: If attr or code is not a positive integer.
+    """
+    if not isinstance(attr, int) or attr < 0:
+        raise ValueError("attr must be a positive integer")
+    if not isinstance(code, int) or code < 0:
+        raise ValueError("code must be a positive integer")
+
     if attr > 0 and code > 0:
-        return f'{int(attr / 0x10000):0>4X}_{attr & 0xFFFF:0>4X}_{int(code / 0x10000):0>4X}_{code & 0xFFFF:0>4X}'
+        formatted_attr = f'{attr // 0x10000:0>4X}_{attr % 0x10000:0>4X}'
+        formatted_code = f'{code // 0x10000:0>4X}_{code % 0x10000:0>4X}'
+        return f'{formatted_attr}_{formatted_code}'
     return ""
 
 # Add a global variable to store the last fetch timestamp and cached data
@@ -53,12 +73,13 @@ def fetch_english_errors():
     if last_fetch_time is None or (datetime.now() - last_fetch_time).days >= 1:
         url = "https://e.bambulab.com/query.php?lang=en"
         try:
-            response = requests.get(url)
-            response.raise_for_status()  # Raises an HTTPError for bad responses
-            data = response.json()
-            last_fetch_time = datetime.now()  # Update last fetch time
-            cached_data = data["data"]["device_hms"]["en"]
-            return cached_data
+            response = requests.get(url, timeout=60)  # Specify a timeout value (e.g., 10 seconds)
+            if response.status_code == 200:
+             response.raise_for_status()  # Raises an HTTPError for bad responses
+             data = response.json()
+             last_fetch_time = datetime.now()  # Update last fetch time
+             cached_data = data["data"]["device_hms"]["en"]
+             return cached_data
         except requests.exceptions.RequestException as e:
             logging.error(f"Failed to fetch data: {e}")
             return None
@@ -81,14 +102,13 @@ def on_connect(client, userdata, flags, reason_code, properties):
     client.subscribe("device/"+device_id+"/report", 0)
 
 # Add a global variable to store the last known gcode_state
-last_gcode_state = ""
 
 def on_message(client, userdata, msg):
     global state, last_gcode_state
     try:
         msgData = msg.payload.decode('utf-8')
         dataDict = json.loads(msgData)
-        
+
         english_errors = fetch_english_errors()
         if 'print' in dataDict:
             if 'gcode_state' in dataDict['print']:
