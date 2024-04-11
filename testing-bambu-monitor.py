@@ -69,16 +69,26 @@ def on_connect(client, userdata, flags, reason_code, properties):
     """Handles MQTT connect event."""
     client.subscribe("device/"+device_id+"/report", 0)
 
+# Add a global variable to store the last known gcode_state
+last_gcode_state = ""
+
 def on_message(client, userdata, msg):
-    """Handles incoming MQTT messages."""
-    global state
+    global state, last_gcode_state
     try:
         msgData = msg.payload.decode('utf-8')
         dataDict = json.loads(msgData)
         
         english_errors = fetch_english_errors()
         if 'print' in dataDict:
-            process_print_data(dataDict, client, english_errors)
+            if 'gcode_state' in dataDict['print']:
+                gcode_state = dataDict['print']['gcode_state']
+                logging.info("gcode_state has changed to " + gcode_state)
+                
+                if gcode_state != last_gcode_state:
+                    process_print_data(dataDict, client, english_errors)
+                    
+                    # Update the last known gcode_state
+                    last_gcode_state = gcode_state
     except json.JSONDecodeError:
         logging.error("Failed to decode JSON from MQTT message")
     except Exception as e:
@@ -90,16 +100,17 @@ def process_print_data(dataDict, client, english_errors):
     msg_text = "<ul>"
     priority = 0  # Default priority
     device_error_code_to_search = dataDict['print'].get('hms', 'N/A')
+    if english_errors is None:
+        logging.warning("English error data is not available.")
+        english_errors = []  # Initialize to an empty list to avoid NoneType error
     found_device_error = next((error for error in english_errors if error["ecode"] == device_error_code_to_search), {'intro': 'Error description not found'})
-    error_code_to_hms_cleaned = device_error_code_to_search.replace('_', '')
+    error_code_to_hms_cleaned = str(device_error_code_to_search).replace('_', '')
     if 'print' in dataDict:
     
         if 'gcode_state' in dataDict['print']:
             gcode_state = dataDict['print']['gcode_state']
-            logging.info("gcode_state has changed to " + gcode_state)
             json_formatted_str = json.dumps(dataDict, indent=2)
             logging.info(DASH + json_formatted_str + DASH)
-            state['gcode_state_prev'] = gcode_state  # Update global state
             msg_text += "<li>State: " + gcode_state + " </li>"
 
         if 'mc_percent' in dataDict['print']:
