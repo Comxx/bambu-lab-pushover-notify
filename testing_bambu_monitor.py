@@ -19,12 +19,9 @@ PO_SOUND = 'classical'
 # Add a global variable to store the last known gcode_state
 last_gcode_state = ""
 # Global state
-state = {
-    'gcode_state_prev': '',
-    'first_run': False,
-    'percent_notify': False,
-    'percent_done': 0,
-}
+first_run = False
+percent_notify = False
+percent_done = 0
 
 # Initialize Pushover application
 po_app = Application(my_pushover_app)
@@ -40,18 +37,7 @@ def setup_logging():
     logging.basicConfig(filename=logfile_name, format='%(asctime)s %(levelname)s: %(message)s', level=logging.INFO, datefmt='%m-%d-%Y %I:%M:%S %p')
 
 def hms_code(attr, code):
-    """Generates a formatted HMS code from attributes and code.
 
-    Args:
-        attr (int): The attribute.
-        code (int): The code.
-
-    Returns:
-        str: The formatted HMS code.
-
-    Raises:
-        ValueError: If attr or code is not a positive integer.
-    """
     if not isinstance(attr, int) or attr < 0:
         raise ValueError("attr must be a positive integer")
     if not isinstance(code, int) or code < 0:
@@ -127,7 +113,6 @@ def on_message(client, userdata, msg):
 
 def process_print_data(dataDict, client, english_errors):
     """Processes print data from the message."""
-    global state
     msg_text = "<ul>"
     priority = 0  # Default priority
     hms_data = dataDict['print'].get('hms', {'attr': 0, 'code': 0})
@@ -245,19 +230,11 @@ def process_print_data(dataDict, client, english_errors):
             client.publish("device/"+device_id+"/report", json.dumps(Chamberlight_off))
             client.publish("device/"+device_id+"/report", json.dumps(ChamberLogo_off))
 
-        # Logic to handle first run and notification
-        if not state['first_run']:
-            # Additional logic for handling notifications based on state changes
-            if state['gcode_state_prev'] != gcode_state or (state['gcode_state_prev'] != gcode_state and not state['percent_notify'] and state['percent_done'] >= notify_at_percent):
-                if notify_at_percent <= state['percent_done']:
-                    state['percent_notify'] = True
-                   
-            state['first_run'] = False
-
         # After processing, send the message if needed
         if msg_text != "<ul>":
             msg_text += "</ul>"
-            try:
+        try:
+            if not first_run:  
                 message = po_user.create_message(
                     title=PO_TITLE,
                     message=msg_text,
@@ -267,27 +244,32 @@ def process_print_data(dataDict, client, english_errors):
                 )
                 message.send()
                 if priority == 1:
-                    for x in range(repeat_errors):
+                    for _ in range(repeat_errors):
                         time.sleep(pause_error_secs)
                         message.send()
-            except ValueError as e:
+            else:
+                first_run = False 
+        except ValueError as e:
                 logging.error(f"Failed to send Pushover message due to invalid sound: {e}")
                 # Optionally, send the message with a default sound if the specified one is invalid
-                try:
-                    message = po_user.create_message(
-                        title=PO_TITLE,
-                        message=msg_text,
-                        html=True,
-                        sound='pushover',  # Using a default sound
-                        priority=priority
-                    )
-                    message.send()
-                    if priority == 1:
-                        for x in range(repeat_errors):
-                            time.sleep(pause_error_secs)
-                            message.send()
-                except Exception as e:
+        try:
+            if not first_run:    
+                message = po_user.create_message(
+                    title=PO_TITLE,
+                    message=msg_text,
+                    html=True,
+                    sound='pushover',  # Using a default sound
+                    priority=priority
+                )
+                message.send()
+                if priority == 1:
+                    for _ in range(repeat_errors):
+                        time.sleep(pause_error_secs)
+                        message.send()
+        except Exception as e:
                     logging.error(f"Unexpected error when sending Pushover message with default sound: {e}")
+        else:
+                first_run = False            
 
 def main(argv):
     try:
