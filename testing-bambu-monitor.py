@@ -19,7 +19,7 @@ PO_SOUND = 'classical'
 # Global state
 state = {
     'gcode_state_prev': '',
-    'first_run': True,
+    'first_run': False,
     'percent_notify': False,
     'percent_done': 0,
 }
@@ -40,23 +40,34 @@ def setup_logging():
 def hms_code(attr, code):
     """Generates a formatted HMS code from attributes and code."""
     if attr > 0 and code > 0:
-        return f'{int(attr / 0x10000):0>4X}_{attr & 0xFFFF:0>4X}_{int(code / 0x10000):0>4X}_{code & 0xFFFF:0>4X}'.replace('[', '').replace(']', '')
+        return f'{int(attr / 0x10000):0>4X}_{attr & 0xFFFF:0>4X}_{int(code / 0x10000):0>4X}_{code & 0xFFFF:0>4X}'
     return ""
+
+# Add a global variable to store the last fetch timestamp and cached data
+last_fetch_time = None
+cached_data = None
 
 def fetch_english_errors():
     """Fetches English error codes and descriptions from the Bambu site."""
-    url = "https://e.bambulab.com/query.php?lang=en"
-    try:
-        response = requests.get(url)
-        response.raise_for_status()  # Raises an HTTPError for bad responses
-        data = response.json()
-        return data["data"]["device_hms"]["en"]
-    except requests.exceptions.RequestException as e:
-        logging.error(f"Failed to fetch data: {e}")
-        return None
-    except json.JSONDecodeError:
-        logging.error("Failed to decode JSON from response")
-        return None
+    global last_fetch_time, cached_data
+    if last_fetch_time is None or (datetime.now() - last_fetch_time).days >= 1:
+        url = "https://e.bambulab.com/query.php?lang=en"
+        try:
+            response = requests.get(url)
+            response.raise_for_status()  # Raises an HTTPError for bad responses
+            data = response.json()
+            last_fetch_time = datetime.now()  # Update last fetch time
+            cached_data = data["data"]["device_hms"]["en"]
+            return cached_data
+        except requests.exceptions.RequestException as e:
+            logging.error(f"Failed to fetch data: {e}")
+            return None
+        except json.JSONDecodeError:
+            logging.error("Failed to decode JSON from response")
+            return None
+    else:
+        logging.info("Using cached English error data")
+        return cached_data  # Return cached data if not expired
 
 def search_error(error_code, error_list):
     """Searches for a specific error code in the error list."""
@@ -99,12 +110,25 @@ def process_print_data(dataDict, client, english_errors):
     global state
     msg_text = "<ul>"
     priority = 0  # Default priority
-    device_error_code_to_search = dataDict['print'].get('hms', 'N/A')
+    hms_data = dataDict['print'].get('hms', {'attr': 0, 'code': 0})
+    
+    # Extract 'attr' and 'code' from hms_data
+    attr = hms_data.get('attr', 0)
+    code = hms_data.get('code', 0)
+    
+    # Format the device_error_code using hms_code function
+    device__HMS_error_code = hms_code(attr, code)
+    
+    # Fetch English errors
+    english_errors = fetch_english_errors()
+    
     if english_errors is None:
         logging.warning("English error data is not available.")
         english_errors = []  # Initialize to an empty list to avoid NoneType error
-    found_device_error = next((error for error in english_errors if error["ecode"] == device_error_code_to_search), {'intro': 'Error description not found'})
-    error_code_to_hms_cleaned = str(device_error_code_to_search).replace('_', '')
+    
+    
+    error_code_to_hms_cleaned = str(device__HMS_error_code).replace('_', '')
+    found_device_error = search_error(error_code_to_hms_cleaned, english_errors)
     if 'print' in dataDict:
     
         if 'gcode_state' in dataDict['print']:
@@ -154,9 +178,9 @@ def process_print_data(dataDict, client, english_errors):
         if ('fail_reason' in dataDict['print'] and len(dataDict['print']['fail_reason']) > 1) or ('print_error' in dataDict['print'] and dataDict['print']['print_error'] != 0) or gcode_state == "FAILED":
             msg_text += f"<li>print_error: {dataDict['print'].get('print_error', 'N/A')}</li>"
             msg_text += f"<li>mc_print_error_code: {dataDict['print'].get('mc_print_error_code', 'N/A')}</li>"
-            msg_text += f"<li>HMS code: {device_error_code_to_search}</li>"
+            msg_text += f"<li>HMS code: {device__HMS_error_code}</li>"
             msg_text += f"<li>Description: {found_device_error['intro']}</li>"
-            if device_error_code_to_search:
+            if device__HMS_error_code:
                 msg_text += f"<li>URL: https://wiki.bambulab.com/en/x1/troubleshooting/hmscode/{error_code_to_hms_cleaned}</li>"
             error_code = int(dataDict['print'].get('mc_print_error_code', 0))
             fail_reason = "Print Canceled" if ('fail_reason' in dataDict['print'] and len(dataDict['print']['fail_reason']) > 1 and dataDict['print']['fail_reason'] != '50348044') else dataDict['print'].get('fail_reason', 'N/A')
@@ -259,6 +283,7 @@ def main(argv):
         client.loop_forever()
     except Exception as e:
         logging.error(f"Fatal error in main: {e}")
+        print("Fatal error Please read Logs")
 
 if __name__ == "__main__":
     main(sys.argv[1:])
