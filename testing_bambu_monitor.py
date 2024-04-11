@@ -87,10 +87,9 @@ def on_connect(client, userdata, flags, reason_code, properties):
     """Handles MQTT connect event."""
     client.subscribe("device/"+device_id+"/report", 0)
 
-# Add a global variable to store the last known gcode_state
-
 def on_message(client, userdata, msg):
-    global state, last_gcode_state
+    global last_gcode_state
+    english_errors = []  # Initialize english_errors as an empty list
     try:
         msgData = msg.payload.decode('utf-8')
         dataDict = json.loads(msgData)
@@ -143,8 +142,8 @@ def process_print_data(dataDict, client, english_errors):
             msg_text += "<li>State: " + gcode_state + " </li>"
 
         if 'mc_percent' in dataDict['print']:
-            state['percent_done'] = dataDict['print']['mc_percent']
-            msg_text += f"<li>Percent: {state['percent_done']}% </li>"
+            percent_done = dataDict['print']['mc_percent']
+            msg_text += f"<li>Percent: {percent_done}% </li>"
 
         if 'subtask_name' in dataDict['print']:
             msg_text += "<li>Name: " + dataDict['print']['subtask_name'] + " </li>"
@@ -289,3 +288,4 @@ def main(argv):
 
 if __name__ == "__main__":
     main(sys.argv[1:])
+
