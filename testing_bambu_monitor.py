@@ -88,7 +88,7 @@ def on_connect(client, userdata, flags, reason_code, properties):
     client.subscribe("device/"+device_id+"/report", 0)
 
 def on_message(client, userdata, msg):
-    global last_gcode_state
+    global last_gcode_state, first_run
     english_errors = []  # Initialize english_errors as an empty list
     try:
         msgData = msg.payload.decode('utf-8')
@@ -112,6 +112,7 @@ def on_message(client, userdata, msg):
 
 def process_print_data(dataDict, client, english_errors):
     """Processes print data from the message."""
+    global first_run
     msg_text = "<ul>"
     priority = 0  # Default priority
     hms_data = dataDict['print'].get('hms', [{'attr': 0, 'code': 0}])
