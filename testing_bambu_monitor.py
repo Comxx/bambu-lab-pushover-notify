@@ -22,7 +22,7 @@ last_gcode_state = ""
 first_run = False
 percent_notify = False
 percent_done = 0
-
+message_sent = False
 # Initialize Pushover application
 po_app = Application(my_pushover_app)
 po_user = po_app.get_user(my_pushover_user)
@@ -73,7 +73,7 @@ def fetch_english_errors():
             logging.error("Failed to decode JSON from response")
             return None
     else:
-        logging.info("Using cached English error data")
+        ##logging.info("Using cached English error data")
         return cached_data  # Return cached data if not expired
 
 def search_error(error_code, error_list):
@@ -88,8 +88,10 @@ def on_connect(client, userdata, flags, reason_code, properties):
     client.subscribe("device/"+device_id+"/report", 0)
 
 def on_message(client, userdata, msg):
-    global last_gcode_state, first_run
-    english_errors = []  # Initialize english_errors as an empty list
+    global last_gcode_state, first_run, message_sent
+    english_errors = []
+    message_sent = False
+      # Initialize english_errors as an empty list
     try:
         msgData = msg.payload.decode('utf-8')
         dataDict = json.loads(msgData)
@@ -98,7 +100,7 @@ def on_message(client, userdata, msg):
         if 'print' in dataDict:
             if 'gcode_state' in dataDict['print']:
                 gcode_state = dataDict['print']['gcode_state']
-                logging.info("gcode_state has changed to " + gcode_state)
+                ##logging.info("gcode_state has changed to " + gcode_state)
                 
                 if gcode_state != last_gcode_state:
                     process_print_data(dataDict, client, english_errors)
@@ -112,7 +114,7 @@ def on_message(client, userdata, msg):
 
 def process_print_data(dataDict, client, english_errors):
     """Processes print data from the message."""
-    global first_run
+    global first_run, message_sent
     msg_text = "<ul>"
     priority = 0  # Default priority
     hms_data = dataDict['print'].get('hms', [{'attr': 0, 'code': 0}])
@@ -238,6 +240,7 @@ def process_print_data(dataDict, client, english_errors):
         # After processing, send the message if needed
         if msg_text != "<ul>":
             msg_text += "</ul>"
+    if not message_sent:
         try:
             if not first_run:  
                 message = po_user.create_message(
@@ -253,29 +256,31 @@ def process_print_data(dataDict, client, english_errors):
                         time.sleep(pause_error_secs)
                         message.send()
             else:
-                first_run = False 
+                first_run = False
+            message_sent = True 
         except ValueError as e:
                 logging.error(f"Failed to send Pushover message due to invalid sound: {e}")
                 # Optionally, send the message with a default sound if the specified one is invalid
-        try:
-            if not first_run:    
-                message = po_user.create_message(
-                    title=PO_TITLE,
-                    message=msg_text,
-                    html=True,
-                    sound='pushover',  # Using a default sound
-                    priority=priority
-                )
-                message.send()
-                if priority == 1:
-                    for _ in range(repeat_errors):
-                        time.sleep(pause_error_secs)
+    
+                try:
+                    if not first_run:    
+                        message = po_user.create_message(
+                            title=PO_TITLE,
+                            message=msg_text,
+                            html=True,
+                            sound='pushover',  # Using a default sound
+                            priority=priority
+                        )
                         message.send()
-        except Exception as e:
-                    logging.error(f"Unexpected error when sending Pushover message with default sound: {e}")
-        else:
-                first_run = False            
-
+                        if priority == 1:
+                            for _ in range(repeat_errors):
+                                time.sleep(pause_error_secs)
+                                message.send()
+                except Exception as e:
+                            logging.error(f"Unexpected error when sending Pushover message with default sound: {e}")
+                else:
+                        first_run = False            
+                message_sent = True
 def main(argv):
     try:
         setup_logging()
@@ -294,3 +299,4 @@ def main(argv):
 
 if __name__ == "__main__":
     main(sys.argv[1:])
+
