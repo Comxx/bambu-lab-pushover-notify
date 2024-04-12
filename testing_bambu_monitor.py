@@ -73,7 +73,7 @@ def fetch_english_errors():
             logging.error("Failed to decode JSON from response")
             return None
     else:
-        ##logging.info("Using cached English error data")
+        logging.info("Using cached English error data")
         return cached_data  # Return cached data if not expired
 
 def search_error(error_code, error_list):
@@ -100,7 +100,7 @@ def on_message(client, userdata, msg):
         if 'print' in dataDict:
             if 'gcode_state' in dataDict['print']:
                 gcode_state = dataDict['print']['gcode_state']
-                ##logging.info("gcode_state has changed to " + gcode_state)
+                logging.info("gcode_state has changed to " + gcode_state)
                 
                 if gcode_state != last_gcode_state:
                     process_print_data(dataDict, client, english_errors)
