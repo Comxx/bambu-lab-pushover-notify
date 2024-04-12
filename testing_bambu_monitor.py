@@ -234,7 +234,7 @@ def process_print_data(dataDict, client, english_errors):
             }
             client.publish("device/"+device_id+"/report", json.dumps(Chamberlight_off))
             client.publish("device/"+device_id+"/report", json.dumps(ChamberLogo_off))
-
+            logging.info("Lights OFF")
         # After processing, send the message if needed
         if msg_text != "<ul>":
             msg_text += "</ul>"
