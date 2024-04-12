@@ -114,7 +114,12 @@ def process_print_data(dataDict, client, english_errors):
     """Processes print data from the message."""
     msg_text = "<ul>"
     priority = 0  # Default priority
-    hms_data = dataDict['print'].get('hms', [{'attr': 0, 'code': 0}])[0]
+    hms_data = dataDict['print'].get('hms', [{'attr': 0, 'code': 0}])
+
+    if hms_data:  # Check if hms_data is not empty
+        hms_data = hms_data[0]  # Get the first element if hms_data is not empty
+    else:
+        hms_data = {'attr': 0, 'code': 0}  # Default values if hms_data is empty
 
     # Extract 'attr' and 'code' from hms_data
     attr = hms_data.get('attr', 0)
@@ -288,4 +293,3 @@ def main(argv):
 
 if __name__ == "__main__":
     main(sys.argv[1:])
-
