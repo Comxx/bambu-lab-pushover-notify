@@ -114,8 +114,8 @@ def process_print_data(dataDict, client, english_errors):
     """Processes print data from the message."""
     msg_text = "<ul>"
     priority = 0  # Default priority
-    hms_data = dataDict['print'].get('hms', {'attr': 0, 'code': 0})
-    
+    hms_data = dataDict['print'].get('hms', [{'attr': 0, 'code': 0}])[0]
+
     # Extract 'attr' and 'code' from hms_data
     attr = hms_data.get('attr', 0)
     code = hms_data.get('code', 0)
