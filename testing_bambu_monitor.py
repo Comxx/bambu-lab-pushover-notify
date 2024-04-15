@@ -91,6 +91,7 @@ def on_message(client, userdata, msg):
     global last_gcode_state, first_run, message_sent
     english_errors = []
     message_sent = False
+    
       # Initialize english_errors as an empty list
     try:
         msgData = msg.payload.decode('utf-8')
@@ -113,133 +114,122 @@ def on_message(client, userdata, msg):
         logging.error(f"Unexpected error in on_message: {e}")
 
 def process_print_data(dataDict, client, english_errors):
-    """Processes print data from the message."""
     global first_run, message_sent
     msg_text = "<ul>"
-    priority = 0  # Default priority
+    priority = 0
     hms_data = dataDict['print'].get('hms', [{'attr': 0, 'code': 0}])
-
-    if hms_data:  # Check if hms_data is not empty
-        hms_data = hms_data[0]  # Get the first element if hms_data is not empty
+    
+    if hms_data:
+        hms_data = hms_data[0]
     else:
-        hms_data = {'attr': 0, 'code': 0}  # Default values if hms_data is empty
-
-    # Extract 'attr' and 'code' from hms_data
+        hms_data = {'attr': 0, 'code': 0}
+    
     attr = hms_data.get('attr', 0)
     code = hms_data.get('code', 0)
     
-    # Format the device_error_code using hms_code function
     device__HMS_error_code = hms_code(attr, code)
     
-    # Fetch English errors
-    english_errors = fetch_english_errors()
-    
-    if english_errors is None:
-        logging.warning("English error data is not available.")
-        english_errors = []  # Initialize to an empty list to avoid NoneType error
-    
+    english_errors = fetch_english_errors() or []
     
     error_code_to_hms_cleaned = str(device__HMS_error_code).replace('_', '')
     found_device_error = search_error(error_code_to_hms_cleaned, english_errors)
-    if 'print' in dataDict:
     
+    if 'print' in dataDict:
         if 'gcode_state' in dataDict['print']:
             gcode_state = dataDict['print']['gcode_state']
             json_formatted_str = json.dumps(dataDict, indent=2)
             logging.info(DASH + json_formatted_str + DASH)
             msg_text += "<li>State: " + gcode_state + " </li>"
-
+        
         if 'mc_percent' in dataDict['print']:
             percent_done = dataDict['print']['mc_percent']
             msg_text += f"<li>Percent: {percent_done}% </li>"
-
+        
         if 'subtask_name' in dataDict['print']:
             msg_text += "<li>Name: " + dataDict['print']['subtask_name'] + " </li>"
-
-        # Handle start time
-        my_datetime = ""
-        if 'gcode_start_time' in dataDict['print']:
-            unix_timestamp = float(dataDict['print']['gcode_start_time'])
-            if gcode_state == "PREPARE" and unix_timestamp == 0:
-                unix_timestamp = float(time.time())
-            if unix_timestamp != 0:
-                local_timezone = tzlocal.get_localzone()  # get pytz timezone
-                local_time = datetime.fromtimestamp(unix_timestamp, local_timezone)
-                my_datetime = local_time.strftime("%Y-%m-%d %I:%M %p (%Z)")
+    
+    if 'gcode_start_time' in dataDict['print']:
+        unix_timestamp = float(dataDict['print']['gcode_start_time'])
+        if gcode_state == "PREPARE" and unix_timestamp == 0:
+            unix_timestamp = time.time()
+        if unix_timestamp != 0:
+            local_timezone = tzlocal.get_localzone()
+            local_time = datetime.fromtimestamp(unix_timestamp, local_timezone)
+            my_datetime = local_time.strftime("%Y-%m-%d %I:%M %p (%Z)")
             msg_text += "<li>Started: " + my_datetime + " </li>"
-
-        # Handle finish time (approx)
-        my_finish_datetime = ""
-        remaining_time = ""
-        if 'mc_remaining_time' in dataDict['print']:
-            time_left_seconds = int(dataDict['print']['mc_remaining_time']) * 60
-            if time_left_seconds != 0:
-                aprox_finish_time = time.time() + time_left_seconds
-                unix_timestamp = float(aprox_finish_time)
-                local_timezone = tzlocal.get_localzone()  # get pytz timezone
-                local_time = datetime.fromtimestamp(unix_timestamp, local_timezone)
-                my_finish_datetime = local_time.strftime("%Y-%m-%d %I:%M %p (%Z)")
-                remaining_time = str(timedelta(seconds=time_left_seconds))
-            else:
-                if gcode_state == "FINISH" and time_left_seconds == 0:
-                    my_finish_datetime = "Done!"
-            msg_text += "<li>Aprox End: " + my_finish_datetime + " </li>"
-            msg_text += f"<li>Remaining time: {remaining_time} </li>"
-
-        # Handling failed state
-        if ('fail_reason' in dataDict['print'] and len(dataDict['print']['fail_reason']) > 1) or ('print_error' in dataDict['print'] and dataDict['print']['print_error'] != 0) or gcode_state == "FAILED":
-            msg_text += f"<li>print_error: {dataDict['print'].get('print_error', 'N/A')}</li>"
-            msg_text += f"<li>mc_print_error_code: {dataDict['print'].get('mc_print_error_code', 'N/A')}</li>"
-            msg_text += f"<li>HMS code: {device__HMS_error_code}</li>"
-            msg_text += f"<li>Description: {found_device_error['intro']}</li>"
-            if device__HMS_error_code:
-                msg_text += f"<li>URL: https://wiki.bambulab.com/en/x1/troubleshooting/hmscode/{error_code_to_hms_cleaned}</li>"
-            error_code = int(dataDict['print'].get('mc_print_error_code', 0))
-            fail_reason = "Print Canceled" if ('fail_reason' in dataDict['print'] and len(dataDict['print']['fail_reason']) > 1 and dataDict['print']['fail_reason'] != '50348044') else dataDict['print'].get('fail_reason', 'N/A')
-
-            # Custom fail_reason based on error_code
-            if error_code in (32778, 32771, 32773, 32774, 32769):
-                custom_fail_reasons = {
-                    32778: "Arrr! Swab the poop deck!",
-                    32771: "Spaghetti and meatballs!",
-                    32773: "Didn't pull out!",
-                    32774: "Build plate mismatch!",
-                    32769: "Let's take a moment to PAUSE!",
-                }
-                fail_reason = custom_fail_reasons.get(error_code, fail_reason)
-            msg_text += f"<li>fail_reason: {fail_reason}</li>"
-            priority = 1  # Set higher priority for errors
-
-
-        # Check for specific error codes or fail reasons to turn off the lights
-        if ('print_error' in dataDict['print'] and dataDict['print']['print_error'] == '50348044') or ('fail_reason' in dataDict['print'] and dataDict['print']['fail_reason'] == '50348044'):
-            # Logic to turn off the lights
-            Chamberlight_off = {
-                "system": {
-                    "sequence_id": "0",
-                    "command": "ledctrl",
-                    "led_node": "chamber_light",
-                    "led_mode": "off",
-                    "led_on_time": 500,
-                    "led_off_time": 500,
-                    "loop_times": 0,
-                    "interval_time": 0
-                }
+    
+    my_finish_datetime = ""
+    remaining_time = ""
+    
+    if 'mc_remaining_time' in dataDict['print']:
+        time_left_seconds = int(dataDict['print']['mc_remaining_time']) * 60
+        logging.debug("Time left (seconds): {}".format(time_left_seconds))
+        if time_left_seconds != 0:
+            aprox_finish_time = time.time() + time_left_seconds
+            logging.debug("Approx Finish Time (epoch): {}".format(aprox_finish_time))
+            unix_timestamp = float(aprox_finish_time)
+            local_timezone = tzlocal.get_localzone()
+            local_time = datetime.fromtimestamp(unix_timestamp, local_timezone)
+            logging.debug("Local Time: {}".format(local_time))
+            my_finish_datetime = local_time.strftime("%Y-%m-%d %I:%M %p (%Z)")
+            remaining_time = str(timedelta(seconds=time_left_seconds))
+        else:
+            if gcode_state == "FINISH" and time_left_seconds == 0:
+                my_finish_datetime = "Done!"
+        msg_text += "<li>Aprox End: " + my_finish_datetime + " </li>"
+        msg_text += f"<li>Remaining time: {remaining_time} </li>"
+    
+    if ('fail_reason' in dataDict['print'] and len(dataDict['print']['fail_reason']) > 1) or ('print_error' in dataDict['print'] and dataDict['print']['print_error'] != 0) or gcode_state == "FAILED":
+        msg_text += f"<li>print_error: {dataDict['print'].get('print_error', 'N/A')}</li>"
+        msg_text += f"<li>mc_print_error_code: {dataDict['print'].get('mc_print_error_code', 'N/A')}</li>"
+        msg_text += f"<li>HMS code: {device__HMS_error_code}</li>"
+        msg_text += f"<li>Description: {found_device_error['intro']}</li>"
+        if device__HMS_error_code:
+            msg_text += f"<li>URL: https://wiki.bambulab.com/en/x1/troubleshooting/hmscode/{error_code_to_hms_cleaned}</li>"
+        error_code = int(dataDict['print'].get('mc_print_error_code', 0))
+        fail_reason = "Print Canceled" if ('fail_reason' in dataDict['print'] and len(dataDict['print']['fail_reason']) > 1 and dataDict['print']['fail_reason'] != '50348044') else dataDict['print'].get('fail_reason', 'N/A')
+        
+        if error_code in (32778, 32771, 32773, 32774, 32769):
+            custom_fail_reasons = {
+                32778: "Arrr! Swab the poop deck!",
+                32771: "Spaghetti and meatballs!",
+                32773: "Didn't pull out!",
+                32774: "Build plate mismatch!",
+                32769: "Let's take a moment to PAUSE!",
             }
-            ChamberLogo_off = {
-                "print": {
-                    "sequence_id": "2026",
-                    "command": "M960 S5 P0",
-                    "param": "\n"
-                },
-                "user_id": "1234567890"
+            fail_reason = custom_fail_reasons.get(error_code, fail_reason)
+        msg_text += f"<li>fail_reason: {fail_reason}</li>"
+        priority = 1  # Set higher priority for errors
+
+    # Check for specific error codes or fail reasons to turn off the lights
+    if ('print_error' in dataDict['print'] and dataDict['print']['print_error'] == '50348044') or ('fail_reason' in dataDict['print'] and dataDict['print']['fail_reason'] == '50348044'):
+        # Logic to turn off the lights
+        Chamberlight_off = {
+            "system": {
+                "sequence_id": "0",
+                "command": "ledctrl",
+                "led_node": "chamber_light",
+                "led_mode": "off",
+                "led_on_time": 500,
+                "led_off_time": 500,
+                "loop_times": 0,
+                "interval_time": 0
             }
-            client.publish("device/"+device_id+"/report", json.dumps(Chamberlight_off))
-            client.publish("device/"+device_id+"/report", json.dumps(ChamberLogo_off))
-            logging.info("Lights OFF")
-        # After processing, send the message if needed
-        if msg_text != "<ul>":
-            msg_text += "</ul>"
+        }
+        ChamberLogo_off = {
+            "print": {
+                "sequence_id": "2026",
+                "command": "M960 S5 P0",
+                "param": "\n"
+            },
+            "user_id": "1234567890"
+        }
+        client.publish("device/"+device_id+"/report", json.dumps(Chamberlight_off))
+        client.publish("device/"+device_id+"/report", json.dumps(ChamberLogo_off))
+        logging.info("Lights OFF")
+    # After processing, send the message if needed
+    if msg_text != "<ul>":
+        msg_text += "</ul>"
     if not message_sent:
         try:
             if not first_run:  
