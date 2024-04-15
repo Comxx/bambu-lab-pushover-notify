@@ -37,11 +37,8 @@ def setup_logging():
     logging.basicConfig(filename=logfile_name, format='%(asctime)s %(levelname)s: %(message)s', level=logging.INFO, datefmt='%m-%d-%Y %I:%M:%S %p')
 
 def hms_code(attr, code):
-
-    if not isinstance(attr, int) or attr < 0:
-        raise ValueError("attr must be a positive integer")
-    if not isinstance(code, int) or code < 0:
-        raise ValueError("code must be a positive integer")
+    if not isinstance(attr, int) or attr < 0 or not isinstance(code, int) or code < 0:
+        raise ValueError("attr and code must be positive integers")
 
     if attr > 0 and code > 0:
         formatted_attr = f'{attr // 0x10000:0>4X}_{attr % 0x10000:0>4X}'
@@ -60,12 +57,11 @@ def fetch_english_errors():
         url = "https://e.bambulab.com/query.php?lang=en"
         try:
             response = requests.get(url, timeout=60)  # Specify a timeout value (e.g., 10 seconds)
-            if response.status_code == 200:
-             response.raise_for_status()  # Raises an HTTPError for bad responses
-             data = response.json()
-             last_fetch_time = datetime.now()  # Update last fetch time
-             cached_data = data["data"]["device_hms"]["en"]
-             return cached_data
+            response.raise_for_status()  # Raises an HTTPError for bad responses
+            data = response.json()
+            last_fetch_time = datetime.now()  # Update last fetch time
+            cached_data = data["data"]["device_hms"]["en"]
+            return cached_data
         except requests.exceptions.RequestException as e:
             logging.error(f"Failed to fetch data: {e}")
             return None
@@ -92,26 +88,25 @@ def on_message(client, userdata, msg):
     english_errors = []
     message_sent = False
     
-      # Initialize english_errors as an empty list
     try:
         msgData = msg.payload.decode('utf-8')
         dataDict = json.loads(msgData)
 
         english_errors = fetch_english_errors()
-        if 'print' in dataDict:
-            if 'gcode_state' in dataDict['print']:
-                gcode_state = dataDict['print']['gcode_state']
-               ## logging.info("gcode_state has changed to " + gcode_state)
-                
-                if gcode_state != last_gcode_state:
-                    process_print_data(dataDict, client, english_errors)
-                    
-                    # Update the last known gcode_state
-                    last_gcode_state = gcode_state
+        process_if_gcode_state_changed(dataDict, client, english_errors)
+        
     except json.JSONDecodeError:
         logging.error("Failed to decode JSON from MQTT message")
     except Exception as e:
         logging.error(f"Unexpected error in on_message: {e}")
+
+def process_if_gcode_state_changed(dataDict, client, english_errors):
+    if 'print' in dataDict and 'gcode_state' in dataDict['print']:
+        gcode_state = dataDict['print']['gcode_state']
+        
+        if gcode_state != last_gcode_state:
+            process_print_data(dataDict, client, english_errors)
+            last_gcode_state = gcode_state
 
 def process_print_data(dataDict, client, english_errors):
     global first_run, message_sent
@@ -189,22 +184,21 @@ def process_print_data(dataDict, client, english_errors):
         error_code = int(dataDict['print'].get('mc_print_error_code', 0))
         fail_reason = "Print Canceled" if ('fail_reason' in dataDict['print'] and len(dataDict['print']['fail_reason']) > 1 and dataDict['print']['fail_reason'] != '50348044') else dataDict['print'].get('fail_reason', 'N/A')
         
-        if error_code in (32778, 32771, 32773, 32774, 32769):
-            custom_fail_reasons = {
-                32778: "Arrr! Swab the poop deck!",
-                32771: "Spaghetti and meatballs!",
-                32773: "Didn't pull out!",
-                32774: "Build plate mismatch!",
-                32769: "Let's take a moment to PAUSE!",
-            }
-            fail_reason = custom_fail_reasons.get(error_code, fail_reason)
+        custom_fail_reasons = {
+            32778: "Arrr! Swab the poop deck!",
+            32771: "Spaghetti and meatballs!",
+            32773: "Didn't pull out!",
+            32774: "Build plate mismatch!",
+            32769: "Let's take a moment to PAUSE!",
+        }
+        fail_reason = custom_fail_reasons.get(error_code, fail_reason)
         msg_text += f"<li>fail_reason: {fail_reason}</li>"
         priority = 1  # Set higher priority for errors
 
     # Check for specific error codes or fail reasons to turn off the lights
-    if ('print_error' in dataDict['print'] and dataDict['print']['print_error'] == '50348044') or ('fail_reason' in dataDict['print'] and dataDict['print']['fail_reason'] == '50348044'):
+    if '50348044' in [dataDict['print'].get('print_error', ''), dataDict['print'].get('fail_reason', '')]:
         # Logic to turn off the lights
-        Chamberlight_off = {
+        chamberlight_off_data = {
             "system": {
                 "sequence_id": "0",
                 "command": "ledctrl",
@@ -216,7 +210,7 @@ def process_print_data(dataDict, client, english_errors):
                 "interval_time": 0
             }
         }
-        ChamberLogo_off = {
+        chamberlogo_off_data = {
             "print": {
                 "sequence_id": "2026",
                 "command": "M960 S5 P0",
@@ -224,8 +218,8 @@ def process_print_data(dataDict, client, english_errors):
             },
             "user_id": "1234567890"
         }
-        client.publish("device/"+device_id+"/report", json.dumps(Chamberlight_off))
-        client.publish("device/"+device_id+"/report", json.dumps(ChamberLogo_off))
+        client.publish(f"device/{device_id}/report", json.dumps(chamberlight_off_data))
+        client.publish(f"device/{device_id}/report", json.dumps(chamberlogo_off_data))
         logging.info("Lights OFF")
     # After processing, send the message if needed
     if msg_text != "<ul>":
