@@ -66,7 +66,8 @@ Update [vardata.py](vardata.py) with your settings.
 # Pushover info
 my_pushover_user = "your_pushover_user_key" # pushover user key
 my_pushover_app = "the_application_token" # pushover app key
-
+pause_error_secs = 10 # seconds
+repeat_errors = 2 # number of times
 
 # Bambu login information
 host = '127.0.0.7' # bambu x1c ipv4 address
