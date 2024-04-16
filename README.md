@@ -31,7 +31,7 @@ choco install python -y
 ```
 
 Python packages to install
-```
+
 Auto install packages
 ```
 py -m pip install -r requirements.txt
