@@ -95,8 +95,12 @@ def on_message(client, userdata, msg):
         english_errors = fetch_english_errors()
         process_if_gcode_state_changed(dataDict, client, english_errors)
         
-    except json.JSONDecodeError:
-        logging.error("Failed to decode JSON from MQTT message")
+    except json.JSONDecodeError as json_error:
+        logging.error("Failed to decode JSON from MQTT message: {}".format(json_error))
+    except requests.exceptions.RequestException as request_error:
+        logging.error("Failed to fetch data: {}".format(request_error))
+    except ValueError as value_error:
+        logging.error("Value error: {}".format(value_error))
     except Exception as e:
         logging.error(f"Unexpected error in on_message: {e}")
 
@@ -130,7 +134,7 @@ def process_print_data(dataDict, client, english_errors):
     error_code_to_hms_cleaned = str(device__HMS_error_code).replace('_', '')
     found_device_error = search_error(error_code_to_hms_cleaned, english_errors)
     
-    ignore_list = ['0c00_0300_0002_0004', '0c00_0300_0003_000b', '0c00_0100_0001_0004']
+    ignore_list = ['0c00_0300_0002_0004', '0c00_0300_0003_000b', '0c00_0100_0001_0004'] # list to ignore specific errors
     
     if found_device_error and found_device_error['ecode'] not in ignore_list:
         if 'print' in dataDict:
