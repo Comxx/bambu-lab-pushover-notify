@@ -17,7 +17,7 @@ DASH = '\n-------------------------------------------\n'
 PO_TITLE = "Testing Bambu Printer"
 PO_SOUND = 'classical'
 # Add a global variable to store the last known gcode_state
-last_gcode_state = ""
+last_gcode_state = ''
 # Global state
 first_run = False
 percent_notify = False
@@ -93,7 +93,12 @@ def on_message(client, userdata, msg):
         dataDict = json.loads(msgData)
 
         english_errors = fetch_english_errors()
-        process_if_gcode_state_changed(dataDict, client, english_errors)
+        if 'print' in dataDict and 'gcode_state' in dataDict['print']:
+            gcode_state = dataDict['print']['gcode_state']
+        
+        if gcode_state != last_gcode_state:
+            process_print_data(dataDict, client, english_errors)
+            last_gcode_state = gcode_state
         
     except json.JSONDecodeError as json_error:
         logging.error("Failed to decode JSON from MQTT message: {}".format(json_error))
@@ -104,14 +109,6 @@ def on_message(client, userdata, msg):
     except Exception as e:
         logging.error(f"Unexpected error in on_message: {e}")
 
-def process_if_gcode_state_changed(dataDict, client, english_errors):
-    global last_gcode_state
-    if 'print' in dataDict and 'gcode_state' in dataDict['print']:
-        gcode_state = dataDict['print']['gcode_state']
-        
-        if gcode_state != last_gcode_state:
-            process_print_data(dataDict, client, english_errors)
-            last_gcode_state = gcode_state
 
 def process_print_data(dataDict, client, english_errors):
     global first_run, message_sent
@@ -166,14 +163,14 @@ def process_print_data(dataDict, client, english_errors):
         
         if 'mc_remaining_time' in dataDict['print']:
             time_left_seconds = int(dataDict['print']['mc_remaining_time']) * 60
-            logging.debug("Time left (seconds): {}".format(time_left_seconds))
+           # logging.debug("Time left (seconds): {}".format(time_left_seconds))
             if time_left_seconds != 0:
                 aprox_finish_time = time.time() + time_left_seconds
-                logging.debug("Approx Finish Time (epoch): {}".format(aprox_finish_time))
+                #logging.debug("Approx Finish Time (epoch): {}".format(aprox_finish_time))
                 unix_timestamp = float(aprox_finish_time)
                 local_timezone = tzlocal.get_localzone()
                 local_time = datetime.fromtimestamp(unix_timestamp, local_timezone)
-                logging.debug("Local Time: {}".format(local_time))
+               # logging.debug("Local Time: {}".format(local_time))
                 my_finish_datetime = local_time.strftime("%Y-%m-%d %I:%M %p (%Z)")
                 remaining_time = str(timedelta(seconds=time_left_seconds))
             else:
