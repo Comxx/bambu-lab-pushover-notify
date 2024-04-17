@@ -194,9 +194,17 @@ def process_print_data(dataDict, client, english_errors):
                 32774: "Build plate mismatch!",
                 32769: "Let's take a moment to PAUSE!",
             }
+            # Debugging for custom fail reasons assignment
+            logging.debug("Error code: {}".format(error_code))
+            logging.debug("Previous fail reason: {}".format(fail_reason))
+
             fail_reason = custom_fail_reasons.get(error_code, fail_reason)
+
+            logging.debug("Updated fail reason: {}".format(fail_reason))
             msg_text += f"<li>fail_reason: {fail_reason}</li>"
-            priority = 1  # Set higher priority for errors
+            priority = 1 # Set higher priority for errors
+        # debugging when the condition is triggered
+        logging.debug("Printer has trigger a error code")
 
         # Check for specific error codes or fail reasons to turn off the lights
         if '50348044' in [dataDict['print'].get('print_error', ''), dataDict['print'].get('fail_reason', '')]:
@@ -224,7 +232,12 @@ def process_print_data(dataDict, client, english_errors):
             client.publish(f"device/{device_id}/report", json.dumps(chamberlight_off_data))
             client.publish(f"device/{device_id}/report", json.dumps(chamberlogo_off_data))
             logging.info("Lights OFF")
-        # After processing, send the message if needed
+            # Debugging
+            logging.debug("Chamber light off data: {}".format(chamberlight_off_data))
+            logging.debug("Chamber logo off data: {}".format(chamberlogo_off_data))
+        # debugging when the condition is triggered
+        logging.debug("Lights turned off due to print caneled")
+
         if msg_text != "<ul>":
             msg_text += "</ul>"
         if not message_sent:
