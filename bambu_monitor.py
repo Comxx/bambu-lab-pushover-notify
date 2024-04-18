@@ -1,6 +1,3 @@
-"""
-Module-level docstring: This script is used for monitoring the Bambu X1C and sending pushover notifications on gcode_state changes.
-"""
 import logging
 import json
 import sys
@@ -12,17 +9,21 @@ from chump import Application
 import tzlocal
 import requests
 from vardata import *
+
 # Constants
 DASH = '\n-------------------------------------------\n'
 PO_TITLE = "Testing Bambu Printer"
 PO_SOUND = 'classical'
+
 # Add a global variable to store the last known gcode_state
 last_gcode_state = ''
+
 # Global state
 first_run = False
 percent_notify = False
 percent_done = 0
 message_sent = False
+
 # Initialize Pushover application
 po_app = Application(my_pushover_app)
 po_user = po_app.get_user(my_pushover_user)
@@ -69,7 +70,6 @@ def fetch_english_errors():
             logging.error("Failed to decode JSON from response")
             return None
     else:
-        ##logging.info("Using cached English error data")
         return cached_data  # Return cached data if not expired
 
 def search_error(error_code, error_list):
@@ -288,3 +288,4 @@ def main(argv):
 
 if __name__ == "__main__":
     main(sys.argv[1:])                    
+
