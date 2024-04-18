@@ -17,7 +17,7 @@ DASH = '\n-------------------------------------------\n'
 PO_TITLE = "Testing Bambu Printer"
 PO_SOUND = 'classical'
 # Add a global variable to store the last known gcode_state
-gcode_state= ''
+gcode_state = ''
 last_gcode_state = ''
 # Global state
 first_run = False
