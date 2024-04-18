@@ -17,6 +17,7 @@ DASH = '\n-------------------------------------------\n'
 PO_TITLE = "Testing Bambu Printer"
 PO_SOUND = 'classical'
 # Add a global variable to store the last known gcode_state
+gcode_state= ''
 last_gcode_state = ''
 # Global state
 first_run = False
@@ -84,7 +85,7 @@ def on_connect(client, userdata, flags, reason_code, properties):
     client.subscribe("device/"+device_id+"/report", 0)
 
 def on_message(client, userdata, msg):
-    global last_gcode_state, first_run, message_sent
+    global last_gcode_state, first_run, message_sent, gcode_state
     english_errors = []
     message_sent = False
     
@@ -111,7 +112,7 @@ def on_message(client, userdata, msg):
 
 
 def process_print_data(dataDict, client, english_errors):
-    global first_run, message_sent
+    global first_run, message_sent, gcode_state
     msg_text = "<ul>"
     priority = 0
     hms_data = dataDict['print'].get('hms', [{'attr': 0, 'code': 0}])
