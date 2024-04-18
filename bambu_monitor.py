@@ -283,3 +283,21 @@ def process_print_data(dataDict, client, english_errors):
                     else:
                             first_run = False            
                     message_sent = True
+def main(argv):
+    try:
+        setup_logging()
+        logging.info("Starting")
+        client = paho.Client(paho.CallbackAPIVersion.VERSION2)
+        client.tls_set(ca_certs=None, certfile=None, keyfile=None, cert_reqs=ssl.CERT_NONE, tls_version=ssl.PROTOCOL_TLS, ciphers=None)
+        client.tls_insecure_set(True)
+        client.username_pw_set(user, password)
+        client.on_connect = on_connect
+        client.on_message = on_message
+        client.connect(host, port, 60)
+        client.loop_forever()
+    except Exception as e:
+        logging.error(f"Fatal error in main: {e}")
+        print("Fatal error Please read Logs")
+
+if __name__ == "__main__":
+    main(sys.argv[1:])
