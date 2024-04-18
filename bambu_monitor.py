@@ -270,7 +270,7 @@ def process_print_data(dataDict, client, english_errors):
                     else:
                             first_run = False            
                     message_sent = True
-0def main(argv):
+def main(argv):
     try:
         setup_logging()
         logging.info("Starting")
