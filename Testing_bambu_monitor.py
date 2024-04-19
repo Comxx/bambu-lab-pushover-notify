@@ -40,7 +40,7 @@ def setup_logging():
 def on_connect(client, userdata, flags, reason_code, properties):
      client.subscribe("device/"+device_id+"/report", 0)
 def on_message(client, userdata, msg):
-    global dash, gcode_state_prev, app, user, my_pushover_app, my_pushover_user, first_run, percent_notify, percent_donetry
+    global DASH, gcode_state_prev, app, user, my_pushover_app, my_pushover_user, first_run, percent_notify, percent_donetry
     msgData = msg.payload.decode('utf-8')
     dataDict = json.loads(msgData)
     if 'print' in dataDict:
@@ -69,7 +69,7 @@ def on_message(client, userdata, msg):
             priority = 0
             logging.info("gcode_state has changed to " + gcode_state)
             json_formatted_str = json.dumps(dataDict, indent=2)
-            logging.info(dash + json_formatted_str + dash)
+            logging.info(DASH + json_formatted_str + DASH)
             gcode_state_prev = gcode_state
 
             my_datetime = ""
