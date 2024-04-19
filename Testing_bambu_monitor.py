@@ -15,9 +15,6 @@ DASH = '\n-------------------------------------------\n'
 PO_TITLE = "Testing Bambu Printer"
 PO_SOUND = 'classical'
 
-# Add a global variable to store the last known gcode_state
-last_gcode_state = ''
-
 # Global state
 first_run = False
 percent_notify = False
@@ -25,7 +22,7 @@ percent_done = 0
 message_sent = False
 last_fetch_time = None
 cached_data = None
-
+gcode_state_prev = ''
 # Initialize Pushover application
 po_app = Application(my_pushover_app)
 po_user = po_app.get_user(my_pushover_user)
