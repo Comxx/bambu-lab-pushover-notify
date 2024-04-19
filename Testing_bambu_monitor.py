@@ -43,7 +43,7 @@ def setup_logging():
 def on_connect(client, userdata, flags, reason_code, properties):
      client.subscribe("device/"+device_id+"/report", 0)
 def on_message(client, userdata, msg):
-    global dash, gcode_state_prev, app, user, my_pushover_app, my_pushover_user, first_run, percent_notify, percent_donetry: 
+    global dash, gcode_state_prev, app, user, my_pushover_app, my_pushover_user, first_run, percent_notify, percent_donetry
     msgData = msg.payload.decode('utf-8')
     dataDict = json.loads(msgData)
     if 'print' in dataDict:
