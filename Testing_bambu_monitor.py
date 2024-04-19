@@ -38,7 +38,7 @@ def setup_logging():
     logfile_name = f"{logfile_path}output_{datetime_str}.log"
     logging.basicConfig(filename=logfile_name, format='%(asctime)s %(levelname)s: %(message)s', level=logging.DEBUG, datefmt='%m-%d-%Y %I:%M:%S %p')
 
-def on_connect(client, userdata, flags, rc):
+def on_connect(client, userdata, flags, reason_code, properties):
      client.subscribe("device/"+device_id+"/report", 0)
 def on_message(client, userdata, msg):
     global dash, gcode_state_prev, app, user, my_pushover_app, my_pushover_user, first_run, percent_notify, percent_done
