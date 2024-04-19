@@ -61,10 +61,10 @@ def on_message(client, userdata, msg):
         error_code_to_hms_cleaned = str(device__HMS_error_code).replace('_', '')
         found_device_error = search_error(error_code_to_hms_cleaned, english_errors)
         
-        gcode_state = dataDict['print'].get('gcode_state', '')
-        percent_done = dataDict['print'].get('mc_percent', 0)
+        gcode_state = dataDict['print']['gcode_state']
+        percent_done = dataDict['print']['mc_percent']
 
-        if gcode_state_prev != gcode_state and not gcode_state.strip():
+        if gcode_state_prev != gcode_state:
            
             priority = 0
             logging.info("gcode_state has changed to " + gcode_state)
@@ -114,7 +114,7 @@ def on_message(client, userdata, msg):
                 msg_text += f"<li>mc_print_error_code: {dataDict['print']['mc_print_error_code']}</li>"
                 msg_text += f"<li>HMS code: {device__HMS_error_code}</li>"
                 msg_text += f"<li>Description: {found_device_error['intro']}</li>"
-                fail_reason = "Print Canceled" if ('fail_reason' in dataDict['print'] and len(dataDict['print']['fail_reason']) > 1 and dataDict['print']['fail_reason'] != '50348044') else dataDict['print'].get('fail_reason', 'N/A')
+                fail_reason = "Print Canceled" if ('fail_reason' in dataDict['print'] and len(dataDict['print']['fail_reason']) > 1 and dataDict['print']['fail_reason'] != '50348044') else dataDict['print']['fail_reason']
                 msg_text += "<li>fail_reason: " + fail_reason + "</li>"
                 priority = 1
 
