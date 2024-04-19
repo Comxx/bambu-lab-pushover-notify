@@ -23,6 +23,8 @@ first_run = False
 percent_notify = False
 percent_done = 0
 message_sent = False
+last_fetch_time = None
+cached_data = None
 
 # Initialize Pushover application
 po_app = Application(my_pushover_app)
@@ -41,8 +43,7 @@ def setup_logging():
 def on_connect(client, userdata, flags, reason_code, properties):
      client.subscribe("device/"+device_id+"/report", 0)
 def on_message(client, userdata, msg):
-    global dash, gcode_state_prev, app, user, my_pushover_app, my_pushover_user, first_run, percent_notify, percent_done
-  
+    global dash, gcode_state_prev, app, user, my_pushover_app, my_pushover_user, first_run, percent_notify, percent_donetry: 
     msgData = msg.payload.decode('utf-8')
     dataDict = json.loads(msgData)
     if 'print' in dataDict:
@@ -62,6 +63,7 @@ def on_message(client, userdata, msg):
         
         error_code_to_hms_cleaned = str(device__HMS_error_code).replace('_', '')
         found_device_error = search_error(error_code_to_hms_cleaned, english_errors)
+        
         gcode_state = dataDict['print'].get('gcode_state', '')
         percent_done = dataDict['print'].get('mc_percent', 0)
 
@@ -113,7 +115,8 @@ def on_message(client, userdata, msg):
             if ('fail_reason' in dataDict['print'] and len(dataDict['print']['fail_reason']) > 1) or ('print_error' in dataDict['print'] and dataDict['print']['print_error'] != 0) or gcode_state == "FAILED":
                 msg_text += f"<li>print_error: {dataDict['print']['print_error']}</li>"
                 msg_text += f"<li>mc_print_error_code: {dataDict['print']['mc_print_error_code']}</li>"
-                msg_text += f"<li>HMS code: {dataDict['print']['hms']}</li>"
+                msg_text += f"<li>HMS code: {device__HMS_error_code}</li>"
+                msg_text += f"<li>Description: {found_device_error['intro']}</li>"
                 fail_reason = dataDict['print']['fail_reason']
                 msg_text += "<li>fail_reason: " + fail_reason + "</li>"
                 priority = 1
