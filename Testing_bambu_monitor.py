@@ -35,7 +35,7 @@ def setup_logging():
     datetime_str = current_datetime.strftime("%Y-%m-%d_%I-%M-%S%p")
     logfile_path = "logs/"
     logfile_name = f"{logfile_path}output_{datetime_str}.log"
-    logging.basicConfig(filename=logfile_name, format='%(asctime)s %(levelname)s: %(message)s', level=logging.DEBUG, datefmt='%m-%d-%Y %I:%M:%S %p')
+    logging.basicConfig(filename=logfile_name, format='%(asctime)s %(levelname)s: %(message)s', level=logging.INFO, datefmt='%m-%d-%Y %I:%M:%S %p')
 
 def on_connect(client, userdata, flags, reason_code, properties):
      client.subscribe("device/"+device_id+"/report", 0)
@@ -64,7 +64,7 @@ def on_message(client, userdata, msg):
         gcode_state = dataDict['print'].get('gcode_state', '')
         percent_done = dataDict['print'].get('mc_percent', 0)
 
-        if gcode_state_prev != gcode_state:
+        if gcode_state_prev != gcode_state and not gcode_state.strip():
            
             priority = 0
             logging.info("gcode_state has changed to " + gcode_state)
@@ -100,11 +100,11 @@ def on_message(client, userdata, msg):
                         my_finish_datetime = "Done!"
 
             msg_text = "<ul>"
-            msg_text += "<li>State: " + gcode_state + "</li>"
-            msg_text += f"<li>Percent: {percent_done}</li>"
+            msg_text += "<li>State: " + gcode_state + " </li>"
+            msg_text += f"<li>Percent: {percent_done}% </li>"
             if 'subtask_name' in dataDict['print']:
-                msg_text += "<li>Name: " + dataDict['print']['subtask_name'] + "</li>"
-            msg_text += f"<li>Remaining time: {remaining_time}</li>"
+                msg_text += "<li>Name: " + dataDict['print']['subtask_name'] + " </li>"
+            msg_text += f"<li>Remaining time: {remaining_time} </li>"
             msg_text += "<li>Started: " + my_datetime + "</li>"
             msg_text += "<li>Aprox End: " + my_finish_datetime + "</li>"
 
@@ -114,7 +114,7 @@ def on_message(client, userdata, msg):
                 msg_text += f"<li>mc_print_error_code: {dataDict['print']['mc_print_error_code']}</li>"
                 msg_text += f"<li>HMS code: {device__HMS_error_code}</li>"
                 msg_text += f"<li>Description: {found_device_error['intro']}</li>"
-                fail_reason = dataDict['print']['fail_reason']
+                fail_reason = "Print Canceled" if ('fail_reason' in dataDict['print'] and len(dataDict['print']['fail_reason']) > 1 and dataDict['print']['fail_reason'] != '50348044') else dataDict['print'].get('fail_reason', 'N/A')
                 msg_text += "<li>fail_reason: " + fail_reason + "</li>"
                 priority = 1
 
