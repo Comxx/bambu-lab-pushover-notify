@@ -84,9 +84,7 @@ def on_connect(client, userdata, flags, reason_code, properties):
     client.subscribe("device/"+device_id+"/report", 0)
 
 def on_message(client, userdata, msg):
-    global last_gcode_state, first_run, message_sent
-    english_errors = []
-    message_sent = False
+    global last_gcode_state, first_run, message_sent, english_errors
     
     try:
         msgData = msg.payload.decode('utf-8')
@@ -94,13 +92,14 @@ def on_message(client, userdata, msg):
 
         english_errors = fetch_english_errors()
         
-        if 'print' in dataDict and 'gcode_state' in dataDict['print']:
-            gcode_state = dataDict['print']['gcode_state']
-            
-            if gcode_state != last_gcode_state:
-                process_print_data(dataDict, client, english_errors)
-                last_gcode_state = gcode_state
-
+        if 'print' in dataDict and dataDict['print'] is not None:
+            if 'gcode_state' in dataDict['print']:
+                gcode_state = dataDict['print']['gcode_state']
+                
+                if gcode_state != last_gcode_state:
+                    message_sent = False  # Reset the message_sent flag
+                    process_print_data(dataDict, client, english_errors)
+                    last_gcode_state = gcode_state
     except json.JSONDecodeError as e:
         logging.error("Failed to decode JSON from MQTT message: {e}")
     except Exception as e:
@@ -213,8 +212,7 @@ def process_print_data(dataDict, client, english_errors):
                     "sequence_id": "2026",
                     "command": "M960 S5 P0",
                     "param": "\n"
-                },
-                "user_id": "1234567890"
+                }
             }
             client.publish(f"device/{device_id}/report", json.dumps(chamberlight_off_data))
             client.publish(f"device/{device_id}/report", json.dumps(chamberlogo_off_data))
@@ -239,13 +237,15 @@ def process_print_data(dataDict, client, english_errors):
                         url= f"https://wiki.bambulab.com/en/x1/troubleshooting/hmscode/{device__HMS_error_code}" if device__HMS_error_code else ""
                     )
                     message.send()
+                    message_sent = True 
                     if priority == 1:
                         for _ in range(repeat_errors):
                             time.sleep(pause_error_secs)
                             message.send()
+                            message_sent = True          
                 else:
                     first_run = False
-                message_sent = True 
+                
             except ValueError as e:
                     logging.error(f"Failed to send Pushover message due to invalid sound: {e}")
                     # Optionally, send the message with a default sound if the specified one is invalid
@@ -261,15 +261,16 @@ def process_print_data(dataDict, client, english_errors):
                                 url= f"https://wiki.bambulab.com/en/x1/troubleshooting/hmscode/{device__HMS_error_code}" if device__HMS_error_code else ""
                             )
                             message.send()
+                            message_sent = True 
                             if priority == 1:
                                 for _ in range(repeat_errors):
                                     time.sleep(pause_error_secs)
                                     message.send()
+                                    message_sent = True 
                     except Exception as e:
                                 logging.error(f"Unexpected error when sending Pushover message with default sound: {e}")
                     else:
                             first_run = False            
-                    message_sent = True
 def main(argv):
     try:
         setup_logging()
