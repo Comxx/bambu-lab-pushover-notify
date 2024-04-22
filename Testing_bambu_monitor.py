@@ -46,7 +46,7 @@ def on_message(client, userdata, msg):
     try:
         msgData = msg.payload.decode('utf-8')
         dataDict = json.loads(msgData)
-        if isinstance(dataDict, dict) and 'print' in dataDict:
+        if 'print' in dataDict:
             hms_data = dataDict['print'].get('hms', [{'attr': 0, 'code': 0}])
         
             if hms_data:
@@ -120,7 +120,7 @@ def on_message(client, userdata, msg):
                     fail_reason = "Print Canceled" if ('fail_reason' in dataDict['print'] and len(dataDict['print']['fail_reason']) > 1 and dataDict['print']['fail_reason'] != '50348044') else dataDict['print']['fail_reason']
                     msg_text += "<li>fail_reason: " + fail_reason + "</li>"
                     priority = 1
-                if '50348044' in dataDict['print']['print_error'] or '50348044' in dataDict['print']['fail_reason']:
+                if '50348044' in str(dataDict['print']['print_error']) or '50348044' in str(dataDict['print']['fail_reason']):
                      chamberlight_off_data = {
                             "system": {
                                 "sequence_id": "0",
