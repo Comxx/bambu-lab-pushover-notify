@@ -37,8 +37,10 @@ def setup_logging():
     logfile_name = f"{logfile_path}output_{datetime_str}.log"
     logging.basicConfig(filename=logfile_name, format='%(asctime)s %(levelname)s: %(message)s', level=logging.INFO, datefmt='%m-%d-%Y %I:%M:%S %p')
 
+def on_publish(client, userdata, mid, reason_codes, properties):
+    logging.info("Message published successfully")
 def on_connect(client, userdata, flags, reason_code, properties):
-     client.subscribe("device/"+device_id+"/report", 0)
+    client.subscribe("device/"+device_id+"/report", 0)
 def on_message(client, userdata, msg):
     global DASH, gcode_state_prev, app, user, my_pushover_app, my_pushover_user, first_run, percent_notify, percent_donetry
     try:
@@ -118,7 +120,20 @@ def on_message(client, userdata, msg):
                     fail_reason = "Print Canceled" if ('fail_reason' in dataDict['print'] and len(dataDict['print']['fail_reason']) > 1 and dataDict['print']['fail_reason'] != '50348044') else dataDict['print']['fail_reason']
                     msg_text += "<li>fail_reason: " + fail_reason + "</li>"
                     priority = 1
-
+                if '50348044' in dataDict['print']['print_error'] or '50348044' in dataDict['print']['fail_reason']:
+                     chamberlight_off_data = {
+                            "system": {
+                                "sequence_id": "0",
+                                "command": "ledctrl",
+                                "led_node": "chamber_light",
+                                "led_mode": "off",
+                                "led_on_time": 500,
+                                "led_off_time": 500,
+                                "loop_times": 0,
+                                "interval_time": 0
+                            }
+                        }
+                     client.publish(f"device/{device_id}/report", json.dumps(chamberlight_off_data))
                 if not first_run:
                     msg_text += "</ul>"
                     message = po_user.create_message(
@@ -133,11 +148,13 @@ def on_message(client, userdata, msg):
                     #if priority == 1:
                     #    for x in range(repeat_errors):
                     #        time.sleep(pause_error_secs)
-                        #    message.send()
-                else:
-                    first_run = False
+                        #    message.send()    
+            else:
+                first_run = False
+    except json.JSONDecodeError as e:
+        logging.error("Failed to decode JSON from MQTT message: {e}")
     except Exception as e:
-        logging.error(f"Fatal error in on_message {e}")
+        logging.error(f"Unexpected error in on_message: {e}")
         
 def hms_code(attr, code):
     if not isinstance(attr, int) or attr < 0 or not isinstance(code, int) or code < 0:
@@ -182,6 +199,7 @@ def main(argv):
         client.username_pw_set(user, password)
         client.on_connect = on_connect
         client.on_message = on_message
+        client.on_publish = on_publish
         client.connect(host, port, 60)
         client.loop_forever()
     except Exception as e:
