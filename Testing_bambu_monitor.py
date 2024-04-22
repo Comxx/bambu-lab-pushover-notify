@@ -46,7 +46,7 @@ def on_message(client, userdata, msg):
     try:
         msgData = msg.payload.decode('utf-8')
         dataDict = json.loads(msgData)
-        if 'print' in dataDict:
+        if isinstance(dataDict, dict) and 'print' in dataDict:
             hms_data = dataDict['print'].get('hms', [{'attr': 0, 'code': 0}])
         
             if hms_data:
