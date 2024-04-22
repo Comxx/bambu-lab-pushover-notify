@@ -38,7 +38,7 @@ def setup_logging():
     logging.basicConfig(filename=logfile_name, format='%(asctime)s %(levelname)s: %(message)s', level=logging.INFO, datefmt='%m-%d-%Y %I:%M:%S %p')
 
 def on_publish(client, userdata, mid, reason_codes, properties):
-    logging.info("Message published successfully")
+    logging.info("Message published successfully to Printer")
 def on_connect(client, userdata, flags, reason_code, properties):
     client.subscribe("device/"+device_id+"/report", 0)
 def on_message(client, userdata, msg):
