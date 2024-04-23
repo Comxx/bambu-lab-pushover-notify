@@ -88,7 +88,7 @@ def on_message(client, userdata, msg):
                             my_datetime = local_time.strftime("%Y-%m-%d %I:%M %p (%Z)")
                         else:
                              my_finish_datetime = ""
-                             
+
                 remaining_time = ""
                 if('mc_remaining_time' in dataDict['print']):
                         time_left_seconds = int(dataDict['print']['mc_remaining_time']) * 60
@@ -136,7 +136,6 @@ def on_message(client, userdata, msg):
                     message = po_user.create_message(
                         title=PO_TITLE,
                         message=msg_text,
-                        url= f"https://wiki.bambulab.com/en/x1/troubleshooting/hmscode/{device__HMS_error_code}" if device__HMS_error_code else "",
                         html=True,
                         sound=PO_SOUND,
                         priority=priority
