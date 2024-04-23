@@ -121,19 +121,8 @@ def on_message(client, userdata, msg):
                     msg_text += "<li>fail_reason: " + fail_reason + "</li>"
                     priority = 1
                 if '50348044' in str(dataDict['print']['print_error']) or '50348044' in str(dataDict['print']['fail_reason']):
-                     chamberlight_off_data = {
-                            "system": {
-                                "sequence_id": "0",
-                                "command": "ledctrl",
-                                "led_node": "chamber_light",
-                                "led_mode": "off",
-                                "led_on_time": 500,
-                                "led_off_time": 500,
-                                "loop_times": 0,
-                                "interval_time": 0
-                            }
-                        }
-                     client.publish(f"device/{device_id}/request", json.dumps(chamberlight_off_data))
+                     chamberlight_off_data = {"system": { "sequence_id": "2003", "command": "ledctrl", "led_node": "chamber_light", "led_mode": "off", "led_on_time": 500, "led_off_time": 500, "loop_times": 0, "interval_time": 0 }, "user_id": "123456789"}
+                     client.publish(f"device/{device_id}/request", chamberlight_off_data)
                 if not first_run:
                     msg_text += "</ul>"
                     message = po_user.create_message(
