@@ -72,6 +72,7 @@ def on_message(client, userdata, msg):
             # Handle print cancellation
             if previous_print_error == 50348044 and print_error == 0:
                 logging.info("Print cancelled")
+                previous_print_error = print_error
                 return
             previous_print_error = print_error
 
