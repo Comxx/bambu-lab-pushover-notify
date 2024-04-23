@@ -64,12 +64,10 @@ def on_message(client, userdata, msg):
             error_code_to_hms_cleaned = str(device__HMS_error_code).replace('_', '')
             found_device_error = search_error(error_code_to_hms_cleaned, english_errors)
             
-        if('gcode_state' in dataDict['print']):
-                gcode_state = dataDict['print']['gcode_state']
-                if('mc_percent' in dataDict['print']):
-                    percent_done = dataDict['print']['mc_percent']
+            gcode_state = dataDict['print'].get('gcode_state')
+            percent_done = dataDict['print'].get('mc_percent', 0)  # Provide a default in case the key is missing
 
-        if gcode_state and gcode_state_prev != gcode_state:
+            if gcode_state and gcode_state_prev != gcode_state:
             
                 priority = 0
                 logging.info("gcode_state has changed to " + gcode_state)
