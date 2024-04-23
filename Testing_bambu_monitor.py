@@ -66,10 +66,18 @@ def on_message(client, userdata, msg):
             
             gcode_state = dataDict['print'].get('gcode_state')
             percent_done = dataDict['print'].get('mc_percent', 0)  # Provide a default in case the key is missing
+            print_error = dataDict['print'].get('print_error')
+
+            # Handle print cancellation
+            if previous_print_error == 50348044 and print_error == 0:
+                logging.info("Print cancelled")
+                return
+            previous_print_error = print_error
 
             if gcode_state and gcode_state_prev != gcode_state:
             
                 priority = 0
+                logging.info(DASH)
                 logging.info("gcode_state has changed to " + gcode_state)
                 json_formatted_str = json.dumps(dataDict, indent=2)
                 logging.info(DASH + json_formatted_str + DASH)
@@ -134,6 +142,7 @@ def on_message(client, userdata, msg):
                     message = po_user.create_message(
                         title=PO_TITLE,
                         message=msg_text,
+                        url= f"https://wiki.bambulab.com/en/x1/troubleshooting/hmscode/{device__HMS_error_code}" if device__HMS_error_code else "",
                         html=True,
                         sound=PO_SOUND,
                         priority=priority
