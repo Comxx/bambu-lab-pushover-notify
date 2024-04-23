@@ -1,6 +1,12 @@
 """
 Module-level docstring: This script is used for monitoring the Bambu X1C and sending pushover notifications on gcode_state changes.
-"""
+""" if '50348044' in str(dataDict['print']['print_error']) or '50348044' in str(dataDict['print']['fail_reason']):
+                     chamberlight_off_data = {"system": { "sequence_id": "2003", "command": "ledctrl", "led_node": "chamber_light", "led_mode": "off", "led_on_time": 500, "led_off_time": 500, "loop_times": 0, "interval_time": 0 }, "user_id": "123456789"}
+            if client is None:
+                        raise ValueError("MQTT client is not initialized.")
+                        
+            client.publish("device/"+device_id+"/request", chamberlight_off_data)
+
 import logging
 import json
 import sys

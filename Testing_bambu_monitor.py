@@ -76,7 +76,7 @@ def on_message(client, userdata, msg):
                 gcode_state_prev = gcode_state
 
                 my_datetime = ""
-                if 'gcode_start_time' in dataDict['print']:
+                if 'gcode_start_time' in dataDict['print'] and dataDict['print']['gcode_start_time'] is not None:
                     unix_timestamp = float(dataDict['print']['gcode_start_time'])
                     if gcode_state == "PREPARE" and unix_timestamp == 0:
                         unix_timestamp = float(time.time())
@@ -89,7 +89,7 @@ def on_message(client, userdata, msg):
 
                 my_finish_datetime = ""
                 remaining_time = ""
-                if 'mc_remaining_time' in dataDict['print']:
+                if 'mc_remaining_time' in dataDict['print'] and dataDict['print']['mc_remaining_time'] is not None:
                     time_left_seconds = int(dataDict['print']['mc_remaining_time']) * 60
                     if time_left_seconds != 0:
                         aprox_finish_time = time.time() + time_left_seconds
@@ -106,20 +106,13 @@ def on_message(client, userdata, msg):
                 msg_text += "<li>State: " + gcode_state + " </li>"
                 msg_text += f"<li>Percent: {percent_done}% </li>"
                 if 'subtask_name' in dataDict['print']:
-                    msg_text += f"<li>Name: {dataDict['print']['subtask_name']} </li>"
+                    msg_text += "<li>Name: " + dataDict['print']['subtask_name'] + " </li>"
+                msg_text += f"<li>Remaining time: {remaining_time} </li>"
+                msg_text += "<li>Started: " + my_datetime + "</li>"
+                msg_text += "<li>Aprox End: " + my_finish_datetime + "</li>"
 
-                if remaining_time: 
-                    msg_text += f"<li>Remaining time: {remaining_time} </li>"
-
-                if my_datetime:  
-                    msg_text += f"<li>Started: {my_datetime}</li>"
-
-                if my_finish_datetime: 
-                    msg_text += f"<li>Aprox End: {my_finish_datetime}</li>"
-                    
                 fail_reason = ""
-            if ('fail_reason' in dataDict['print'] and dataDict['print']['fail_reason'] and len(dataDict['print']['fail_reason']) > 1) or ('print_error' in dataDict['print'] and dataDict['print']['print_error'] is not None and dataDict['print']['print_error'] != 0) or gcode_state == "FAILED":
- 
+                if ('fail_reason' in dataDict['print'] and len(dataDict['print']['fail_reason']) > 1) or ('print_error' in dataDict['print'] and dataDict['print']['print_error'] != 0) or gcode_state == "FAILED":
                     if 'print_error' in dataDict['print'] and dataDict['print']['print_error'] is not None:
                         msg_text += f"<li>print_error: {dataDict['print']['print_error']}</li>"
                     if 'mc_print_error_code' in dataDict['print'] and dataDict['print']['mc_print_error_code'] is not None:
@@ -137,14 +130,8 @@ def on_message(client, userdata, msg):
                         fail_reason = 'N/A'
                     msg_text += f"<li>fail_reason: {fail_reason}</li>"
                     priority = 1
-            if '50348044' in str(dataDict['print']['print_error']) or '50348044' in str(dataDict['print']['fail_reason']):
-                     chamberlight_off_data = {"system": { "sequence_id": "2003", "command": "ledctrl", "led_node": "chamber_light", "led_mode": "off", "led_on_time": 500, "led_off_time": 500, "loop_times": 0, "interval_time": 0 }, "user_id": "123456789"}
-            if client is None:
-                        raise ValueError("MQTT client is not initialized.")
-                        
-            client.publish("device/"+device_id+"/request", chamberlight_off_data)
-            if not first_run:
                     msg_text += "</ul>"
+                if not first_run:
                     message = po_user.create_message(
                         title=PO_TITLE,
                         message=msg_text,
