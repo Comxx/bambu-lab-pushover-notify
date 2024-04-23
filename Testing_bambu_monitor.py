@@ -125,7 +125,7 @@ def on_message(client, userdata, msg):
                 if client is None:
                         raise ValueError("MQTT client is not initialized.")
                         
-                client.publish(f"device/{device_id}/request", chamberlight_off_data)
+                client.publish("device/"+device_id+"/request", chamberlight_off_data)
                 if not first_run:
                     msg_text += "</ul>"
                     message = po_user.create_message(
