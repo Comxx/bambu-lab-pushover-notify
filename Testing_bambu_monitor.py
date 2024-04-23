@@ -64,10 +64,12 @@ def on_message(client, userdata, msg):
             error_code_to_hms_cleaned = str(device__HMS_error_code).replace('_', '')
             found_device_error = search_error(error_code_to_hms_cleaned, english_errors)
             
-            gcode_state = dataDict['print'].get('gcode_state')
-            percent_done = dataDict['print'].get('mc_percent', 0)  # Provide a default in case the key is missing
+        if('gcode_state' in dataDict['print']):
+                gcode_state = dataDict['print']['gcode_state']
+                if('mc_percent' in dataDict['print']):
+                    percent_done = dataDict['print']['mc_percent']
 
-            if gcode_state and gcode_state_prev != gcode_state:
+        if gcode_state and gcode_state_prev != gcode_state:
             
                 priority = 0
                 logging.info("gcode_state has changed to " + gcode_state)
@@ -76,31 +78,30 @@ def on_message(client, userdata, msg):
                 gcode_state_prev = gcode_state
 
                 my_datetime = ""
-                if 'gcode_start_time' in dataDict['print'] and dataDict['print']['gcode_start_time'] is not None:
-                    unix_timestamp = float(dataDict['print']['gcode_start_time'])
-                    if gcode_state == "PREPARE" and unix_timestamp == 0:
-                        unix_timestamp = float(time.time())
-                    if unix_timestamp != 0:
-                        local_timezone = tzlocal.get_localzone()
-                        local_time = datetime.fromtimestamp(unix_timestamp, local_timezone)
-                        my_datetime = local_time.strftime("%Y-%m-%d %I:%M %p (%Z)")
-                    else:
-                        my_datetime = ""
-
-                my_finish_datetime = ""
+                if('gcode_start_time' in dataDict['print']):
+                        unix_timestamp = float(dataDict['print']['gcode_start_time'])
+                        if(gcode_state == "PREPARE" and unix_timestamp == 0):
+                                unix_timestamp = float(time.time())
+                        if(unix_timestamp != 0):
+                            local_timezone = tzlocal.get_localzone() # get pytz timezone
+                            local_time = datetime.fromtimestamp(unix_timestamp, local_timezone)
+                            my_datetime = local_time.strftime("%Y-%m-%d %I:%M %p (%Z)")
+                        else:
+                             my_finish_datetime = ""
+                             
                 remaining_time = ""
-                if 'mc_remaining_time' in dataDict['print'] and dataDict['print']['mc_remaining_time'] is not None:
-                    time_left_seconds = int(dataDict['print']['mc_remaining_time']) * 60
-                    if time_left_seconds != 0:
-                        aprox_finish_time = time.time() + time_left_seconds
-                        unix_timestamp = float(aprox_finish_time)
-                        local_timezone = tzlocal.get_localzone()
-                        local_time = datetime.fromtimestamp(unix_timestamp, local_timezone)
-                        my_finish_datetime = local_time.strftime("%Y-%m-%d %I:%M %p (%Z)")
-                        remaining_time = str(timedelta(minutes=dataDict['print']['mc_remaining_time']))
-                    else:
-                        if gcode_state == "FINISH" and time_left_seconds == 0:
-                            my_finish_datetime = "Done!"
+                if('mc_remaining_time' in dataDict['print']):
+                        time_left_seconds = int(dataDict['print']['mc_remaining_time']) * 60
+                        if(time_left_seconds != 0):
+                            aprox_finish_time = time.time() + time_left_seconds
+                            unix_timestamp = float(aprox_finish_time)
+                            local_timezone = tzlocal.get_localzone() # get pytz timezone
+                            local_time = datetime.fromtimestamp(unix_timestamp, local_timezone)
+                            my_finish_datetime = local_time.strftime("%Y-%m-%d %I:%M %p (%Z)")
+                            remaining_time = str(timedelta(minutes=dataDict['print']['mc_remaining_time']))
+                        else:
+                            if(gcode_state == "FINISH" and time_left_seconds == 0):
+                                my_finish_datetime = "Done!"
 
                 msg_text = "<ul>"
                 msg_text += "<li>State: " + gcode_state + " </li>"
@@ -145,8 +146,8 @@ def on_message(client, userdata, msg):
                     #    for x in range(repeat_errors):
                     #        time.sleep(pause_error_secs)
                         #    message.send()    
-            else:
-                first_run = False
+        else:
+            first_run = False
     except KeyError as e:
         logging.error(f"KeyError accessing 'gcode_state': {e}")
     except json.JSONDecodeError as e:
