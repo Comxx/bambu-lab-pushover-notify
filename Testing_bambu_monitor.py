@@ -120,8 +120,15 @@ def on_message(client, userdata, msg):
                     if device__HMS_error_code is not None:
                         msg_text += f"<li>HMS code: {device__HMS_error_code}</li>"                        
                         msg_text += f"<li>Description: {found_device_error['intro']}</li>"
-                    fail_reason = "Print Canceled" if ('fail_reason' in dataDict['print'] and len(dataDict['print']['fail_reason']) > 1 and dataDict['print']['fail_reason'] != '50348044') else dataDict['print']['fail_reason']
-                    msg_text += "<li>fail_reason: " + fail_reason + "</li>"
+                    if 'fail_reason' in dataDict['print']:
+                        raw_fail_reason = dataDict['print']['fail_reason']
+                        if raw_fail_reason and len(raw_fail_reason) > 1 and raw_fail_reason != '50348044':
+                            fail_reason = "Print Canceled"
+                        else:
+                            fail_reason = raw_fail_reason if raw_fail_reason is not None else 'N/A'
+                    else:
+                        fail_reason = 'N/A'
+                    msg_text += f"<li>fail_reason: {fail_reason}</li>"
                     priority = 1
                 if '50348044' in str(dataDict['print']['print_error']) or '50348044' in str(dataDict['print']['fail_reason']):
                      chamberlight_off_data = {"system": { "sequence_id": "2003", "command": "ledctrl", "led_node": "chamber_light", "led_mode": "off", "led_on_time": 500, "led_off_time": 500, "loop_times": 0, "interval_time": 0 }, "user_id": "123456789"}
