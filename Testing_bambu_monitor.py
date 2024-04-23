@@ -23,6 +23,7 @@ message_sent = False
 last_fetch_time = None
 cached_data = None
 gcode_state_prev = ''
+previous_print_error = 0
 # Initialize Pushover application
 po_app = Application(my_pushover_app)
 po_user = po_app.get_user(my_pushover_user)
