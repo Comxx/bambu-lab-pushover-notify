@@ -64,10 +64,10 @@ def on_message(client, userdata, msg):
             error_code_to_hms_cleaned = str(device__HMS_error_code).replace('_', '')
             found_device_error = search_error(error_code_to_hms_cleaned, english_errors)
             
-            gcode_state = dataDict['print']['gcode_state']
-            percent_done = dataDict['print']['mc_percent']
+            gcode_state = dataDict['print'].get('gcode_state')
+            percent_done = dataDict['print'].get('mc_percent', 0)  # Provide a default in case the key is missing
 
-            if gcode_state_prev != gcode_state:
+            if gcode_state and gcode_state_prev != gcode_state:
             
                 priority = 0
                 logging.info("gcode_state has changed to " + gcode_state)
@@ -133,7 +133,7 @@ def on_message(client, userdata, msg):
                                 "interval_time": 0
                             }
                         }
-                     client.publish(f"device/{device_id}/report", json.dumps(chamberlight_off_data))
+                     client.publish(f"device/{device_id}/request", json.dumps(chamberlight_off_data))
                 if not first_run:
                     msg_text += "</ul>"
                     message = po_user.create_message(
@@ -151,6 +151,8 @@ def on_message(client, userdata, msg):
                         #    message.send()    
             else:
                 first_run = False
+    except KeyError as e:
+        logging.error(f"KeyError accessing 'gcode_state': {e}")
     except json.JSONDecodeError as e:
         logging.error("Failed to decode JSON from MQTT message: {e}")
     except Exception as e:
