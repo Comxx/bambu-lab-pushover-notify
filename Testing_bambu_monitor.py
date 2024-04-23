@@ -113,10 +113,13 @@ def on_message(client, userdata, msg):
 
                 fail_reason = ""
                 if ('fail_reason' in dataDict['print'] and len(dataDict['print']['fail_reason']) > 1) or ('print_error' in dataDict['print'] and dataDict['print']['print_error'] != 0) or gcode_state == "FAILED":
-                    msg_text += f"<li>print_error: {dataDict['print']['print_error']}</li>"
-                    msg_text += f"<li>mc_print_error_code: {dataDict['print']['mc_print_error_code']}</li>"
-                    msg_text += f"<li>HMS code: {device__HMS_error_code}</li>"
-                    msg_text += f"<li>Description: {found_device_error['intro']}</li>"
+                    if 'print_error' in dataDict['print'] and dataDict['print']['print_error'] is not None:
+                        msg_text += f"<li>print_error: {dataDict['print']['print_error']}</li>"
+                    if 'mc_print_error_code' in dataDict['print'] and dataDict['print']['mc_print_error_code'] is not None:
+                        msg_text += f"<li>mc_print_error_code: {dataDict['print']['mc_print_error_code']}</li>"
+                    if device__HMS_error_code is not None:
+                        msg_text += f"<li>HMS code: {device__HMS_error_code}</li>"                        
+                        msg_text += f"<li>Description: {found_device_error['intro']}</li>"
                     fail_reason = "Print Canceled" if ('fail_reason' in dataDict['print'] and len(dataDict['print']['fail_reason']) > 1 and dataDict['print']['fail_reason'] != '50348044') else dataDict['print']['fail_reason']
                     msg_text += "<li>fail_reason: " + fail_reason + "</li>"
                     priority = 1
