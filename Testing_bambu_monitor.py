@@ -48,32 +48,6 @@ def on_message(client, userdata, msg):
     try:
         msgData = msg.payload.decode('utf-8')
         dataDict = json.loads(msgData)
-        print_error = dataDict['print'].get('print_error')
-
-            # Handle print cancellation
-        if previous_print_error == 50348044 and print_error == 0:
-                chamberlight_off_data = {
-                        "system": {
-                        "sequence_id": "2003",
-                        "command": "ledctrl",
-                        "led_node": "chamber_light",
-                        "led_mode": "off",
-                        "led_on_time": 500,
-                        "led_off_time": 500,
-                        "loop_times": 0,
-                        "interval_time": 0
-                        },
-                        "user_id": "123456789"
-                        }
-
-                payload = json.dumps(chamberlight_off_data)
-                client.publish("device/" + device_id + "/request", payload)
-                
-                logging.info("Print cancelled")
-                previous_print_error = print_error
-                return
-        else:
-                previous_print_error = print_error
         
         if 'print' in dataDict:
 
@@ -96,7 +70,41 @@ def on_message(client, userdata, msg):
             
             gcode_state = dataDict['print'].get('gcode_state')
             percent_done = dataDict['print'].get('mc_percent', 0)  # Provide a default in case the key is missing
+            print_error = dataDict['print'].get('print_error')
 
+        # Check if the print has been cancelled
+            if previous_print_error == 50348044 and print_error == 0:
+                    chamberlight_off_data = {
+                            "system": {
+                            "sequence_id": "2003",
+                            "command": "ledctrl",
+                            "led_node": "chamber_light",
+                            "led_mode": "off",
+                            "led_on_time": 500,
+                            "led_off_time": 500,
+                            "loop_times": 0,
+                            "interval_time": 0
+                            },
+                            "user_id": "123456789"
+                            }
+                    Chamberlogo_off_data = {
+                                "print": {
+                                "sequence_id": "2026",
+                                "command": "M960 S5 P0",
+                                "param": "\n"
+                                 },
+                                "user_id": "1234567890"
+                                }
+
+                    payload = json.dumps(chamberlight_off_data)
+                    payloadlogo = json.dumps(Chamberlogo_off_data)
+                    client.publish("device/" + device_id + "/request", payload)
+                    client.publish("device/" + device_id + "/request", payloadlogo)
+                    logging.info("Print cancelled")
+                    previous_print_error = print_error
+                    return
+            else:
+                    previous_print_error = print_error
             if gcode_state and gcode_state_prev != gcode_state:
             
                 priority = 0
@@ -185,14 +193,18 @@ def on_message(client, userdata, msg):
         logging.error(f"Unexpected error in on_message: {e}")
         
 def hms_code(attr, code):
-    if not isinstance(attr, int) or attr < 0 or not isinstance(code, int) or code < 0:
-        raise ValueError("attr and code must be positive integers")
+    try:
+        if not isinstance(attr, int) or attr < 0 or not isinstance(code, int) or code < 0:
+            raise ValueError("attr and code must be positive integers")
 
-    if attr > 0 and code > 0:
-        formatted_attr = f'{attr // 0x10000:0>4X}_{attr % 0x10000:0>4X}'
-        formatted_code = f'{code // 0x10000:0>4X}_{code % 0x10000:0>4X}'
-        return f'{formatted_attr}_{formatted_code}'
-    return ""
+        if attr > 0 and code > 0:
+            formatted_attr = f'{attr // 0x10000:0>4X}_{attr % 0x10000:0>4X}'
+            formatted_code = f'{code // 0x10000:0>4X}_{code % 0x10000:0>4X}'
+            return f'{formatted_attr}_{formatted_code}'
+        return ""
+    except Exception as e:
+        logging.error(f"Unexpected error in hms_code: {e}")
+
 def fetch_english_errors():
     global last_fetch_time, cached_data
     if last_fetch_time is None or (datetime.now() - last_fetch_time).days >= 1:
@@ -210,13 +222,18 @@ def fetch_english_errors():
         except json.JSONDecodeError:
             logging.error("Failed to decode JSON from response")
             return None
+        except Exception as e:
+            logging.error(f"Unexpected error in fetch_english_errors: {e}")
     else:
         return cached_data  
 def search_error(error_code, error_list):
-    for error in error_list:
-        if error["ecode"] == error_code:
-            return error
-    return None              
+    try:
+        for error in error_list:
+            if error["ecode"] == error_code:
+                return error
+        return None
+    except Exception as e:
+        logging.error(f"Unexpected error in earch_error: {e}")              
 def main(argv):
     try:
         setup_logging()
