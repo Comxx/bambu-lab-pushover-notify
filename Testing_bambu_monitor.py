@@ -48,21 +48,35 @@ def on_message(client, userdata, msg):
     try:
         msgData = msg.payload.decode('utf-8')
         dataDict = json.loads(msgData)
-        if 'print' in dataDict:
-            print_error = dataDict['print'].get('print_error')
+        print_error = dataDict['print'].get('print_error')
 
             # Handle print cancellation
-            if previous_print_error == 50348044 and print_error == 0:
-                chamberlight_off_data = {"system": { "sequence_id": "2003", "command": "ledctrl", "led_node": "chamber_light", "led_mode": "off", "led_on_time": 500, "led_off_time": 500, "loop_times": 0, "interval_time": 0 }, "user_id": "123456789"}
-          
-                client.publish("device/"+device_id+"/request", chamberlight_off_data)
+        if previous_print_error == 50348044 and print_error == 0:
+                chamberlight_off_data = {
+                        "system": {
+                        "sequence_id": "2003",
+                        "command": "ledctrl",
+                        "led_node": "chamber_light",
+                        "led_mode": "off",
+                        "led_on_time": 500,
+                        "led_off_time": 500,
+                        "loop_times": 0,
+                        "interval_time": 0
+                        },
+                        "user_id": "123456789"
+                        }
+
+                payload = json.dumps(chamberlight_off_data)
+                client.publish("device/" + device_id + "/request", payload)
                 
                 logging.info("Print cancelled")
                 previous_print_error = print_error
                 return
-            else:
+        else:
                 previous_print_error = print_error
-                
+        
+        if 'print' in dataDict:
+
             hms_data = dataDict['print'].get('hms', [{'attr': 0, 'code': 0}])
         
             if hms_data:
