@@ -46,6 +46,9 @@ def on_connect(client, userdata, flags, reason_code, properties):
 def on_message(client, userdata, msg):
     global DASH, gcode_state_prev, app, user, my_pushover_app, my_pushover_user, first_run, percent_notify, percent_donetry, previous_print_error, my_finish_datetime
     try:
+        if msg.payload is None:
+            logging.info("No message received from Printer")
+            return
         msgData = msg.payload.decode('utf-8')
         dataDict = json.loads(msgData)
         
@@ -90,8 +93,8 @@ def on_message(client, userdata, msg):
                     Chamberlogo_off_data = {
                                 "print": {
                                 "sequence_id": "2026",
-                                "command": "M960 S5 P0",
-                                "param": "\n"
+                                "command": "gcode_line",
+                                "param": "M960 S5 P0 \n"
                                  },
                                 "user_id": "1234567890"
                                 }
