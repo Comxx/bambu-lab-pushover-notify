@@ -103,6 +103,13 @@ def on_message(client, userdata, msg):
                     payloadlogo = json.dumps(Chamberlogo_off_data)
                     client.publish("device/" + device_id + "/request", payload)
                     client.publish("device/" + device_id + "/request", payloadlogo)
+                    message = po_user.create_message(
+                        title=f"{PO_TITLE} Cancelled",
+                        message= "Print Cancelled",
+                        sound=PO_SOUND,
+                        priority= 1
+                    )
+                    message.send()
                     logging.info("Print cancelled")
                     previous_print_error = print_error
                     return
