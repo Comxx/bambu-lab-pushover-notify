@@ -24,6 +24,7 @@ last_fetch_time = None
 cached_data = None
 gcode_state_prev = ''
 previous_print_error = 0
+my_finish_datetime = ""
 # Initialize Pushover application
 po_app = Application(my_pushover_app)
 po_user = po_app.get_user(my_pushover_user)
@@ -43,11 +44,25 @@ def on_publish(client, userdata, mid, reason_codes, properties):
 def on_connect(client, userdata, flags, reason_code, properties):
     client.subscribe("device/"+device_id+"/report", 0)
 def on_message(client, userdata, msg):
-    global DASH, gcode_state_prev, app, user, my_pushover_app, my_pushover_user, first_run, percent_notify, percent_donetry, previous_print_error
+    global DASH, gcode_state_prev, app, user, my_pushover_app, my_pushover_user, first_run, percent_notify, percent_donetry, previous_print_error, my_finish_datetime
     try:
         msgData = msg.payload.decode('utf-8')
         dataDict = json.loads(msgData)
         if 'print' in dataDict:
+            print_error = dataDict['print'].get('print_error')
+
+            # Handle print cancellation
+            if previous_print_error == 50348044 and print_error == 0:
+                chamberlight_off_data = {"system": { "sequence_id": "2003", "command": "ledctrl", "led_node": "chamber_light", "led_mode": "off", "led_on_time": 500, "led_off_time": 500, "loop_times": 0, "interval_time": 0 }, "user_id": "123456789"}
+          
+                client.publish("device/"+device_id+"/request", chamberlight_off_data)
+                
+                logging.info("Print cancelled")
+                previous_print_error = print_error
+                return
+            else:
+                previous_print_error = print_error
+                
             hms_data = dataDict['print'].get('hms', [{'attr': 0, 'code': 0}])
         
             if hms_data:
@@ -67,14 +82,6 @@ def on_message(client, userdata, msg):
             
             gcode_state = dataDict['print'].get('gcode_state')
             percent_done = dataDict['print'].get('mc_percent', 0)  # Provide a default in case the key is missing
-            print_error = dataDict['print'].get('print_error')
-
-            # Handle print cancellation
-            if previous_print_error == 50348044 and print_error == 0:
-                logging.info("Print cancelled")
-                previous_print_error = print_error
-                return
-            previous_print_error = print_error
 
             if gcode_state and gcode_state_prev != gcode_state:
             
