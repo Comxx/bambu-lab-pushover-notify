@@ -12,7 +12,7 @@ import requests
 from vardata import *
 # Constants
 DASH = '\n-------------------------------------------\n'
-PO_TITLE = "Testing Bambu Printer"
+PO_TITLE = "Bambu Printer"
 PO_SOUND = 'classical'
 
 # Global state
