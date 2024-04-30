@@ -170,11 +170,7 @@ def on_message(client, userdata, msg):
                         msg_text += f"<li>HMS code: {device__HMS_error_code}</li>"                        
                         msg_text += f"<li>Description: {found_device_error['intro']}</li>"
                     if 'fail_reason' in dataDict['print']:
-                        raw_fail_reason = dataDict['print']['fail_reason']
-                        if raw_fail_reason and len(raw_fail_reason) > 1 and raw_fail_reason != '50348044':
-                            fail_reason = "Print Canceled"
-                        else:
-                            fail_reason = raw_fail_reason if raw_fail_reason is not None else 'N/A'
+                        fail_reason = dataDict['print']['fail_reason']
                     else:
                         fail_reason = 'N/A'
                     msg_text += f"<li>fail_reason: {fail_reason}</li>"
