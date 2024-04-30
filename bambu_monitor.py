@@ -125,16 +125,17 @@ def on_message(client, userdata, msg):
                 gcode_state_prev = gcode_state
 
                 my_datetime = ""
-                if('gcode_start_time' in dataDict['print']):
-                        unix_timestamp = float(dataDict['print']['gcode_start_time'])
-                        if(gcode_state == "PREPARE" and unix_timestamp == 0):
-                                unix_timestamp = float(time.time())
-                        if(unix_timestamp != 0):
-                            local_timezone = tzlocal.get_localzone() # get pytz timezone
-                            local_time = datetime.fromtimestamp(unix_timestamp, local_timezone)
-                            my_datetime = local_time.strftime("%Y-%m-%d %I:%M %p (%Z)")
-                        else:
-                             my_finish_datetime = ""
+                # Removed for now BambuLab removed in beta
+                #if('gcode_start_time' in dataDict['print']):
+                       # unix_timestamp = float(dataDict['print']['gcode_start_time'])
+                       # if(gcode_state == "PREPARE" and unix_timestamp == 0):
+                              #  unix_timestamp = float(time.time())
+                        #if(unix_timestamp != 0):
+                           # local_timezone = tzlocal.get_localzone() # get pytz timezone
+                           # local_time = datetime.fromtimestamp(unix_timestamp, local_timezone)
+                          #  my_datetime = local_time.strftime("%Y-%m-%d %I:%M %p (%Z)")
+                       # else:
+                            # my_finish_datetime = ""
 
                 remaining_time = ""
                 if('mc_remaining_time' in dataDict['print']):
@@ -156,7 +157,7 @@ def on_message(client, userdata, msg):
                 if 'subtask_name' in dataDict['print']:
                     msg_text += "<li>Name: " + dataDict['print']['subtask_name'] + " </li>"
                 msg_text += f"<li>Remaining time: {remaining_time} </li>"
-                msg_text += "<li>Started: " + my_datetime + "</li>"
+               ## msg_text += "<li>Started: " + my_datetime + "</li>" # Removed for now BambuLab removed in beta
                 msg_text += "<li>Aprox End: " + my_finish_datetime + "</li>"
 
                 fail_reason = ""
