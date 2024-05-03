@@ -70,7 +70,12 @@ def on_message(client, userdata, msg):
             
             error_code_to_hms_cleaned = str(device__HMS_error_code).replace('_', '')
             found_device_error = search_error(error_code_to_hms_cleaned, english_errors)
-            
+
+            if found_device_error is None:
+                logging.error(f"No matching error found for code: {error_code_to_hms_cleaned}")
+            # Handle the case where no error is found. For example, set a default error message.
+                found_device_error = {'intro': 'Unknown error'}
+                
             gcode_state = dataDict['print'].get('gcode_state')
             percent_done = dataDict['print'].get('mc_percent', 0)  # Provide a default in case the key is missing
             print_error = dataDict['print'].get('print_error')
@@ -138,17 +143,19 @@ def on_message(client, userdata, msg):
                             # my_finish_datetime = ""
 
                 remaining_time = ""
-                if('mc_remaining_time' in dataDict['print']):
-                        time_left_seconds = int(dataDict['print']['mc_remaining_time']) * 60
-                        if(time_left_seconds != 0):
+                if 'mc_remaining_time' in dataDict['print']:
+                    time_left_seconds = dataDict['print'].get('mc_remaining_time')
+                    if time_left_seconds is not None:
+                        time_left_seconds = int(time_left_seconds) * 60
+                        if time_left_seconds != 0:
                             aprox_finish_time = time.time() + time_left_seconds
                             unix_timestamp = float(aprox_finish_time)
-                            local_timezone = tzlocal.get_localzone() # get pytz timezone
+                            local_timezone = tzlocal.get_localzone()  # get pytz timezone
                             local_time = datetime.fromtimestamp(unix_timestamp, local_timezone)
                             my_finish_datetime = local_time.strftime("%Y-%m-%d %I:%M %p (%Z)")
-                            remaining_time = str(timedelta(minutes=dataDict['print']['mc_remaining_time']))
+                            remaining_time = str(timedelta(minutes=time_left_seconds))
                         else:
-                            if(gcode_state == "FINISH" and time_left_seconds == 0):
+                            if gcode_state == "FINISH" and time_left_seconds == 0:
                                 my_finish_datetime = "Done!"
 
                 msg_text = "<ul>"
@@ -180,7 +187,7 @@ def on_message(client, userdata, msg):
                     message = po_user.create_message(
                         title=PO_TITLE,
                         message=msg_text,
-                        url= f"https://wiki.bambulab.com/en/x1/troubleshooting/hmscode/{device__HMS_error_code}" if device__HMS_error_code else "",
+                        url= f"https://wiki.bambulab.com/en/x1/troubleshooting/hmscode/{device__HMS_error_code}" if device__HMS_error_code is not None else "",
                         html=True,
                         sound=PO_SOUND,
                         priority=priority
