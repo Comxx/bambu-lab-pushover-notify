@@ -143,19 +143,17 @@ def on_message(client, userdata, msg):
                             # my_finish_datetime = ""
 
                 remaining_time = ""
-                if 'mc_remaining_time' in dataDict['print']:
-                    time_left_seconds = dataDict['print'].get('mc_remaining_time')
-                    if time_left_seconds is not None:
-                        time_left_seconds = int(time_left_seconds) * 60
-                        if time_left_seconds != 0:
+                if('mc_remaining_time' in dataDict['print']):
+                        time_left_seconds = int(dataDict['print']['mc_remaining_time']) * 60
+                        if(time_left_seconds != 0):
                             aprox_finish_time = time.time() + time_left_seconds
                             unix_timestamp = float(aprox_finish_time)
-                            local_timezone = tzlocal.get_localzone()  # get pytz timezone
+                            local_timezone = tzlocal.get_localzone()  
                             local_time = datetime.fromtimestamp(unix_timestamp, local_timezone)
                             my_finish_datetime = local_time.strftime("%Y-%m-%d %I:%M %p (%Z)")
-                            remaining_time = str(timedelta(minutes=time_left_seconds))
+                            remaining_time = str(timedelta(minutes=dataDict['print']['mc_remaining_time']))
                         else:
-                            if gcode_state == "FINISH" and time_left_seconds == 0:
+                            if(gcode_state == "FINISH" and time_left_seconds == 0):
                                 my_finish_datetime = "Done!"
 
                 msg_text = "<ul>"
@@ -187,12 +185,13 @@ def on_message(client, userdata, msg):
                     message = po_user.create_message(
                         title=PO_TITLE,
                         message=msg_text,
-                        url= f"https://wiki.bambulab.com/en/x1/troubleshooting/hmscode/{device__HMS_error_code}" if device__HMS_error_code is not None else "",
+                        url= f"https://wiki.bambulab.com/en/x1/troubleshooting/hmscode/{device__HMS_error_code}" if device__HMS_error_code else "",
                         html=True,
                         sound=PO_SOUND,
                         priority=priority
                     )
                     message.send()
+                    device__HMS_error_code = ""
                     #if priority == 1:
                     #    for x in range(repeat_errors):
                     #        time.sleep(pause_error_secs)
