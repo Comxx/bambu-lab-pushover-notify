@@ -72,7 +72,6 @@ def on_message(client, userdata, msg):
             found_device_error = search_error(error_code_to_hms_cleaned, english_errors)
 
             if found_device_error is None:
-                logging.error(f"No matching error found for code: {error_code_to_hms_cleaned}")
             # Handle the case where no error is found. For example, set a default error message.
                 found_device_error = {'intro': 'Unknown error'}
                 
