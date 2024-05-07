@@ -15,6 +15,9 @@ DASH = '\n-------------------------------------------\n'
 PO_TITLE = "Bambu Printer"
 PO_SOUND = 'classical'
 
+# Debuging
+debugingchange = True
+
 # Global state
 first_run = False
 percent_notify = False
@@ -44,7 +47,7 @@ def on_publish(client, userdata, mid, reason_codes, properties):
 def on_connect(client, userdata, flags, reason_code, properties):
     client.subscribe("device/"+device_id+"/report", 0)
 def on_message(client, userdata, msg):
-    global DASH, gcode_state_prev, user, my_pushover_app, my_pushover_user, first_run, percent_notify, previous_print_error, my_finish_datetime
+    global DASH, gcode_state_prev, user, my_pushover_app, my_pushover_user, first_run, percent_notify, previous_print_error, my_finish_datetime, debugingchange
     try:
         if msg.payload is None:
             logging.info("No message received from Printer")
@@ -78,7 +81,27 @@ def on_message(client, userdata, msg):
             gcode_state = dataDict['print'].get('gcode_state')
             percent_done = dataDict['print'].get('mc_percent', 0)  # Provide a default in case the key is missing
             print_error = dataDict['print'].get('print_error')
+        
+            if "print" in dataDict and "home_flag" in dataDict["print"]:
+                # Extract the "home_flag" value from the "print" dictionary
+                home_flag = dataDict["print"]["home_flag"]
+            
+                # Extract the door state from the "home_flag" value by performing bitwise operations
+                # The door state is determined by the 23rd bit of the "home_flag" value
+                door_state = bool((home_flag >> 23) & 1)
 
+                # Check if the door state has changed
+                if doorOpen != door_state:
+                    doorOpen = door_state           
+                    # If the door has been opened
+                if doorOpen:
+                        # Print a debug message if debugingchange is True
+                    if debugingchange:
+                        logging.info("Opened")
+                else: # If the door has been closed
+                    if debugingchange:
+                        logging.info("Closed")
+        
         # Check if the print has been cancelled
             if previous_print_error == 50348044 and print_error == 0:
                     chamberlight_off_data = {
@@ -99,7 +122,7 @@ def on_message(client, userdata, msg):
                                 "sequence_id": "2026",
                                 "command": "gcode_line",
                                 "param": "M960 S5 P0 \n"
-                                 },
+                                },
                                 "user_id": "1234567890"
                                 }
 
@@ -133,9 +156,9 @@ def on_message(client, userdata, msg):
                 #if('gcode_start_time' in dataDict['print']):
                        # unix_timestamp = float(dataDict['print']['gcode_start_time'])
                        # if(gcode_state == "PREPARE" and unix_timestamp == 0):
-                              #  unix_timestamp = float(time.time())
+                     #  unix_timestamp = float(time.time())
                         #if(unix_timestamp != 0):
-                           # local_timezone = tzlocal.get_localzone() # get pytz timezone
+                    # local_timezone = tzlocal.get_localzone() # get pytz timezone
                            # local_time = datetime.fromtimestamp(unix_timestamp, local_timezone)
                           #  my_datetime = local_time.strftime("%Y-%m-%d %I:%M %p (%Z)")
                        # else:
