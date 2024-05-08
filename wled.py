@@ -8,8 +8,6 @@ import time
 import requests
 from vardata import *
 
-
-
 def set_power(ip_address, state):
     url = f"http://{ip_address}/json"
     payload = {"on": state}
@@ -46,7 +44,18 @@ def setup_logging():
         level=logging.INFO,
         datefmt='%Y-%m-%d %H:%M:%S'
     )
-def display_menu():
+
+def set_effect(ip_address, effect):
+    url = f"http://{ip_address}/json"
+    payload = {"seg": [{"fx": effect}]}
+    response = requests.post(url, data=json.dumps(payload))
+    if response.status_code == 200:
+        logging.info("Effect set successfully.")
+    else:
+        logging.info("Failed to set effect.")   
+
+''' old Code from wled.py
+#def display_menu():
 
         global power_endpoint
         print("Menu:")
@@ -74,10 +83,14 @@ def process_choice(choice):
             print("Invalid choice. Please select 1, 2, 3, 4 or 'q' to quit.")
             # Log invalid choice
             logging.warning("Invalid choice entered by user: %s", choice)
-
+'''
 def main(argv):
     try:
         setup_logging()
+    except Exception as e:
+        logging.error(f"Fatal error in main: {e}")
+        print("Fatal error Please read Logs")
+        '''
         logging.info("Starting")
         while True:
             display_menu()
@@ -94,6 +107,6 @@ def main(argv):
     except Exception as e:
         logging.error(f"Fatal error in main: {e}")
         print("Fatal error Please read Logs")
-
+'''
 if __name__ == "__main__":
     main(sys.argv[1:])     

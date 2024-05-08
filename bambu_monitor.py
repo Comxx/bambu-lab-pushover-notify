@@ -9,6 +9,7 @@ import paho.mqtt.client as paho
 from chump import Application
 import tzlocal
 import requests
+import wled
 from vardata import *
 # Constants
 DASH = '\n-------------------------------------------\n'
@@ -94,13 +95,21 @@ def on_message(client, userdata, msg):
                 if doorOpen != door_state:
                     doorOpen = door_state           
                     # If the door has been opened
-                if doorOpen:
-                        # Print a debug message if debugingchange is True
-                    if debugingchange:
-                        logging.info("Opened")
-                else: # If the door has been closed
-                    if debugingchange:
-                        logging.info("Closed")
+                if gcode_state == "FINISHED": 
+                    if doorOpen: 
+                            if ledligth:
+                                wled.set_power(wled_ip, True)
+                                wled.set_brightness(wled_ip, 255)
+                                wled.set_color(wled_ip, (255, 255, 255))
+                                logging.info("Opened")
+                            else:
+                                logging.info("Opened No WLED")   
+                    else: # If the door has been closed.
+                            if ledligth:
+                                wled.set_power(wled_ip, False)
+                                logging.info("Closed")
+                            else:
+                                logging.info("Closed No WLED")
         
         # Check if the print has been cancelled
             if previous_print_error == 50348044 and print_error == 0:
@@ -213,11 +222,7 @@ def on_message(client, userdata, msg):
                         priority=priority
                     )
                     message.send()
-                    device__HMS_error_code = ""
-                    #if priority == 1:
-                    #    for x in range(repeat_errors):
-                    #        time.sleep(pause_error_secs)
-                        #    message.send()    
+                    device__HMS_error_code = ""  
         else:
             first_run = False
     except KeyError as e:
