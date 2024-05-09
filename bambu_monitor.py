@@ -16,9 +16,7 @@ DASH = '\n-------------------------------------------\n'
 PO_TITLE = "Bambu Printer"
 PO_SOUND = 'classical'
 
-# Debuging
-debugingchange = True
-
+doorOpen = ""
 # Global state
 first_run = False
 percent_notify = False
