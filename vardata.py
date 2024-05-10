@@ -1,4 +1,8 @@
+
+
 # Pushover info
+PO_TITLE = "Bambu Printer"
+PO_SOUND = 'classical' 
 my_pushover_user = "your_pushover_user_key" # pushover user key
 my_pushover_app = "the_application_token" # pushover app key
 pause_error_secs = 10 # seconds

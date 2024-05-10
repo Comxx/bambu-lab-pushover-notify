@@ -13,10 +13,9 @@ import wled
 from vardata import *
 # Constants
 DASH = '\n-------------------------------------------\n'
-PO_TITLE = "Bambu Printer"
-PO_SOUND = 'classical'
 
 doorOpen = ""
+lightTurnedOn = False  # Flag variable to track if the light has been turned on
 # Global state
 first_run = False
 percent_notify = False
@@ -46,7 +45,7 @@ def on_publish(client, userdata, mid, reason_codes, properties):
 def on_connect(client, userdata, flags, reason_code, properties):
     client.subscribe("device/"+device_id+"/report", 0)
 def on_message(client, userdata, msg):
-    global DASH, gcode_state_prev, user, my_pushover_app, my_pushover_user, first_run, percent_notify, previous_print_error, my_finish_datetime, debugingchange, doorOpen
+    global DASH, gcode_state_prev, user, my_pushover_app, my_pushover_user, first_run, percent_notify, previous_print_error, my_finish_datetime, debugingchange, doorOpen, lightTurnedOn
     try:
         if msg.payload is None:
             logging.info("No message received from Printer")
@@ -90,73 +89,77 @@ def on_message(client, userdata, msg):
                 door_state = bool((home_flag >> 23) & 1)
 
                 # Check if the door state has changed
-                if doorOpen != door_state:
-                    doorOpen = door_state           
-                    # If the door has been opened
+            if doorOpen != door_state:
+                doorOpen = door_state           
+                # If the door has been opened
                 if gcode_state == "FINISH": 
-                    if doorOpen: 
-                            if ledligth:
-                                wled.set_power(wled_ip, True)
-                                wled.set_brightness(wled_ip, 255)
-                                wled.set_color(wled_ip, (255, 255, 255))
-                                logging.info("Opened")
-                            else:
-                                logging.info("Opened No WLED")   
-                    else: # If the door has been closed.
-                            if ledligth:
-                                wled.set_power(wled_ip, False)
-                                logging.info("Closed")
-                            else:
-                                logging.info("Closed No WLED")
-        
-        # Check if the print has been cancelled
-            if previous_print_error == 50348044 and print_error == 0:
-                    chamberlight_off_data = {
-                            "system": {
-                            "sequence_id": "2003",
-                            "command": "ledctrl",
-                            "led_node": "chamber_light",
-                            "led_mode": "off",
-                            "led_on_time": 500,
-                            "led_off_time": 500,
-                            "loop_times": 0,
-                            "interval_time": 0
-                            },
-                            "user_id": "123456789"
-                            }
-                    Chamberlogo_off_data = {
-                                "print": {
-                                "sequence_id": "2026",
-                                "command": "gcode_line",
-                                "param": "M960 S5 P0 \n"
-                                },
-                                "user_id": "1234567890"
-                                }
+                    if doorOpen and not lightTurnedOn: 
+                        if ledligth:
+                            wled.set_power(wled_ip, True)
+                            wled.set_brightness(wled_ip, 255)
+                            wled.set_color(wled_ip, (255, 255, 255))
+                            logging.info("Opened")
+                            lightTurnedOn = True  # Update flag to indicate light is turned on
+                        else:
+                            logging.info("Opened No WLED")   
+                    elif not doorOpen: # If the door has been closed.
+                        if ledligth and lightTurnedOn:
+                            wled.set_power(wled_ip, False)
+                            logging.info("Closed")
+                            lightTurnedOn = False  # Reset flag when the door is closed
+                        elif not ledligth:
+                            logging.info("Closed No WLED")
 
-                    payload = json.dumps(chamberlight_off_data)
-                    payloadlogo = json.dumps(Chamberlogo_off_data)
-                    client.publish("device/" + device_id + "/request", payload)
-                    client.publish("device/" + device_id + "/request", payloadlogo)
-                    message = po_user.create_message(
-                        title=f"{PO_TITLE} Cancelled",
-                        message= "Print Cancelled",
-                        sound=PO_SOUND,
-                        priority= 1
-                    )
-                    message.send()
-                    logging.info("Print cancelled")
-                    previous_print_error = print_error
-                    return
-            else:
-                    previous_print_error = print_error
-            if gcode_state and gcode_state_prev != gcode_state:
             
-                priority = 0
-                logging.info(DASH)
-                logging.info("gcode_state has changed to " + gcode_state)
-                json_formatted_str = json.dumps(dataDict, indent=2)
-                logging.info(DASH + json_formatted_str + DASH)
-                gcode_state_prev = gcode_state
+                # Check if the print has been cancelled
+                if previous_print_error == 50348044 and print_error == 0:
+                        chamberlight_off_data = {
+                                "system": {
+                                "sequence_id": "2003",
+                                "command": "ledctrl",
+                                "led_node": "chamber_light",
+                                "led_mode": "off",
+                                "led_on_time": 500,
+                                "led_off_time": 500,
+                                "loop_times": 0,
+                                "interval_time": 0
+                                },
+                                "user_id": "123456789"
+                                }
+                        Chamberlogo_off_data = {
+                                    "print": {
+                                    "sequence_id": "2026",
+                                    "command": "gcode_line",
+                                    "param": "M960 S5 P0 \n"
+                                    },
+                                    "user_id": "1234567890"
+                                    }
+
+                        payload = json.dumps(chamberlight_off_data)
+                        payloadlogo = json.dumps(Chamberlogo_off_data)
+                        client.publish("device/" + device_id + "/request", payload)
+                        client.publish("device/" + device_id + "/request", payloadlogo)
+                        wled.set_power(wled_ip, False)
+                        message = po_user.create_message(
+                            title=f"{PO_TITLE} Cancelled",
+                            message= "Print Cancelled",
+                            sound=PO_SOUND,
+                            priority= 1
+                        )
+                        message.send()
+                        logging.info("Print cancelled")
+                        previous_print_error = print_error
+                        return
+                else:
+                        previous_print_error = print_error
+                if gcode_state and gcode_state_prev != gcode_state:
+                
+                    priority = 0
+                    logging.info(DASH)
+                    logging.info("gcode_state has changed to " + gcode_state)
+                    json_formatted_str = json.dumps(dataDict, indent=2)
+                    logging.info(DASH + json_formatted_str + DASH)
+                    gcode_state_prev = gcode_state
 
                 my_datetime = ""
                 # Removed for now BambuLab removed in beta
