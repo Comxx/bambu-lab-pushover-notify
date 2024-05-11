@@ -46,7 +46,7 @@ def on_connect(client, userdata, flags, reason_code, properties):
     client.subscribe("device/"+device_id+"/report", 0)
 def on_message(client, userdata, msg):
     global DASH, gcode_state_prev, user, my_pushover_app, my_pushover_user, first_run, percent_notify, previous_print_error, my_finish_datetime, debugingchange, doorOpen, lightTurnedOn
-    priority = 0
+    priority = None
     try:
         if msg.payload is None:
             logging.info("No message received from Printer")
@@ -57,7 +57,7 @@ def on_message(client, userdata, msg):
         if 'print' in dataDict:
 
                 hms_data = dataDict['print'].get('hms', [{'attr': 0, 'code': 0}])
-        
+            
                 if hms_data:
                     hms_data = hms_data[0]
                 else:
@@ -80,37 +80,7 @@ def on_message(client, userdata, msg):
                 gcode_state = dataDict['print'].get('gcode_state')
                 percent_done = dataDict['print'].get('mc_percent', 0)  # Provide a default in case the key is missing
                 print_error = dataDict['print'].get('print_error')
-            
-                
                 home_flag = dataDict["print"]["home_flag"]
-                
-                    # Extract the door state from the "home_flag" value by performing bitwise operations
-                    # The door state is determined by the 23rd bit of the "home_flag" value
-                door_state = bool((home_flag >> 23) & 1)
-
-                # Check if the door state has changed
-                if doorOpen != door_state:
-                        doorOpen = door_state           
-                    # If the door has been opened
-                        if gcode_state == "FINISH" or gcode_state == "IDLE":
-                            if doorOpen and not lightTurnedOn: 
-                                if ledligth:
-                                    wled.set_power(wled_ip, True)
-                                    wled.set_brightness(wled_ip, 255)
-                                    wled.set_color(wled_ip, (255, 255, 255))
-                                    logging.info("Opened")
-                                    lightTurnedOn = True  # Update flag to indicate light is turned on
-                                else:
-                                    logging.info("Opened No WLED")   
-                            elif not doorOpen: # If the door has been closed.
-                                if ledligth and lightTurnedOn:
-                                    wled.set_power(wled_ip, False)
-                                    logging.info("Closed")
-                                    lightTurnedOn = False  # Reset flag when the door is closed
-                                elif not ledligth:
-                                    logging.info("Closed No WLED")
-
-            
                 # Check if the print has been cancelled
                 if previous_print_error == 50348044 and print_error == 0:
                         chamberlight_off_data = {
@@ -160,19 +130,6 @@ def on_message(client, userdata, msg):
                     json_formatted_str = json.dumps(dataDict, indent=2)
                     logging.info(DASH + json_formatted_str + DASH)
                     gcode_state_prev = gcode_state
-
-                my_datetime = ""
-                # Removed for now BambuLab removed in beta
-                #if('gcode_start_time' in dataDict['print']):
-                       # unix_timestamp = float(dataDict['print']['gcode_start_time'])
-                       # if(gcode_state == "PREPARE" and unix_timestamp == 0):
-                     #  unix_timestamp = float(time.time())
-                        #if(unix_timestamp != 0):
-                    # local_timezone = tzlocal.get_localzone() # get pytz timezone
-                           # local_time = datetime.fromtimestamp(unix_timestamp, local_timezone)
-                          #  my_datetime = local_time.strftime("%Y-%m-%d %I:%M %p (%Z)")
-                       # else:
-                            # my_finish_datetime = ""
 
                 remaining_time = ""
                 if('mc_remaining_time' in dataDict['print']):
@@ -224,6 +181,35 @@ def on_message(client, userdata, msg):
                     )
                     message.send()
                     device__HMS_error_code = ""  
+                if "print" in dataDict and "home_flag" in dataDict["print"]:
+                # Extract the "home_flag" value from the "print" dictionary
+                
+            
+                # Extract the door state from the "home_flag" value by performing bitwise operations
+                # The door state is determined by the 23rd bit of the "home_flag" value
+                    door_state = bool((home_flag >> 23) & 1)
+
+                # Check if the door state has changed
+                    if doorOpen != door_state:
+                        doorOpen = door_state           
+                # If the door has been opened
+                        if gcode_state == "FINISH" or gcode_state == "IDLE":
+                            if doorOpen and not lightTurnedOn: 
+                                if ledligth:
+                                    wled.set_power(wled_ip, True)
+                                    wled.set_brightness(wled_ip, 255)
+                                    wled.set_color(wled_ip, (255, 255, 255))
+                                    logging.info("Opened")
+                                    lightTurnedOn = True  # Update flag to indicate light is turned on
+                                else:
+                                    logging.info("Opened No WLED")   
+                            elif not doorOpen: # If the door has been closed.
+                                if ledligth and lightTurnedOn:
+                                    wled.set_power(wled_ip, False)
+                                    logging.info("Closed")
+                                    lightTurnedOn = False  # Reset flag when the door is closed
+                                else:
+                                    logging.info("Closed No WLED")        
         else:
             first_run = False
     except KeyError as e:
