@@ -93,7 +93,7 @@ def on_message(client, userdata, msg):
                 if doorOpen != door_state:
                     doorOpen = door_state           
                     # If the door has been opened
-                if gcode_state == "FINISH": 
+                if gcode_state == "FINISH" or gcode_state == "IDLE": 
                     if doorOpen: 
                         if not doorlight:
                             if ledligth:
