@@ -81,33 +81,33 @@ def on_message(client, userdata, msg):
             percent_done = dataDict['print'].get('mc_percent', 0)  # Provide a default in case the key is missing
             print_error = dataDict['print'].get('print_error')
         
-            if "print" in dataDict and "home_flag" in dataDict["print"]:
-                # Extract the "home_flag" value from the "print" dictionary
-                home_flag = dataDict["print"]["home_flag"]
+            # if "print" in dataDict and "home_flag" in dataDict["print"]:
+            #     # Extract the "home_flag" value from the "print" dictionary
+            #     home_flag = dataDict["print"]["home_flag"]
             
-                # Extract the door state from the "home_flag" value by performing bitwise operations
-                # The door state is determined by the 23rd bit of the "home_flag" value
-                door_state = bool((home_flag >> 23) & 1)
+            #     # Extract the door state from the "home_flag" value by performing bitwise operations
+            #     # The door state is determined by the 23rd bit of the "home_flag" value
+            #     door_state = bool((home_flag >> 23) & 1)
 
-                # Check if the door state has changed
-                if doorOpen != door_state:
-                    doorOpen = door_state           
-                    # If the door has been opened
-                if gcode_state == "FINISH": 
-                    if doorOpen: 
-                            if ledligth:
-                                wled.set_power(wled_ip, True)
-                                wled.set_brightness(wled_ip, 255)
-                                wled.set_color(wled_ip, (255, 255, 255))
-                                logging.info("Opened")
-                            else:
-                                logging.info("Opened No WLED")   
-                    else: # If the door has been closed.
-                            if ledligth:
-                                wled.set_power(wled_ip, False)
-                                logging.info("Closed")
-                            else:
-                                logging.info("Closed No WLED")
+            #     # Check if the door state has changed
+            #     if doorOpen != door_state:
+            #         doorOpen = door_state           
+            #         # If the door has been opened
+            #     if gcode_state == "FINISH": 
+            #         if doorOpen: 
+            #                 if ledligth:
+            #                     wled.set_power(wled_ip, True)
+            #                     wled.set_brightness(wled_ip, 255)
+            #                     wled.set_color(wled_ip, (255, 255, 255))
+            #                     logging.info("Opened")
+            #                 else:
+            #                     logging.info("Opened No WLED")   
+            #         else: # If the door has been closed.
+            #                 if ledligth:
+            #                     wled.set_power(wled_ip, False)
+            #                     logging.info("Closed")
+            #                 else:
+            #                     logging.info("Closed No WLED")
         
         # Check if the print has been cancelled
             if previous_print_error == 50348044 and print_error == 0:
