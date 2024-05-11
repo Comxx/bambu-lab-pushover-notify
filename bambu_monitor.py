@@ -46,7 +46,7 @@ def on_connect(client, userdata, flags, reason_code, properties):
     client.subscribe("device/"+device_id+"/report", 0)
 def on_message(client, userdata, msg):
     global DASH, gcode_state_prev, user, my_pushover_app, my_pushover_user, first_run, percent_notify, previous_print_error, my_finish_datetime, debugingchange, doorOpen, lightTurnedOn
-    priority = None
+    priority = 0
     try:
         if msg.payload is None:
             logging.info("No message received from Printer")
