@@ -56,60 +56,59 @@ def on_message(client, userdata, msg):
         
         if 'print' in dataDict:
 
-            hms_data = dataDict['print'].get('hms', [{'attr': 0, 'code': 0}])
+                hms_data = dataDict['print'].get('hms', [{'attr': 0, 'code': 0}])
         
-            if hms_data:
-                hms_data = hms_data[0]
-            else:
-                hms_data = {'attr': 0, 'code': 0}
-            
-            attr = hms_data.get('attr', 0)
-            code = hms_data.get('code', 0)
-            
-            device__HMS_error_code = hms_code(attr, code)
-            
-            english_errors = fetch_english_errors() or []
-            
-            error_code_to_hms_cleaned = str(device__HMS_error_code).replace('_', '')
-            found_device_error = search_error(error_code_to_hms_cleaned, english_errors)
-
-            if found_device_error is None:
-            # Handle the case where no error is found. For example, set a default error message.
-                found_device_error = {'intro': 'Unknown error'}
+                if hms_data:
+                    hms_data = hms_data[0]
+                else:
+                    hms_data = {'attr': 0, 'code': 0}
                 
-            gcode_state = dataDict['print'].get('gcode_state')
-            percent_done = dataDict['print'].get('mc_percent', 0)  # Provide a default in case the key is missing
-            print_error = dataDict['print'].get('print_error')
-        
-            if "print" in dataDict and "home_flag" in dataDict["print"]:
-                # Extract the "home_flag" value from the "print" dictionary
-                home_flag = dataDict["print"]["home_flag"]
+                attr = hms_data.get('attr', 0)
+                code = hms_data.get('code', 0)
+                
+                device__HMS_error_code = hms_code(attr, code)
+                
+                english_errors = fetch_english_errors() or []
+                
+                error_code_to_hms_cleaned = str(device__HMS_error_code).replace('_', '')
+                found_device_error = search_error(error_code_to_hms_cleaned, english_errors)
+
+                if found_device_error is None:
+                # Handle the case where no error is found. For example, set a default error message.
+                    found_device_error = {'intro': 'Unknown error'}
+                    
+                gcode_state = dataDict['print'].get('gcode_state')
+                percent_done = dataDict['print'].get('mc_percent', 0)  # Provide a default in case the key is missing
+                print_error = dataDict['print'].get('print_error')
             
-                # Extract the door state from the "home_flag" value by performing bitwise operations
-                # The door state is determined by the 23rd bit of the "home_flag" value
+                
+                home_flag = dataDict["print"]["home_flag"]
+                
+                    # Extract the door state from the "home_flag" value by performing bitwise operations
+                    # The door state is determined by the 23rd bit of the "home_flag" value
                 door_state = bool((home_flag >> 23) & 1)
 
                 # Check if the door state has changed
-            if doorOpen != door_state:
-                doorOpen = door_state           
-                # If the door has been opened
-                if gcode_state == "FINISH": 
-                    if doorOpen and not lightTurnedOn: 
-                        if ledligth:
-                            wled.set_power(wled_ip, True)
-                            wled.set_brightness(wled_ip, 255)
-                            wled.set_color(wled_ip, (255, 255, 255))
-                            logging.info("Opened")
-                            lightTurnedOn = True  # Update flag to indicate light is turned on
-                        else:
-                            logging.info("Opened No WLED")   
-                    elif not doorOpen: # If the door has been closed.
-                        if ledligth and lightTurnedOn:
-                            wled.set_power(wled_ip, False)
-                            logging.info("Closed")
-                            lightTurnedOn = False  # Reset flag when the door is closed
-                        elif not ledligth:
-                            logging.info("Closed No WLED")
+                if doorOpen != door_state:
+                        doorOpen = door_state           
+                    # If the door has been opened
+                        if gcode_state == "FINISH" or gcode_state == "IDLE":
+                            if doorOpen and not lightTurnedOn: 
+                                if ledligth:
+                                    wled.set_power(wled_ip, True)
+                                    wled.set_brightness(wled_ip, 255)
+                                    wled.set_color(wled_ip, (255, 255, 255))
+                                    logging.info("Opened")
+                                    lightTurnedOn = True  # Update flag to indicate light is turned on
+                                else:
+                                    logging.info("Opened No WLED")   
+                            elif not doorOpen: # If the door has been closed.
+                                if ledligth and lightTurnedOn:
+                                    wled.set_power(wled_ip, False)
+                                    logging.info("Closed")
+                                    lightTurnedOn = False  # Reset flag when the door is closed
+                                elif not ledligth:
+                                    logging.info("Closed No WLED")
 
             
                 # Check if the print has been cancelled
@@ -195,7 +194,7 @@ def on_message(client, userdata, msg):
                 if 'subtask_name' in dataDict['print']:
                     msg_text += "<li>Name: " + dataDict['print']['subtask_name'] + " </li>"
                 msg_text += f"<li>Remaining time: {remaining_time} </li>"
-               ## msg_text += "<li>Started: " + my_datetime + "</li>" # Removed for now BambuLab removed in beta
+                ## msg_text += "<li>Started: " + my_datetime + "</li>" # Removed for now BambuLab removed in beta
                 msg_text += "<li>Aprox End: " + my_finish_datetime + "</li>"
 
                 fail_reason = ""
