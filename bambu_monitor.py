@@ -106,14 +106,14 @@ def on_message(client, userdata, msg):
                                 logging.info("Opened No WLED")
                                 doorlight = True 
                     else: # If the door has been closed.
-                           if doorlight: 
-                              if ledligth:
-                                  wled.set_power(wled_ip, False)
-                                  logging.info("Closed")
-                                  doorlight = False
-                              else:
-                                  logging.info("Closed No WLED")
-                                  doorlight = False
+                        if doorlight: 
+                            if ledligth:
+                                wled.set_power(wled_ip, False)
+                                logging.info("Closed")
+                                doorlight = False
+                            else:
+                                logging.info("Closed No WLED")
+                                doorlight = False
         
         # Check if the print has been cancelled
             if previous_print_error == 50348044 and print_error == 0:
