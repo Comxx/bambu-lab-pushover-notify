@@ -15,7 +15,7 @@ from vardata import *
 DASH = '\n-------------------------------------------\n'
 PO_TITLE = "Bambu Printer"
 PO_SOUND = 'classical'
-
+doorlight = False
 doorOpen = ""
 # Global state
 first_run = False
@@ -95,19 +95,25 @@ def on_message(client, userdata, msg):
             #         # If the door has been opened
             #     if gcode_state == "FINISH": 
             #         if doorOpen: 
-            #                 if ledligth:
+            #             if not doorlight:
+            #                 if ledligth and doorlight:
             #                     wled.set_power(wled_ip, True)
             #                     wled.set_brightness(wled_ip, 255)
             #                     wled.set_color(wled_ip, (255, 255, 255))
             #                     logging.info("Opened")
+            #                     doorlight = True
             #                 else:
-            #                     logging.info("Opened No WLED")   
+            #                     logging.info("Opened No WLED")
+            #                     doorlight = True 
             #         else: # If the door has been closed.
-            #                 if ledligth:
-            #                     wled.set_power(wled_ip, False)
-            #                     logging.info("Closed")
-            #                 else:
-            #                     logging.info("Closed No WLED")
+            #                if doorlight: 
+            #                   if ledligth
+            #                       wled.set_power(wled_ip, False)
+            #                       logging.info("Closed")
+            #                       doorlight = False
+            #                   else:
+            #                       logging.info("Closed No WLED")
+            #                       doorlight = False
         
         # Check if the print has been cancelled
             if previous_print_error == 50348044 and print_error == 0:
