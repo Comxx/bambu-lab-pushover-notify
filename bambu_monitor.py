@@ -9,6 +9,7 @@ import paho.mqtt.client as paho
 from chump import Application
 import tzlocal
 import requests
+from logging.handlers import RotatingFileHandler
 import wled
 from vardata import *
 # Constants
@@ -39,7 +40,15 @@ def setup_logging():
     datetime_str = current_datetime.strftime("%Y-%m-%d_%I-%M-%S%p")
     logfile_path = "logs/"
     logfile_name = f"{logfile_path}output_{datetime_str}.log"
-    logging.basicConfig(filename=logfile_name, format='%(asctime)s %(levelname)s: %(message)s', level=logging.INFO, datefmt='%m-%d-%Y %I:%M:%S %p')
+    log_formatter = logging.Formatter('%(asctime)s %(levelname)s: %(message)s', datefmt='%m-%d-%Y %I:%M:%S %p')
+    
+    rotating_handler = RotatingFileHandler(logfile_name, maxBytes=1024*1024, backupCount=5)
+    rotating_handler.setFormatter(log_formatter)
+    
+    logger = logging.getLogger()
+    logger.setLevel(logging.INFO)
+    logger.addHandler(rotating_handler)
+
 
 def on_publish(client, userdata, mid, reason_codes, properties):
     logging.info("Message published successfully to Printer")
