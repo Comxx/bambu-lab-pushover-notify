@@ -24,7 +24,7 @@ def set_brightness(ip_address, brightness):
         logging.info("Failed to set brightness.")       
 def set_color(ip_address, color):
     url = f"http://{ip_address}/json"
-    payload = {"seg": [{"col": [color[0], color[1], color[2]]}]}
+    payload = {"seg": [{"col": [[color[0], color[1], color[2]]]}]}
     response = requests.post(url, data=json.dumps(payload))
     if response.status_code == 200:
         logging.info("Color set successfully.")
