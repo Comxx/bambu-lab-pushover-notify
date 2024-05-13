@@ -7,7 +7,7 @@ Why create this script? I keep missing the notifications on the slow handy app
 
 > [!IMPORTANT]
 > **This is a work in progress**.
->**This Will Only work X1c or X1 I may add the other in future**
+> **This will only work X1c or X1 I may add the other printers in the future**.
 
 ## Requirements
 
