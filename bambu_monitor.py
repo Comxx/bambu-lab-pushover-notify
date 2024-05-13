@@ -34,7 +34,6 @@ po_user = po_app.get_user(my_pushover_user)
 
 
 def setup_logging():
-    """Sets up logging with a timestamped log file."""
     local_timezone = tzlocal.get_localzone()
     current_datetime = datetime.now(local_timezone)
     datetime_str = current_datetime.strftime("%Y-%m-%d_%I-%M-%S%p")
@@ -206,7 +205,7 @@ def on_message(client, userdata, msg):
                 if 'subtask_name' in dataDict['print']:
                     msg_text += "<li>Name: " + dataDict['print']['subtask_name'] + " </li>"
                 msg_text += f"<li>Remaining time: {remaining_time} </li>"
-               ## msg_text += "<li>Started: " + my_datetime + "</li>" # Removed for now BambuLab removed in beta
+            ## msg_text += "<li>Started: " + my_datetime + "</li>" # Removed for now BambuLab removed in beta
                 msg_text += "<li>Aprox End: " + my_finish_datetime + "</li>"
 
                 fail_reason = ""
@@ -306,3 +305,4 @@ def main(argv):
 
 if __name__ == "__main__":
     main(sys.argv[1:])     
+
