@@ -1,5 +1,5 @@
-# Comxx Bambu Labs X1C Python Monitor and Pushover Notifier
-This script will monitor the Bambu X1C and send pushover notifications on gcode_state changes also gets HMS data from the printer and sends to pushover.
+# Comxx Bambu Labs X1C Python Monitor, Pushover Notifier and Wled control.
+This script will monitor the Bambu X1C and send pushover notifications on gcode_state changes also gets HMS data from the printer and sends to pushover. It will alos use WLED to control Led strip when opening the chamber door.
 
 Thanks to [ChadDevOps](https://github.com/ChadDevOps) for the original script.
 
@@ -7,16 +7,18 @@ Why create this script? I keep missing the notifications on the slow handy app
 
 > [!IMPORTANT]
 > **This is a work in progress**.
+>**This Will Only work X1c or X1 I may add the other in future**
 
 ## Requirements
 
 - Basic knowledge of git, windows scheduled tasks, task scheduler, starting an administrative powershell session, etc.
+- Bambu Labs X1c or X1
 - Windows. May work with linux platforms with some tweaks..
 - Git
 - Python
+- WLED controlled Led strip - Optional
 - mqtt-explorer - Optional
-- A pushover account [https://pushover.net](https://pushover.net) is required and a pushover application created [https://pushover.net/apps/build](https://pushover.net/apps/build).
-- Wled 
+- A pushover account [https://pushover.net](https://pushover.net) is required and a pushover application created [https://pushover.net/apps/build](https://pushover.net/apps/build). 
 ## Setup
 
 Start Powershell as admin (Windows 10). Assuming you're on the C:\ drive, follow the instructions below:
@@ -75,6 +77,11 @@ port = 8883 # default port
 user = 'bblp' # default user
 password = 'alphanumeric_code' # access code from bambu x1c screen under cog wheel / network tab
 device_id = '0SOMETHING' # use mqtt-explorer to obtain or Bambu Studio, see details above
+
+# WLED
+ledligth = True  # Use Wled light Flase/True
+wled_ip = "192.168.1.100" # ip address of wled
+
 ```
 
 To start monitoring on Windows startup, open task scheduler and import bambu_monitor.xml. Modify paths in xml if you did not clone to the C: drive. This will launch run.bat on windows startup as SYSTEM.
