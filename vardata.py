@@ -16,5 +16,5 @@ password = 'alphanumeric_code' # access code from bambu x1c screen under cog whe
 device_id = '0SOMETHING' # use mqtt-explorer to obtain or Bambu Studio, see readme.md for details
 
 # Wled login information and ip address
-ledligth = True  # Use Wled light Flase/True
+ledligth = True  # Use Wled light False/True
 wled_ip = "192.168.1.100" # ip address of wled
