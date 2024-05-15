@@ -4,8 +4,8 @@ my_pushover_app = "the_application_token" # pushover app key
 
 # Bambu login information
 brokers = [
-            {"host": "broker1.example.com", "port": 8883, "user": "bblp", "password": "password1", "device_id": "device1", "Printer_Title": "Bambu Printer", "PO_SOUND": "classical", "my_pushover_user": "your_pushover_user_key", "my_pushover_app": "the_application_token"},
-            {"host": "broker2.example.com", "port": 8883, "user": "bblp", "password": "password2", "device_id": "device2", "Printer_Title": "Another Printer", "PO_SOUND": "pushover", "my_pushover_user": "your_pushover_user_key2", "my_pushover_app": "the_application_token2"},
+    {"host": "broker1.example.com", "port": 8883, "user": "bblp", "password": "password1", "device_id": "device1", "Printer_Title": "Bambu Printer", "PO_SOUND": "classical", "my_pushover_user": "your_pushover_user_key", "my_pushover_app": "the_application_token"},
+    {"host": "broker2.example.com", "port": 8883, "user": "bblp", "password": "password2", "device_id": "device2", "Printer_Title": "Another Printer", "PO_SOUND": "pushover", "my_pushover_user": "your_pushover_user_key2", "my_pushover_app": "the_application_token2"},
             # Add more printers as needed
         ]
 # host = '127.0.0.7' # bambu x1c ipv4 address

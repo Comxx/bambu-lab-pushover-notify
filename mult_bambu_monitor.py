@@ -13,7 +13,18 @@ import time
 import wled
 
 DASH = '\n-------------------------------------------\n'
-
+doorlight = False
+doorOpen = ""
+# Global state
+first_run = False
+percent_notify = False
+percent_done = 0
+message_sent = False
+last_fetch_time = None
+cached_data = None
+gcode_state_prev = ''
+previous_print_error = 0
+my_finish_datetime = ""
 def setup_logging():
     local_timezone = tzlocal.get_localzone()
     current_datetime = datetime.now(local_timezone)
