@@ -25,6 +25,7 @@ cached_data = None
 gcode_state_prev = ''
 previous_print_error = 0
 my_finish_datetime = ""
+previous_gcode_states = {}
 def setup_logging():
     local_timezone = tzlocal.get_localzone()
     current_datetime = datetime.now(local_timezone)
@@ -46,7 +47,7 @@ def on_publish(client, userdata, mid, reason_codes, properties):
     logging.info(f"Message published successfully to {userdata['Printer_Title']}")  
 
 def on_message(client, userdata, msg):
-    global DASH, gcode_state_prev, user, my_pushover_app, my_pushover_user, first_run, percent_notify, previous_print_error, my_finish_datetime, doorlight, doorOpen
+    global DASH, gcode_state_prev, user, my_pushover_app, my_pushover_user, first_run, percent_notify, previous_print_error, my_finish_datetime, doorlight, doorOpen, previous_gcode_states
     try:
         po_app = Application(userdata['my_pushover_app'])
         po_user = po_app.get_user(userdata['my_pushover_user'])
@@ -55,7 +56,13 @@ def on_message(client, userdata, msg):
             return
         msgData = msg.payload.decode('utf-8')
         dataDict = json.loads(msgData)
-        
+        broker_info = {
+            "my_pushover_app": userdata['my_pushover_app'],
+            "my_pushover_user": userdata['my_pushover_user'],
+            "Printer_Title": userdata['Printer_Title']
+        }
+        if broker_info not in previous_gcode_states:
+            previous_gcode_states[broker_info] = ''
         if 'print' in dataDict:
 
             hms_data = dataDict['print'].get('hms', [{'attr': 0, 'code': 0}])
@@ -157,14 +164,14 @@ def on_message(client, userdata, msg):
                     return
             else:
                     previous_print_error = print_error
-            if gcode_state and gcode_state_prev != gcode_state:
+            if gcode_state and previous_gcode_states[broker_info] != gcode_state:
             
                 priority = 0
                 logging.info(DASH)
                 logging.info("gcode_state has changed to " + gcode_state)
                 json_formatted_str = json.dumps(dataDict, indent=2)
                 logging.info(DASH + json_formatted_str + DASH)
-                gcode_state_prev = gcode_state
+                previous_gcode_states[broker_info] = gcode_state
 
                 my_datetime = ""
                 # Removed for now BambuLab removed in beta
