@@ -1,2 +1,2 @@
 echo on
-py bambu_monitor.py
+py mult_bambu_monitor.py
