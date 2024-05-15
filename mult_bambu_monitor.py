@@ -164,14 +164,15 @@ def on_message(client, userdata, msg):
                     return
             else:
                     previous_print_error = print_error
-            if gcode_state and previous_gcode_states[broker_info] != gcode_state:
+            broker_info_key = tuple(broker_info.items())       
+            if gcode_state and previous_gcode_states[broker_info_key] != gcode_state:
             
                 priority = 0
                 logging.info(DASH)
                 logging.info("gcode_state has changed to " + gcode_state)
                 json_formatted_str = json.dumps(dataDict, indent=2)
                 logging.info(DASH + json_formatted_str + DASH)
-                previous_gcode_states[broker_info] = gcode_state
+                previous_gcode_states[broker_info_key] = gcode_state
 
                 my_datetime = ""
                 # Removed for now BambuLab removed in beta
