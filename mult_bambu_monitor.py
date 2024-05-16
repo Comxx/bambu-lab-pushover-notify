@@ -51,18 +51,14 @@ def on_message(client, userdata, msg):
     try:
         po_app = Application(userdata['my_pushover_app'])
         po_user = po_app.get_user(userdata['my_pushover_user'])
+        server_identifier = (userdata['password'], userdata['device_id'])
+        prev_state = previous_gcode_states.get(server_identifier, {'state': None})
         if msg.payload is None:
             logging.info("No message received from Printer")
             return
         msgData = msg.payload.decode('utf-8')
         dataDict = json.loads(msgData)
-        broker_info = {
-            "my_pushover_app": userdata['my_pushover_app'],
-            "my_pushover_user": userdata['my_pushover_user'],
-            "Printer_Title": userdata['Printer_Title']
-        }
-        if broker_info not in previous_gcode_states:
-            previous_gcode_states[broker_info] = ''
+        
         if 'print' in dataDict:
 
             hms_data = dataDict['print'].get('hms', [{'attr': 0, 'code': 0}])
@@ -164,29 +160,15 @@ def on_message(client, userdata, msg):
                     return
             else:
                     previous_print_error = print_error
-            broker_info_key = tuple(broker_info.items())       
-            if gcode_state and previous_gcode_states[broker_info_key] != gcode_state:
+                    
+            if gcode_state and (gcode_state != prev_state['state'] or prev_state['state'] is None):
             
                 priority = 0
                 logging.info(DASH)
                 logging.info("gcode_state has changed to " + gcode_state)
                 json_formatted_str = json.dumps(dataDict, indent=2)
                 logging.info(DASH + json_formatted_str + DASH)
-                previous_gcode_states[broker_info_key] = gcode_state
-
-                my_datetime = ""
-                # Removed for now BambuLab removed in beta
-                #if('gcode_start_time' in dataDict['print']):
-                       # unix_timestamp = float(dataDict['print']['gcode_start_time'])
-                       # if(gcode_state == "PREPARE" and unix_timestamp == 0):
-                     #  unix_timestamp = float(time.time())
-                        #if(unix_timestamp != 0):
-                    # local_timezone = tzlocal.get_localzone() # get pytz timezone
-                           # local_time = datetime.fromtimestamp(unix_timestamp, local_timezone)
-                          #  my_datetime = local_time.strftime("%Y-%m-%d %I:%M %p (%Z)")
-                       # else:
-                            # my_finish_datetime = ""
-
+                previous_gcode_states[server_identifier] = {'state': gcode_state}
                 remaining_time = ""
                 if('mc_remaining_time' in dataDict['print']):
                         time_left_seconds = int(dataDict['print']['mc_remaining_time']) * 60
@@ -207,7 +189,6 @@ def on_message(client, userdata, msg):
                 if 'subtask_name' in dataDict['print']:
                     msg_text += "<li>Name: " + dataDict['print']['subtask_name'] + " </li>"
                 msg_text += f"<li>Remaining time: {remaining_time} </li>"
-            ## msg_text += "<li>Started: " + my_datetime + "</li>" # Removed for now BambuLab removed in beta
                 msg_text += "<li>Aprox End: " + my_finish_datetime + "</li>"
 
                 fail_reason = ""
@@ -237,8 +218,8 @@ def on_message(client, userdata, msg):
                     )
                     message.send()
                     device__HMS_error_code = ""  
-        else:
-            first_run = False
+            else:
+                first_run = False
     except KeyError as e:
         logging.error(f"KeyError accessing 'gcode_state': {e}")
     except json.JSONDecodeError as e:
