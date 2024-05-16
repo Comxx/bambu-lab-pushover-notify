@@ -101,10 +101,10 @@ def on_message(client, userdata, msg):
                 if gcode_state == "FINISH" or gcode_state == "IDLE": 
                     if doorOpen: 
                         if not doorlight:
-                            if ledligth:
-                                wled.set_power(wled_ip, True)
-                                wled.set_brightness(wled_ip, 255)
-                                wled.set_color(wled_ip, (255, 255, 255))
+                            if userdata['ledligth']:
+                                wled.set_power(userdata['wled_ip'], True)
+                                wled.set_brightness(userdata['wled_ip'], 255)
+                                wled.set_color(userdata['wled_ip'], (255, 255, 255))
                                 logging.info("Opened")
                                 doorlight = True
                             else:
@@ -112,8 +112,8 @@ def on_message(client, userdata, msg):
                                 doorlight = True 
                     else: # If the door has been closed.
                         if doorlight: 
-                            if ledligth:
-                                wled.set_power(wled_ip, False)
+                            if userdata['ledligth']:
+                                wled.set_power(userdata['wled_ip'], False)
                                 logging.info("Closed")
                                 doorlight = False
                             else:
