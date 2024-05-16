@@ -2,7 +2,7 @@ import logging
 import paho.mqtt.client as paho
 import ssl
 import sys
-from vardata import *
+from settings import *
 import tzlocal
 from datetime import datetime, timedelta
 from logging.handlers import RotatingFileHandler

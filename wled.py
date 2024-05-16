@@ -3,7 +3,7 @@ import logging
 from datetime import datetime
 import json
 import requests
-from vardata import *
+from settings import *
 
 def set_power(ip_address, state):
     url = f"http://{ip_address}/json"

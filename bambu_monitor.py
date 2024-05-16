@@ -11,7 +11,7 @@ import tzlocal
 import requests
 from logging.handlers import RotatingFileHandler
 import wled
-from vardata import *
+from settings import *
 # Constants
 DASH = '\n-------------------------------------------\n'
 PO_TITLE = "Bambu Printer"
