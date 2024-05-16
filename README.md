@@ -60,7 +60,7 @@ cd\
 git clone https://github.com/Comxx/bambu-lab-pushover-notify.git
 ```
 
-Update [vardata.py](vardata.py) with your settings.
+Update [settings.py](settings.py) with your settings.
 
 ```
 # Pushover info
@@ -75,6 +75,10 @@ port = 8883 # default port
 user = 'bblp' # default user
 password = 'alphanumeric_code' # access code from bambu x1c screen under cog wheel / network tab
 device_id = '0SOMETHING' # use mqtt-explorer to obtain or Bambu Studio, see details above
+
+# Wled login information and ip address
+ledligth = True  # Use Wled light False/True
+wled_ip = "192.168.1.100" # ip address of wled
 ```
 
 To start monitoring on Windows startup, open task scheduler and import bambu_monitor.xml. Modify paths in xml if you did not clone to the C: drive. This will launch run.bat on windows startup as SYSTEM.

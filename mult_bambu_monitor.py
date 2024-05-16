@@ -1,3 +1,4 @@
+#!/usr/bin/env python3.7
 import logging
 import paho.mqtt.client as paho
 import ssl
