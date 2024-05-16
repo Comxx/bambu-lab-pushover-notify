@@ -166,7 +166,7 @@ def on_message(client, userdata, msg):
             
                 priority = 0
                 logging.info(DASH)
-                logging.info("gcode_state has changed to " + gcode_state)
+                logging.info(userdata["Printer_Title"] + " gcode_state has changed to " + gcode_state)
                 json_formatted_str = json.dumps(dataDict, indent=2)
                 logging.info(DASH + json_formatted_str + DASH)
                 previous_gcode_states[server_identifier] = {'state': gcode_state}
