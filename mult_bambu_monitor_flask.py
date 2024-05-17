@@ -104,27 +104,27 @@ def on_message(client, userdata, msg):
 
                 if doorOpen != door_state:
                     doorOpen = door_state
-                if gcode_state == "FINISH" or gcode_state == "IDLE":
-                    if doorOpen:
-                        if not doorlight:
-                            if userdata['ledligth']:
-                                wled.set_power(userdata['wled_ip'], True)
-                                wled.set_brightness(userdata['wled_ip'], 255)
-                                wled.set_color(userdata['wled_ip'], (255, 255, 255))
-                                logging.info("Opened")
-                                doorlight = True
-                            else:
-                                logging.info("Opened No WLED")
-                                doorlight = True
-                    else:
-                        if doorlight:
-                            if userdata['ledligth']:
-                                wled.set_power(userdata['wled_ip'], False)
-                                logging.info("Closed")
-                                doorlight = False
-                            else:
-                                logging.info("Closed No WLED")
-                                doorlight = False
+                    if gcode_state == "FINISH" or gcode_state == "IDLE":
+                        if doorOpen:
+                            if not doorlight:
+                                if userdata['ledligth']:
+                                    wled.set_power(userdata['wled_ip'], True)
+                                    wled.set_brightness(userdata['wled_ip'], 255)
+                                    wled.set_color(userdata['wled_ip'], (255, 255, 255))
+                                    logging.info("Opened")
+                                    doorlight = True
+                                else:
+                                    logging.info("Opened No WLED")
+                                    doorlight = True
+                        else:
+                            if doorlight:
+                                if userdata['ledligth']:
+                                    wled.set_power(userdata['wled_ip'], False)
+                                    logging.info("Closed")
+                                    doorlight = False
+                                else:
+                                    logging.info("Closed No WLED")
+                                    doorlight = False
 
             if previous_print_error == 50348044 and print_error == 0:
                 chamberlight_off_data = {
@@ -166,27 +166,27 @@ def on_message(client, userdata, msg):
             else:
                 previous_print_error = print_error
 
-            if gcode_state and (gcode_state != prev_state['state'] or prev_state['state'] is None):
+            remaining_time = ""
+            if 'mc_remaining_time' in dataDict['print']:
+                time_left_seconds = int(dataDict['print']['mc_remaining_time']) * 60
+                if time_left_seconds != 0:
+                    aprox_finish_time = time.time() + time_left_seconds
+                    unix_timestamp = float(aprox_finish_time)
+                    local_timezone = tzlocal.get_localzone()
+                    local_time = datetime.fromtimestamp(unix_timestamp, local_timezone)
+                    my_finish_datetime = local_time.strftime("%Y-%m-%d %I:%M %p (%Z)")
+                    remaining_time = str(timedelta(minutes=dataDict['print']['mc_remaining_time']))
+                else:
+                    if gcode_state == "FINISH" and time_left_seconds == 0:
+                        my_finish_datetime = "Done!"
 
+            if gcode_state and (gcode_state != prev_state['state'] or prev_state['state'] is None):
                 priority = 0
                 logging.info(DASH)
                 logging.info(userdata["Printer_Title"] + " gcode_state has changed to " + gcode_state)
                 json_formatted_str = json.dumps(dataDict, indent=2)
                 logging.info(DASH + json_formatted_str + DASH)
                 previous_gcode_states[server_identifier] = {'state': gcode_state}
-                remaining_time = ""
-                if 'mc_remaining_time' in dataDict['print']:
-                    time_left_seconds = int(dataDict['print']['mc_remaining_time']) * 60
-                    if time_left_seconds != 0:
-                        aprox_finish_time = time.time() + time_left_seconds
-                        unix_timestamp = float(aprox_finish_time)
-                        local_timezone = tzlocal.get_localzone()
-                        local_time = datetime.fromtimestamp(unix_timestamp, local_timezone)
-                        my_finish_datetime = local_time.strftime("%Y-%m-%d %I:%M %p (%Z)")
-                        remaining_time = str(timedelta(minutes=dataDict['print']['mc_remaining_time']))
-                    else:
-                        if gcode_state == "FINISH" and time_left_seconds == 0:
-                            my_finish_datetime = "Done!"
 
                 msg_text = "<ul>"
                 msg_text += "<li>State: " + gcode_state + " </li>"
@@ -197,7 +197,7 @@ def on_message(client, userdata, msg):
                 msg_text += "<li>Aprox End: " + my_finish_datetime + "</li>"
 
                 fail_reason = ""
-                if (('fail_reason' in dataDict['print'] and len(dataDict['print']['fail_reason']) > 1) or ('print_error' in dataDict['print'] and dataDict['print']['print_error'] != 0) or gcode_state == "FAILED"):
+                if( ('fail_reason' in dataDict['print'] and len(dataDict['print']['fail_reason']) > 1) or ( 'print_error' in dataDict['print'] and dataDict['print']['print_error'] != 0 ) or gcode_state == "FAILED" ):
                     if 'print_error' in dataDict['print'] and dataDict['print']['print_error'] is not None:
                         msg_text += f"<li>print_error: {dataDict['print']['print_error']}</li>"
                     if 'mc_print_error_code' in dataDict['print'] and dataDict['print']['mc_print_error_code'] is not None:
@@ -223,19 +223,23 @@ def on_message(client, userdata, msg):
                     )
                     message.send()
                     device__HMS_error_code = ""
-            else:
-                first_run = False
-        socketio.emit('update_time', {
-                    'printer': userdata['Printer_Title'],
-                    'remaining_time': remaining_time,
-                    'approx_end': my_finish_datetime
-            })       
+
+            # Emit update to the client for every message
+            socketio.emit('update_time', {
+                'printer': userdata['Printer_Title'],
+                'remaining_time': remaining_time,
+                'approx_end': my_finish_datetime
+            })
+
+        else:
+            first_run = False
     except KeyError as e:
         logging.error(f"KeyError accessing 'gcode_state': {e}")
     except json.JSONDecodeError as e:
         logging.error("Failed to decode JSON from MQTT message: {e}")
     except Exception as e:
         logging.error(f"Unexpected error in on_message: {e}")
+
 
 def hms_code(attr, code):
     try:
