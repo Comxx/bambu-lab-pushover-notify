@@ -40,8 +40,6 @@
 
         // Listen for 'update_time' events from the server
         socket.on('update_time', function(data) {
-            console.log('Received update_time event:', data); // Debugging log
-
             var printer = data.printer;
             var projectnameElement = document.getElementById(printer + '_project_name');
             var remainingTimeElement = document.getElementById(printer + '_remaining_time');
