@@ -31,6 +31,7 @@ previous_print_error = 0
 my_finish_datetime = ""
 previous_gcode_states = {}
 printer_states = {}
+errorstate = ''
 # Initialize Flask app and SocketIO
 app = Flask(__name__)
 socketio = SocketIO(app)
@@ -138,36 +139,7 @@ def on_message(client, userdata, msg):
                             else:
                                 logging.info("Closed No WLED")
                                 printer_state['doorlight'] = False
-
-            if "print" in dataDict and "home_flag" in dataDict["print"]:
-                home_flag = dataDict["print"]["home_flag"]
-                door_state = bool((home_flag >> 23) & 1)
-
-                if doorOpen != door_state:
-                    doorOpen = door_state
-                    if gcode_state == "FINISH" or gcode_state == "IDLE":
-                        if doorOpen:
-                            if not doorlight:
-                                if userdata['ledligth']:
-                                    wled.set_power(userdata['wled_ip'], True)
-                                    wled.set_brightness(userdata['wled_ip'], 255)
-                                    wled.set_color(userdata['wled_ip'], (255, 255, 255))
-                                    logging.info("Opened")
-                                    doorlight = True
-                                else:
-                                    logging.info("Opened No WLED")
-                                    doorlight = True
-                        else:
-                            if doorlight:
-                                if userdata['ledligth']:
-                                    wled.set_power(userdata['wled_ip'], False)
-                                    logging.info("Closed")
-                                    doorlight = False
-                                else:
-                                    logging.info("Closed No WLED")
-                                    doorlight = False
-
-            if previous_print_error == 50348044 and print_error == 0:
+            if printer_state['previous_print_error'] == 50348044 and print_error == 0:
                 chamberlight_off_data = {
                     "system": {
                         "sequence_id": "2003",
@@ -201,11 +173,11 @@ def on_message(client, userdata, msg):
                     priority=1
                 )
                 message.send()
-                logging.info("Print cancelled")
-                previous_print_error = print_error
+                logging.info("Print cancelled on " + userdata['Printer_Title'])
+                printer_state['previous_print_error'] = print_error
                 return
             else:
-                previous_print_error = print_error
+                printer_state['previous_print_error'] = print_error
 
             remaining_time = ""
             if 'mc_remaining_time' in dataDict['print']:
@@ -223,6 +195,7 @@ def on_message(client, userdata, msg):
 
             if gcode_state and (gcode_state != prev_state['state'] or prev_state['state'] is None):
                 priority = 0
+                errorstate = "NONE"
                 logging.info(DASH)
                 logging.info(userdata["Printer_Title"] + " gcode_state has changed to " + gcode_state)
                 json_formatted_str = json.dumps(dataDict, indent=2)
@@ -239,6 +212,7 @@ def on_message(client, userdata, msg):
 
                 fail_reason = ""
                 if( ('fail_reason' in dataDict['print'] and len(dataDict['print']['fail_reason']) > 1) or ( 'print_error' in dataDict['print'] and dataDict['print']['print_error'] != 0 ) or gcode_state == "FAILED" ):
+                    errorstate = "ERROR"
                     if 'print_error' in dataDict['print'] and dataDict['print']['print_error'] is not None:
                         msg_text += f"<li>print_error: {dataDict['print']['print_error']}</li>"
                     if 'mc_print_error_code' in dataDict['print'] and dataDict['print']['mc_print_error_code'] is not None:
@@ -269,7 +243,10 @@ def on_message(client, userdata, msg):
             socketio.emit('update_time', {
                 'printer': userdata['Printer_Title'],
                 'remaining_time': remaining_time,
-                'approx_end': my_finish_datetime
+                'approx_end': my_finish_datetime,
+                'state': gcode_state,
+                'project_name': dataDict['print']['subtask_name'],
+                'error': errorstate
             })
 
         else:

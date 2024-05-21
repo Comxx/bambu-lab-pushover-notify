@@ -184,7 +184,7 @@ def on_message(client, userdata, msg):
                             unix_timestamp = float(aprox_finish_time)
                             local_timezone = tzlocal.get_localzone()  
                             local_time = datetime.fromtimestamp(unix_timestamp, local_timezone)
-                            my_finish_datetime = local_time.strftime("%Y-%m-%d %I:%M %p (%Z)")
+                            my_finish_datetime = local_time.strftime("%m-%d-%Y %I:%M %p (%Z)")
                             remaining_time = str(timedelta(minutes=dataDict['print']['mc_remaining_time']))
                         else:
                             if(gcode_state == "FINISH" and time_left_seconds == 0):
