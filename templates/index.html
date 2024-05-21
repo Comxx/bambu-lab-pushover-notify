@@ -59,6 +59,8 @@
                     cardElement.style.backgroundColor = 'red';
                 } else if (data.status === 'RUNNING') {
                     cardElement.style.backgroundColor = 'green';
+                } else if (data.status === 'PAUSED') {
+                    cardElement.style.backgroundColor = 'yellow';
                 } else {
                     cardElement.style.backgroundColor = ''; // Reset to default or another color
                 }
