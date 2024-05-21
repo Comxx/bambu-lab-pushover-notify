@@ -127,41 +127,6 @@ def on_message(client, userdata, msg):
                             else:
                                 logging.info("Closed No WLED")
                                 printer_state['doorlight'] = False
-
-            if "print" in dataDict and "home_flag" in dataDict["print"]:
-                # Extract the "home_flag" value from the "print" dictionary
-                home_flag = dataDict["print"]["home_flag"]
-            
-                # Extract the door state from the "home_flag" value by performing bitwise operations
-                # The door state is determined by the 23rd bit of the "home_flag" value
-                door_state = bool((home_flag >> 23) & 1)
-
-                # Check if the door state has changed
-                if doorOpen != door_state:
-                    doorOpen = door_state           
-                    # If the door has been opened
-                if gcode_state == "FINISH" or gcode_state == "IDLE": 
-                    if doorOpen: 
-                        if not doorlight:
-                            if userdata['ledligth']:
-                                wled.set_power(userdata['wled_ip'], True)
-                                wled.set_brightness(userdata['wled_ip'], 255)
-                                wled.set_color(userdata['wled_ip'], (255, 255, 255))
-                                logging.info("Opened")
-                                doorlight = True
-                            else:
-                                logging.info("Opened No WLED")
-                                doorlight = True 
-                    else: # If the door has been closed.
-                        if doorlight: 
-                            if userdata['ledligth']:
-                                wled.set_power(userdata['wled_ip'], False)
-                                logging.info("Closed")
-                                doorlight = False
-                            else:
-                                logging.info("Closed No WLED")
-                                doorlight = False
-                        # Check if the print has been cancelled for the specific printer
             if printer_state['previous_print_error'] == 50348044 and print_error == 0:
                 chamberlight_off_data = {
                     "system": {
@@ -201,6 +166,7 @@ def on_message(client, userdata, msg):
                 return
             else:
                 printer_state['previous_print_error'] = print_error
+
                     
             if gcode_state and (gcode_state != prev_state['state'] or prev_state['state'] is None):
             
@@ -332,7 +298,10 @@ def main(argv):
         for broker_config in brokers:
             client = connect_to_broker(broker_config)
             mqtt_clients.append(client)
-        client.loop_forever()
+        
+        # Keep the main thread alive
+        while True:
+            pass
         
     except Exception as e:
         logging.error(f"Fatal error in main: {e}")

@@ -30,7 +30,7 @@ gcode_state_prev = ''
 previous_print_error = 0
 my_finish_datetime = ""
 previous_gcode_states = {}
-
+printer_states = {}
 # Initialize Flask app and SocketIO
 app = Flask(__name__)
 socketio = SocketIO(app)
@@ -61,7 +61,7 @@ def on_publish(client, userdata, mid, reason_codes, properties):
     logging.info(f"Message published successfully to {userdata['Printer_Title']}")  
 
 def on_message(client, userdata, msg):
-    global DASH, gcode_state_prev, user, my_pushover_app, my_pushover_user, first_run, percent_notify, previous_print_error, my_finish_datetime, doorlight, doorOpen, previous_gcode_states
+    global DASH, gcode_state_prev, user, my_pushover_app, my_pushover_user, first_run, percent_notify, previous_print_error, my_finish_datetime, doorlight, doorOpen, previous_gcode_states, printer_states
     try:
         po_app = Application(userdata['my_pushover_app'])
         po_user = po_app.get_user(userdata['my_pushover_user'])
@@ -74,6 +74,21 @@ def on_message(client, userdata, msg):
         dataDict = json.loads(msgData)
 
         if 'print' in dataDict:
+            device_id = userdata['device_id']
+            if not device_id:
+                logging.error("Device ID not found in the message")
+                return
+            # Initialize state for new printer
+            if device_id not in printer_states:
+                printer_states[device_id] = {
+                    'previous_print_error': 0,
+                    'doorlight': False,
+                    'doorOpen': "",
+                    'gcode_state_prev': ''
+                }
+
+            printer_state = printer_states[device_id]
+            
             hms_data = dataDict['print'].get('hms', [{'attr': 0, 'code': 0}])
 
             if hms_data:
@@ -97,6 +112,32 @@ def on_message(client, userdata, msg):
             gcode_state = dataDict['print'].get('gcode_state')
             percent_done = dataDict['print'].get('mc_percent', 0)  # Provide a default in case the key is missing
             print_error = dataDict['print'].get('print_error')
+        if "print" in dataDict and "home_flag" in dataDict["print"]:
+            home_flag = dataDict["print"]["home_flag"]
+            door_state = bool((home_flag >> 23) & 1)
+            if printer_state['doorOpen'] != door_state:
+                printer_state['doorOpen'] = door_state
+                if gcode_state == "FINISH" or gcode_state == "IDLE": 
+                    if printer_state['doorOpen']: 
+                        if not printer_state['doorlight']:
+                            if userdata['ledligth']:
+                                wled.set_power(userdata['wled_ip'], True)
+                                wled.set_brightness(userdata['wled_ip'], 255)
+                                wled.set_color(userdata['wled_ip'], (255, 255, 255))
+                                logging.info("Opened")
+                                printer_state['doorlight'] = True
+                            else:
+                                logging.info("Opened No WLED")
+                                printer_state['doorlight'] = True 
+                    else:
+                        if printer_state['doorlight']: 
+                            if userdata['ledligth']:
+                                wled.set_power(userdata['wled_ip'], False)
+                                logging.info("Closed")
+                                printer_state['doorlight'] = False
+                            else:
+                                logging.info("Closed No WLED")
+                                printer_state['doorlight'] = False
 
             if "print" in dataDict and "home_flag" in dataDict["print"]:
                 home_flag = dataDict["print"]["home_flag"]
