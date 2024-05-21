@@ -44,7 +44,7 @@
             var projectnameElement = document.getElementById(printer + '_project_name');
             var remainingTimeElement = document.getElementById(printer + '_remaining_time');
             var approxEndElement = document.getElementById(printer + '_approx_end');
-            var statusElement = document.getElementById(printer + '_status');
+            var stateElement = document.getElementById(printer + '_state');
             var cardElement = document.getElementById(printer + '_card');
 
             // Update the corresponding elements with the received data
@@ -52,14 +52,14 @@
                 projectnameElement.innerText = "Project Name: " + data.project_name;
                 remainingTimeElement.innerText = "Remaining Time: " + data.remaining_time;
                 approxEndElement.innerText = "Approximate End Time: " + data.approx_end;
-                statusElement.innerText = "Status: " + data.status;
+                stateElement.innerText = "Status: " + data.status;
 
                 // Change the background color based on the status
                 if (data.error === "ERROR") {
                     cardElement.style.backgroundColor = 'red';
-                } else if (data.status === 'RUNNING') {
+                } else if (data.state === 'RUNNING') {
                     cardElement.style.backgroundColor = 'green';
-                } else if (data.status === 'PAUSED') {
+                } else if (data.state === 'PAUSED') {
                     cardElement.style.backgroundColor = 'yellow';
                 } else {
                     cardElement.style.backgroundColor = ''; // Reset to default or another color
