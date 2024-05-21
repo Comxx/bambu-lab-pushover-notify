@@ -1,4 +1,4 @@
-#!/usr/bin/python3.7
+#!/usr/bin/python
 import logging
 import paho.mqtt.client as paho
 import ssl
@@ -27,6 +27,7 @@ gcode_state_prev = ''
 previous_print_error = 0
 my_finish_datetime = ""
 previous_gcode_states = {}
+printer_states = {}
 def setup_logging():
     local_timezone = tzlocal.get_localzone()
     current_datetime = datetime.now(local_timezone)
@@ -48,7 +49,7 @@ def on_publish(client, userdata, mid, reason_codes, properties):
     logging.info(f"Message published successfully to {userdata['Printer_Title']}")  
 
 def on_message(client, userdata, msg):
-    global DASH, gcode_state_prev, user, my_pushover_app, my_pushover_user, first_run, percent_notify, previous_print_error, my_finish_datetime, doorlight, doorOpen, previous_gcode_states
+    global DASH, gcode_state_prev, user, my_pushover_app, my_pushover_user, first_run, percent_notify, previous_print_error, my_finish_datetime, doorlight, doorOpen, previous_gcode_states, printer_states
     try:
         po_app = Application(userdata['my_pushover_app'])
         po_user = po_app.get_user(userdata['my_pushover_user'])
@@ -61,7 +62,21 @@ def on_message(client, userdata, msg):
         dataDict = json.loads(msgData)
         
         if 'print' in dataDict:
+            device_id = userdata['device_id']
+            if not device_id:
+                logging.error("Device ID not found in the message")
+                return
+            # Initialize state for new printer
+            if device_id not in printer_states:
+                printer_states[device_id] = {
+                    'previous_print_error': 0,
+                    'doorlight': False,
+                    'doorOpen': "",
+                    'gcode_state_prev': ''
+                }
 
+            printer_state = printer_states[device_id]
+            
             hms_data = dataDict['print'].get('hms', [{'attr': 0, 'code': 0}])
         
             if hms_data:
@@ -86,7 +101,33 @@ def on_message(client, userdata, msg):
             gcode_state = dataDict['print'].get('gcode_state')
             percent_done = dataDict['print'].get('mc_percent', 0)  # Provide a default in case the key is missing
             print_error = dataDict['print'].get('print_error')
-        
+        if "print" in dataDict and "home_flag" in dataDict["print"]:
+            home_flag = dataDict["print"]["home_flag"]
+            door_state = bool((home_flag >> 23) & 1)
+            if printer_state['doorOpen'] != door_state:
+                printer_state['doorOpen'] = door_state
+                if gcode_state == "FINISH" or gcode_state == "IDLE": 
+                    if printer_state['doorOpen']: 
+                        if not printer_state['doorlight']:
+                            if userdata['ledligth']:
+                                wled.set_power(userdata['wled_ip'], True)
+                                wled.set_brightness(userdata['wled_ip'], 255)
+                                wled.set_color(userdata['wled_ip'], (255, 255, 255))
+                                logging.info("Opened")
+                                printer_state['doorlight'] = True
+                            else:
+                                logging.info("Opened No WLED")
+                                printer_state['doorlight'] = True 
+                    else:
+                        if printer_state['doorlight']: 
+                            if userdata['ledligth']:
+                                wled.set_power(userdata['wled_ip'], False)
+                                logging.info("Closed")
+                                printer_state['doorlight'] = False
+                            else:
+                                logging.info("Closed No WLED")
+                                printer_state['doorlight'] = False
+
             if "print" in dataDict and "home_flag" in dataDict["print"]:
                 # Extract the "home_flag" value from the "print" dictionary
                 home_flag = dataDict["print"]["home_flag"]
@@ -120,47 +161,46 @@ def on_message(client, userdata, msg):
                             else:
                                 logging.info("Closed No WLED")
                                 doorlight = False
-        
-        # Check if the print has been cancelled
-            if previous_print_error == 50348044 and print_error == 0:
-                    chamberlight_off_data = {
-                            "system": {
-                            "sequence_id": "2003",
-                            "command": "ledctrl",
-                            "led_node": "chamber_light",
-                            "led_mode": "off",
-                            "led_on_time": 500,
-                            "led_off_time": 500,
-                            "loop_times": 0,
-                            "interval_time": 0
-                            },
-                            "user_id": "123456789"
-                            }
-                    Chamberlogo_off_data = {
-                                "print": {
-                                "sequence_id": "2026",
-                                "command": "gcode_line",
-                                "param": "M960 S5 P0 \n"
-                                },
-                                "user_id": "1234567890"
-                                }
+                        # Check if the print has been cancelled for the specific printer
+            if printer_state['previous_print_error'] == 50348044 and print_error == 0:
+                chamberlight_off_data = {
+                    "system": {
+                        "sequence_id": "2003",
+                        "command": "ledctrl",
+                        "led_node": "chamber_light",
+                        "led_mode": "off",
+                        "led_on_time": 500,
+                        "led_off_time": 500,
+                        "loop_times": 0,
+                        "interval_time": 0
+                    },
+                    "user_id": "123456789"
+                }
+                Chamberlogo_off_data = {
+                    "print": {
+                        "sequence_id": "2026",
+                        "command": "gcode_line",
+                        "param": "M960 S5 P0 \n"
+                    },
+                    "user_id": "1234567890"
+                }
 
-                    payload = json.dumps(chamberlight_off_data)
-                    payloadlogo = json.dumps(Chamberlogo_off_data)
-                    client.publish("device/" + userdata["device_id"] + "/request", payload)
-                    client.publish("device/" + userdata["device_id"] + "/request", payloadlogo)
-                    message = po_user.create_message(
-                        title=f"{userdata['Printer_Title']} Cancelled",
-                        message= "Print Cancelled",
-                        sound= userdata['PO_SOUND'],
-                        priority= 1
-                    )
-                    message.send()
-                    logging.info("Print cancelled")
-                    previous_print_error = print_error
-                    return
+                payload = json.dumps(chamberlight_off_data)
+                payloadlogo = json.dumps(Chamberlogo_off_data)
+                client.publish("device/" + userdata["device_id"] + "/request", payload)
+                client.publish("device/" + userdata["device_id"]+ "/request", payloadlogo)
+                message = po_user.create_message(
+                    title=f"{userdata['Printer_Title']} Cancelled",
+                    message="Print Cancelled",
+                    sound=userdata['PO_SOUND'],
+                    priority=1
+                )
+                message.send()
+                logging.info("Print cancelled for" + userdata['Printer_Title'])
+                printer_state['previous_print_error'] = print_error
+                return
             else:
-                    previous_print_error = print_error
+                printer_state['previous_print_error'] = print_error
                     
             if gcode_state and (gcode_state != prev_state['state'] or prev_state['state'] is None):
             
