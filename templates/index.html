@@ -40,6 +40,8 @@
 
         // Listen for 'update_time' events from the server
         socket.on('update_time', function(data) {
+            console.log('Received update_time event:', data); // Debugging log
+
             var printer = data.printer;
             var projectnameElement = document.getElementById(printer + '_project_name');
             var remainingTimeElement = document.getElementById(printer + '_remaining_time');
@@ -48,11 +50,11 @@
             var cardElement = document.getElementById(printer + '_card');
 
             // Update the corresponding elements with the received data
-            if (remainingTimeElement && approxEndElement && statusElement && cardElement) {
+            if (projectnameElement && remainingTimeElement && approxEndElement && stateElement && cardElement) {
                 projectnameElement.innerText = "Project Name: " + data.project_name;
                 remainingTimeElement.innerText = "Remaining Time: " + data.remaining_time;
                 approxEndElement.innerText = "Approximate End Time: " + data.approx_end;
-                stateElement.innerText = "Status: " + data.status;
+                stateElement.innerText = "Status: " + data.state;
 
                 // Change the background color based on the status
                 if (data.error === "ERROR") {
@@ -64,8 +66,16 @@
                 } else {
                     cardElement.style.backgroundColor = ''; // Reset to default or another color
                 }
+            } else {
+                console.error('One or more elements not found for printer:', printer); // Debugging log
             }
+        });
+
+        // Handle connection errors
+        socket.on('connect_error', (error) => {
+            console.error('Connection error:', error); // Debugging log
         });
     </script>
 </body>
 </html>
+
