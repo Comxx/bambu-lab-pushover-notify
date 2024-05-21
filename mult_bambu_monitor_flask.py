@@ -62,7 +62,7 @@ def on_publish(client, userdata, mid, reason_codes, properties):
     logging.info(f"Message published successfully to {userdata['Printer_Title']}")  
 
 def on_message(client, userdata, msg):
-    global DASH, gcode_state_prev, user, my_pushover_app, my_pushover_user, first_run, percent_notify, previous_print_error, my_finish_datetime, doorlight, doorOpen, previous_gcode_states, printer_states
+    global DASH, gcode_state_prev, first_run, percent_notify, previous_print_error, my_finish_datetime, doorlight, doorOpen, previous_gcode_states, printer_states, errorstate
     try:
         po_app = Application(userdata['my_pushover_app'])
         po_user = po_app.get_user(userdata['my_pushover_user'])
