@@ -332,10 +332,7 @@ def main(argv):
         for broker_config in brokers:
             client = connect_to_broker(broker_config)
             mqtt_clients.append(client)
-        
-        # Keep the main thread alive
-        while True:
-            pass
+        client.loop_forever()
         
     except Exception as e:
         logging.error(f"Fatal error in main: {e}")
