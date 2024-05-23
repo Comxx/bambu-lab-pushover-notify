@@ -82,7 +82,7 @@
                 errorsElement.innerHTML = '';
 
                 // Display error messages if any
-                if (data.error === "ERROR" && data.error_messages.length > 0) {
+                if (data.error === "ERROR" && data.error_messages && data.error_messages.length > 0) {
                     errorsElement.style.display = 'block';
                     data.error_messages.forEach(function(message) {
                         var li = document.createElement('li');
