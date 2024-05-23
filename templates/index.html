@@ -62,59 +62,54 @@
     var socket = io();
 
     // Listen for 'update_time' events from the server
-    socket.on('update_time', function(data) {
-        var printer = data.printer_id;
-        var printerData = data.data;
+   // Listen for 'update_time' events from the server
+socket.on('update_time', function(data) {
+    var printerId = data.printer_id;
+    // Find the corresponding HTML elements for the printer
+    var projectnameElement = document.getElementById(printerId + '_project_name');
+    var remainingTimeElement = document.getElementById(printerId + '_remaining_time');
+    var approxEndElement = document.getElementById(printerId + '_approx_end');
+    var stateElement = document.getElementById(printerId + '_state');
+    var errorsElement = document.getElementById(printerId + '_errors');
+    var cardElement = document.getElementById(printerId + '_card');
 
-        updatePrinterStatus(printer, printerData);
-    });
+    // Update the corresponding elements with the received data
+    if (projectnameElement && remainingTimeElement && approxEndElement && stateElement && cardElement && errorsElement) {
+        projectnameElement.innerText = "Project Name: " + data.project_name;
+        remainingTimeElement.innerText = "Remaining Time: " + data.remaining_time;
+        approxEndElement.innerText = "Approximate End Time: " + data.approx_end;
+        stateElement.innerText = "Status: " + data.state;
 
-    // Function to update printer status on the frontend
-    function updatePrinterStatus(printerId, data) {
-        // Find the corresponding HTML elements for the printer
-        var projectnameElement = document.getElementById(printerId + '_project_name');
-        var remainingTimeElement = document.getElementById(printerId + '_remaining_time');
-        var approxEndElement = document.getElementById(printerId + '_approx_end');
-        var stateElement = document.getElementById(printerId + '_state');
-        var errorsElement = document.getElementById(printerId + '_errors');
-        var cardElement = document.getElementById(printerId + '_card');
+        // Clear existing error messages
+        errorsElement.innerHTML = '';
 
-        // Update the corresponding elements with the received data
-        if (projectnameElement && remainingTimeElement && approxEndElement && stateElement && cardElement && errorsElement) {
-            projectnameElement.innerText = "Project Name: " + data.project_name;
-            remainingTimeElement.innerText = "Remaining Time: " + data.remaining_time;
-            approxEndElement.innerText = "Approximate End Time: " + data.approx_end;
-            stateElement.innerText = "Status: " + data.state;
-
-            // Clear existing error messages
-            errorsElement.innerHTML = '';
-
-            // Display error messages if any
-            if (data.error === "ERROR" && data.error_messages && data.error_messages.length > 0) {
-                errorsElement.style.display = 'block';
-                data.error_messages.forEach(function(message) {
-                    var li = document.createElement('li');
-                    li.innerText = message;
-                    errorsElement.appendChild(li);
-                });
-            } else {
-                errorsElement.style.display = 'none';
-            }
-
-            // Change the background color based on the status
-            if (data.error === "ERROR") {
-                cardElement.style.backgroundColor = 'red';
-            } else if (data.state === 'RUNNING') {
-                cardElement.style.backgroundColor = 'green';
-            } else if (data.state === 'PAUSE') {
-                cardElement.style.backgroundColor = 'yellow';
-            } else {
-                cardElement.style.backgroundColor = ''; // Reset to default or another color
-            }
+        // Display error messages if any
+        if (data.error === "ERROR" && data.error_messages && data.error_messages.length > 0) {
+            errorsElement.style.display = 'block';
+            data.error_messages.forEach(function(message) {
+                var li = document.createElement('li');
+                li.innerText = message;
+                errorsElement.appendChild(li);
+            });
         } else {
-            console.error('One or more elements not found for printer:', printerId); // Debugging log
+            errorsElement.style.display = 'none';
         }
+
+        // Change the background color based on the status
+        if (data.error === "ERROR") {
+            cardElement.style.backgroundColor = 'red';
+        } else if (data.state === 'RUNNING') {
+            cardElement.style.backgroundColor = 'green';
+        } else if (data.state === 'PAUSE') {
+            cardElement.style.backgroundColor = 'yellow';
+        } else {
+            cardElement.style.backgroundColor = ''; // Reset to default or another color
+        }
+    } else {
+        console.error('One or more elements not found for printer:', printerId); // Debugging log
     }
+});
+
 
     // Handle connection errors
     socket.on('connect_error', (error) => {
