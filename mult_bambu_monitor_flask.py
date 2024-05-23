@@ -38,7 +38,7 @@ socketio = SocketIO(app)
 
 @app.route('/')
 def home():
-    printers = [{"printer_id": broker["device_id"], "printer_title": broker["Printer_Title"]} for broker in brokers]
+    printers = [{"printer_id": broker["device_id"], "printer_title": broker["Printer_Title"], "printer_color": broker["color"]}for broker in brokers]
     return render_template('index.html', printers=printers)
 
 def setup_logging():
