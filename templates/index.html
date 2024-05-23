@@ -37,14 +37,14 @@
         <div class="row">
             {% for printer in printers %}
             <div class="col-12 col-md-6 mb-4">
-                <div class="card" id="{{ printer }}_card">
+                <div class="card" id="{{ printer.device_id }}_card">
                     <div class="card-body">
-                        <h2 class="card-title">{{ printer }}</h2>
-                        <p class="card-text" id="{{ printer }}_project_name">Loading...</p>
-                        <p class="card-text" id="{{ printer }}_remaining_time">Loading...</p>
-                        <p class="card-text" id="{{ printer }}_approx_end">Loading...</p>
-                        <p class="card-text" id="{{ printer }}_state">Status: Loading...</p>
-                        <ul class="card-text" id="{{ printer }}_errors" style="color: rgb(255, 255, 255); display: none;"></ul> <!-- Error messages element -->
+                        <h2 class="card-title">{{ printer.Printer_Title }}</h2>
+                        <p class="card-text" id="{{ printer.device_id }}_project_name">Loading...</p>
+                        <p class="card-text" id="{{ printer.device_id }}_remaining_time">Loading...</p>
+                        <p class="card-text" id="{{ printer.device_id }}_approx_end">Loading...</p>
+                        <p class="card-text" id="{{ printer.device_id }}_state">Status: Loading...</p>
+                        <ul class="card-text" id="{{ printer.device_id }}_errors" style="color: rgb(255, 255, 255); display: none;"></ul> <!-- Error messages element -->
                     </div>
                 </div>
             </div>
@@ -58,72 +58,75 @@
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 
 <script>
-    // Initialize Socket.IO client
-    var socket = io();
+    // Ensure the DOM is fully loaded before running the script
+    document.addEventListener("DOMContentLoaded", function() {
+        // Initialize Socket.IO client
+        var socket = io();
 
-    // Listen for 'update_time' events from the server
-   // Listen for 'update_time' events from the server
-socket.on('update_time', function(data) {
-    var printerId = data.printer_id;
-    // Find the corresponding HTML elements for the printer
-    var projectnameElement = document.getElementById(printerId + '_project_name');
-    var remainingTimeElement = document.getElementById(printerId + '_remaining_time');
-    var approxEndElement = document.getElementById(printerId + '_approx_end');
-    var stateElement = document.getElementById(printerId + '_state');
-    var errorsElement = document.getElementById(printerId + '_errors');
-    var cardElement = document.getElementById(printerId + '_card');
+        // Listen for 'update_time' events from the server
+        socket.on('update_time', function(data) {
+            var printerId = data.printer_id;
 
-    console.log("Printer ID:", printerId);
-    console.log("Project Name Element:", projectnameElement);
-    console.log("Remaining Time Element:", remainingTimeElement);
-    console.log("Approximate End Element:", approxEndElement);
-    console.log("State Element:", stateElement);
-    console.log("Errors Element:", errorsElement);
-    console.log("Card Element:", cardElement);
+            // Find the corresponding HTML elements for the printer
+            var projectnameElement = document.getElementById(printerId + '_project_name');
+            var remainingTimeElement = document.getElementById(printerId + '_remaining_time');
+            var approxEndElement = document.getElementById(printerId + '_approx_end');
+            var stateElement = document.getElementById(printerId + '_state');
+            var errorsElement = document.getElementById(printerId + '_errors');
+            var cardElement = document.getElementById(printerId + '_card');
 
-    // Update the corresponding elements with the received data
-    if (projectnameElement && remainingTimeElement && approxEndElement && stateElement && cardElement && errorsElement) {
-        projectnameElement.innerText = "Project Name: " + data.project_name;
-        remainingTimeElement.innerText = "Remaining Time: " + data.remaining_time;
-        approxEndElement.innerText = "Approximate End Time: " + data.approx_end;
-        stateElement.innerText = "Status: " + data.state;
+            console.log("Printer ID:", printerId);
+            console.log("Project Name Element:", projectnameElement);
+            console.log("Remaining Time Element:", remainingTimeElement);
+            console.log("Approximate End Element:", approxEndElement);
+            console.log("State Element:", stateElement);
+            console.log("Errors Element:", errorsElement);
+            console.log("Card Element:", cardElement);
 
-        // Clear existing error messages
-        errorsElement.innerHTML = '';
+            // Update the corresponding elements with the received data
+            if (projectnameElement && remainingTimeElement && approxEndElement && stateElement && cardElement && errorsElement) {
+                projectnameElement.innerText = "Project Name: " + data.project_name;
+                remainingTimeElement.innerText = "Remaining Time: " + data.remaining_time;
+                approxEndElement.innerText = "Approximate End Time: " + data.approx_end;
+                stateElement.innerText = "Status: " + data.state;
 
-        // Display error messages if any
-        if (data.error === "ERROR" && data.error_messages && data.error_messages.length > 0) {
-            errorsElement.style.display = 'block';
-            data.error_messages.forEach(function(message) {
-                var li = document.createElement('li');
-                li.innerText = message;
-                errorsElement.appendChild(li);
-            });
-        } else {
-            errorsElement.style.display = 'none';
-        }
+                // Clear existing error messages
+                errorsElement.innerHTML = '';
 
-        // Change the background color based on the status
-        if (data.error === "ERROR") {
-            cardElement.style.backgroundColor = 'red';
-        } else if (data.state === 'RUNNING') {
-            cardElement.style.backgroundColor = 'green';
-        } else if (data.state === 'PAUSE') {
-            cardElement.style.backgroundColor = 'yellow';
-        } else {
-            cardElement.style.backgroundColor = ''; // Reset to default or another color
-        }
-    } else {
-        console.error('One or more elements not found for printer:', printerId); // Debugging log
-    }
-});
+                // Display error messages if any
+                if (data.error === "ERROR" && data.error_messages && data.error_messages.length > 0) {
+                    errorsElement.style.display = 'block';
+                    data.error_messages.forEach(function(message) {
+                        var li = document.createElement('li');
+                        li.innerText = message;
+                        errorsElement.appendChild(li);
+                    });
+                } else {
+                    errorsElement.style.display = 'none';
+                }
 
+                // Change the background color based on the status
+                if (data.error === "ERROR") {
+                    cardElement.style.backgroundColor = 'red';
+                } else if (data.state === 'RUNNING') {
+                    cardElement.style.backgroundColor = 'green';
+                } else if (data.state === 'PAUSE') {
+                    cardElement.style.backgroundColor = 'yellow';
+                } else {
+                    cardElement.style.backgroundColor = ''; // Reset to default or another color
+                }
+            } else {
+                console.error('One or more elements not found for printer:', printerId); // Debugging log
+            }
+        });
 
-    // Handle connection errors
-    socket.on('connect_error', (error) => {
-        console.error('Connection error:', error); // Debugging log
+        // Handle connection errors
+        socket.on('connect_error', (error) => {
+            console.error('Connection error:', error); // Debugging log
+        });
     });
 </script>
 
 </body>
 </html>
+
