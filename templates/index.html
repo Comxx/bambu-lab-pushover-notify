@@ -73,6 +73,14 @@ socket.on('update_time', function(data) {
     var errorsElement = document.getElementById(printerId + '_errors');
     var cardElement = document.getElementById(printerId + '_card');
 
+    console.log("Printer ID:", printerId);
+    console.log("Project Name Element:", projectnameElement);
+    console.log("Remaining Time Element:", remainingTimeElement);
+    console.log("Approximate End Element:", approxEndElement);
+    console.log("State Element:", stateElement);
+    console.log("Errors Element:", errorsElement);
+    console.log("Card Element:", cardElement);
+
     // Update the corresponding elements with the received data
     if (projectnameElement && remainingTimeElement && approxEndElement && stateElement && cardElement && errorsElement) {
         projectnameElement.innerText = "Project Name: " + data.project_name;
