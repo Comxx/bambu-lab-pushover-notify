@@ -255,6 +255,7 @@ def on_message(client, userdata, msg):
             error_messages.append(f"fail_reason: {fail_reason}")
 
             socketio.emit('update_time', {
+                'printer_id': userdata["device_id"],
                 'printer': userdata['Printer_Title'],
                 'remaining_time': remaining_time,
                 'approx_end': my_finish_datetime,
@@ -344,10 +345,12 @@ def main(argv):
             logging.info("Flask server started successfully")
             # Keep the main thread alive
             while True:
-                pass
-                    # Start Flask servers
-            
-
+            # Fetch and process data for each printer
+                for client in mqtt_clients:
+                    client.loop()
+                
+                # Add a short delay to avoid high CPU usage
+                time.sleep(1)
     except Exception as e:
         logging.error(f"Fatal error in main: {e}")
         print("Fatal error Please read Logs")
