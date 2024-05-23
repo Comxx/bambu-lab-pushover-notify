@@ -38,8 +38,8 @@ socketio = SocketIO(app)
 
 @app.route('/')
 def home():
-    printer_names = [broker["Printer_Title"] for broker in brokers]
-    return render_template('index.html', printers=printer_names)
+    printers = [{"printer_id": broker["device_id"], "printer_title": broker["Printer_Title"]} for broker in brokers]
+    return render_template('index.html', printers=printers)
 
 def setup_logging():
     local_timezone = tzlocal.get_localzone()
