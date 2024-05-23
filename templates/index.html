@@ -10,8 +10,6 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/3.0.3/socket.io.min.js"></script>
     <style>
         body {
-            /* background: url('your-image-url.jpg') no-repeat center center fixed;
-            background-size: cover;*/
             background: rgb(0, 0, 0);
             color: rgb(255, 255, 255); /* Set all text to white */
         }
@@ -46,6 +44,7 @@
                         <p class="card-text" id="{{ printer }}_remaining_time">Loading...</p>
                         <p class="card-text" id="{{ printer }}_approx_end">Loading...</p>
                         <p class="card-text" id="{{ printer }}_state">Status: Loading...</p>
+                        <ul class="card-text" id="{{ printer }}_errors" style="color: red; display: none;"></ul> <!-- Error messages element -->
                     </div>
                 </div>
             </div>
@@ -69,14 +68,30 @@
             var remainingTimeElement = document.getElementById(printer + '_remaining_time');
             var approxEndElement = document.getElementById(printer + '_approx_end');
             var stateElement = document.getElementById(printer + '_state');
+            var errorsElement = document.getElementById(printer + '_errors');
             var cardElement = document.getElementById(printer + '_card');
 
             // Update the corresponding elements with the received data
-            if (projectnameElement && remainingTimeElement && approxEndElement && stateElement && cardElement) {
+            if (projectnameElement && remainingTimeElement && approxEndElement && stateElement && cardElement && errorsElement) {
                 projectnameElement.innerText = "Project Name: " + data.project_name;
                 remainingTimeElement.innerText = "Remaining Time: " + data.remaining_time;
                 approxEndElement.innerText = "Approximate End Time: " + data.approx_end;
                 stateElement.innerText = "Status: " + data.state;
+                
+                // Clear existing error messages
+                errorsElement.innerHTML = '';
+
+                // Display error messages if any
+                if (data.error === "ERROR" && data.error_messages.length > 0) {
+                    errorsElement.style.display = 'block';
+                    data.error_messages.forEach(function(message) {
+                        var li = document.createElement('li');
+                        li.innerText = message;
+                        errorsElement.appendChild(li);
+                    });
+                } else {
+                    errorsElement.style.display = 'none';
+                }
 
                 // Change the background color based on the status
                 if (data.error === "ERROR") {
