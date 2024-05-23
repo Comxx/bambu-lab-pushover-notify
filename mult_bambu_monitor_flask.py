@@ -118,7 +118,7 @@ def on_message(client, userdata, msg):
             door_state = bool((home_flag >> 23) & 1)
             if printer_state['doorOpen'] != door_state:
                 printer_state['doorOpen'] = door_state
-                if gcode_state == "FINISH" or gcode_state == "IDLE": 
+                if gcode_state == "FINISH" or gcode_state == "IDLE" or gcode_state == "FAILED": 
                     if printer_state['doorOpen']: 
                         if not printer_state['doorlight']:
                             if userdata['ledligth']:
@@ -239,14 +239,29 @@ def on_message(client, userdata, msg):
                     message.send()
                     device__HMS_error_code = ""
 
-            # Emit update to the client for every message
+            error_messages = []
+
+            if 'print_error' in dataDict['print'] and dataDict['print']['print_error'] is not None:
+                error_messages.append(f"print_error: {dataDict['print']['print_error']}")
+            if 'mc_print_error_code' in dataDict['print'] and dataDict['print']['mc_print_error_code'] is not None:
+                error_messages.append(f"mc_print_error_code: {dataDict['print']['mc_print_error_code']}")
+            if device__HMS_error_code is not None:
+                error_messages.append(f"HMS code: {device__HMS_error_code}")
+                error_messages.append(f"Description: {found_device_error['intro']}")
+            if 'fail_reason' in dataDict['print']:
+                fail_reason = dataDict['print']['fail_reason']
+            else:
+                fail_reason = 'N/A'
+            error_messages.append(f"fail_reason: {fail_reason}")
+
             socketio.emit('update_time', {
                 'printer': userdata['Printer_Title'],
                 'remaining_time': remaining_time,
                 'approx_end': my_finish_datetime,
                 'state': gcode_state,
                 'project_name': dataDict['print']['subtask_name'],
-                'error': errorstate
+                'error': errorstate,
+                'error_messages': error_messages if errorstate == "ERROR" else []
             })
 
         else:

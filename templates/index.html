@@ -10,17 +10,26 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/3.0.3/socket.io.min.js"></script>
     <style>
         body {
-            /*  background: url('your-image-url.jpg') no-repeat center center fixed;
-            /*  background-size: cover; */
-            background-color: #000000;
-            color: white;
+            /* background: url('your-image-url.jpg') no-repeat center center fixed;
+            background-size: cover;*/
+            background: rgb(0, 0, 0);
+            color: rgb(255, 255, 255); /* Set all text to white */
         }
         .card {
-            background: rgba(255, 255, 255, 0.8);
+            background: rgba(0, 0, 0, 0.8); /* Dark semi-transparent background for cards */
             border-radius: 10px;
+            margin-bottom: 20px;
         }
         .card-title, .card-text {
-            color: white; 
+            color: white; /* Ensure text inside cards is white */
+        }
+        @media (max-width: 576px) {
+            .card-title, .card-text {
+                font-size: 1rem; /* Adjust font size for smaller screens */
+            }
+            .container {
+                padding: 10px; /* Reduce padding on smaller screens */
+            }
         }
     </style>
 </head>
@@ -29,7 +38,7 @@
         <h1 class="mt-5 mb-4">Panda Creations Bambu Printers</h1>
         <div class="row">
             {% for printer in printers %}
-            <div class="col-md-6 mb-4">
+            <div class="col-12 col-md-6 mb-4">
                 <div class="card" id="{{ printer }}_card">
                     <div class="card-body">
                         <h2 class="card-title">{{ printer }}</h2>
@@ -91,4 +100,3 @@
     </script>
 </body>
 </html>
-

@@ -106,7 +106,7 @@ def on_message(client, userdata, msg):
             door_state = bool((home_flag >> 23) & 1)
             if printer_state['doorOpen'] != door_state:
                 printer_state['doorOpen'] = door_state
-                if gcode_state == "FINISH" or gcode_state == "IDLE": 
+                if gcode_state == "FINISH" or gcode_state == "IDLE" or gcode_state == "FAILED": 
                     if printer_state['doorOpen']: 
                         if not printer_state['doorlight']:
                             if userdata['ledligth']:
