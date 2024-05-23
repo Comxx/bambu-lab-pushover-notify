@@ -85,7 +85,8 @@ def on_message(client, userdata, msg):
                     'previous_print_error': 0,
                     'doorlight': False,
                     'doorOpen': "",
-                    'gcode_state_prev': ''
+                    'gcode_state_prev': '',
+                    'errorstate': ''
                 }
 
             printer_state = printer_states[device_id]
@@ -195,7 +196,7 @@ def on_message(client, userdata, msg):
 
             if gcode_state and (gcode_state != prev_state['state'] or prev_state['state'] is None):
                 priority = 0
-                errorstate = "NONE"
+                printer_states[errorstate] = "NONE"
                 logging.info(DASH)
                 logging.info(userdata["Printer_Title"] + " gcode_state has changed to " + gcode_state)
                 json_formatted_str = json.dumps(dataDict, indent=2)
@@ -212,7 +213,7 @@ def on_message(client, userdata, msg):
 
                 fail_reason = ""
                 if( ('fail_reason' in dataDict['print'] and len(dataDict['print']['fail_reason']) > 1) or ( 'print_error' in dataDict['print'] and dataDict['print']['print_error'] != 0 ) or gcode_state == "FAILED" ):
-                    errorstate = "ERROR"
+                    printer_states[errorstate] = "ERROR"
                     if 'print_error' in dataDict['print'] and dataDict['print']['print_error'] is not None:
                         msg_text += f"<li>print_error: {dataDict['print']['print_error']}</li>"
                     if 'mc_print_error_code' in dataDict['print'] and dataDict['print']['mc_print_error_code'] is not None:
@@ -261,7 +262,7 @@ def on_message(client, userdata, msg):
                 'approx_end': my_finish_datetime,
                 'state': gcode_state,
                 'project_name': dataDict['print']['subtask_name'],
-                'error': errorstate,
+                'error': printer_states[errorstate],
                 'error_messages': error_messages if errorstate == "ERROR" else []
             })
 
