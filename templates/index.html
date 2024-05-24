@@ -37,9 +37,9 @@
         <div class="row">
             {% for printer in printers %}
             <div class="col-12 col-md-6 mb-4">
-                <div class="card" id="{{ printer.printer_id }}_card" style="border: 2px solid {{ printer.printer_color }};">
+                <div class="card" id="{{ printer.printer_id }}_card" style="border: 2px solid {{ printer.color }};">
                     <div class="card-body">
-                        <h2 class="card-title" style="color: {{ printer.printer_color }};">{{ printer.printer_title }}</h2>
+                        <h2 class="card-title" style="color: {{ printer.color }};">{{ printer.printer_title }}</h2>
                         <p class="card-text" id="{{ printer.printer_id }}_project_name">Loading...</p>
                         <p class="card-text" id="{{ printer.printer_id }}_remaining_time">Loading...</p>
                         <p class="card-text" id="{{ printer.printer_id }}_approx_end">Loading...</p>
