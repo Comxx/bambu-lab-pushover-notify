@@ -58,22 +58,16 @@
     
 
 
-<!-- Bootstrap JS (Optional) -->
 <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.3/dist/umd/popper.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta3/dist/js/bootstrap.min.js"></script>
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 
 <script>
-    // Ensure the DOM is fully loaded before running the script
     document.addEventListener("DOMContentLoaded", function() {
-    // Initialize Socket.IO client
     var socket = io();
-
-    // Listen for 'update_time' events from the server
     socket.on('update_time', function(data) {
         var printerId = data.printer_id;
 
-        // Find the corresponding HTML elements for the printer
         var projectnameElement = document.getElementById(printerId + '_project_name');
         var remainingDaysElement = document.getElementById(printerId + '_remaining_days');
         var remainingHoursElement = document.getElementById(printerId + '_remaining_hours');
@@ -83,17 +77,14 @@
         var errorsElement = document.getElementById(printerId + '_errors');
         var cardElement = document.getElementById(printerId + '_card');
         
-        // Update the corresponding elements with the received data
         if (projectnameElement && remainingDaysElement && remainingHoursElement && remainingMinutesElement && approxEndElement && stateElement && cardElement && errorsElement) {
             projectnameElement.innerText = "Project Name: " + data.project_name;
 
-            // Split remaining time into days, hours, and minutes
             var remainingTime = data.remaining_time;
             var days = 0;
             var hours = 0;
             var minutes = 0;
 
-            // Use a regular expression to extract the time parts
             var timePattern = /(\d+)\s*day[s]?\s*,\s*(\d+):(\d+)/; // Pattern for "X days, HH:MM"
             var timeParts = remainingTime.match(timePattern);
 
@@ -136,8 +127,6 @@
             } else {
                 errorsElement.style.display = 'none';
             }
-
-            // Change the background color based on the status
             if (data.error === "ERROR") {
                 cardElement.style.backgroundColor = 'red';
             } else if (data.state === 'RUNNING') {
