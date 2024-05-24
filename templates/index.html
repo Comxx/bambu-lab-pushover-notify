@@ -93,21 +93,27 @@
             var hours = 0;
             var minutes = 0;
 
-            if (remainingTime.includes('day')) {
-                var timeParts = remainingTime.split(', ');
-                days = parseInt(timeParts[0], 10);
-                var hms = timeParts[1].split(':');
-                hours = parseInt(hms[0], 10);
-                minutes = parseInt(hms[1], 10);
+            // Use a regular expression to extract the time parts
+            var timePattern = /(\d+)\s*day[s]?\s*,\s*(\d+):(\d+)/; // Pattern for "X days, HH:MM"
+            var timeParts = remainingTime.match(timePattern);
+
+            if (timeParts) {
+                days = parseInt(timeParts[1], 10);
+                hours = parseInt(timeParts[2], 10);
+                minutes = parseInt(timeParts[3], 10);
             } else {
-                var hms = remainingTime.split(':');
-                hours = parseInt(hms[0], 10);
-                minutes = parseInt(hms[1], 10);
+                // Pattern for "HH:MM"
+                timePattern = /(\d+):(\d+)/;
+                timeParts = remainingTime.match(timePattern);
+                if (timeParts) {
+                    hours = parseInt(timeParts[1], 10);
+                    minutes = parseInt(timeParts[2], 10);
+                }
             }
 
-            remainingDaysElement.innerText = days;
-            remainingHoursElement.innerText = hours;
-            remainingMinutesElement.innerText = minutes;
+            remainingDaysElement.innerText = isNaN(days) ? 0 : days;
+            remainingHoursElement.innerText = isNaN(hours) ? 0 : hours;
+            remainingMinutesElement.innerText = isNaN(minutes) ? 0 : minutes;
 
             if (data.state === 'FINISH') {
                 approxEndElement.innerText = "Approximate End Time: Done!";
