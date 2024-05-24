@@ -14,7 +14,7 @@ import time
 import wled
 from flask import Flask, render_template
 from flask_socketio import SocketIO, emit
-
+import hashlib
 
 DASH = '\n-------------------------------------------\n'
 doorlight = False
@@ -38,8 +38,11 @@ socketio = SocketIO(app)
 
 @app.route('/')
 def home():
-    printers = [{"printer_id": broker["device_id"], "printer_title": broker["Printer_Title"], "printer_color": broker["color"]}for broker in brokers]
+    printers = [{"printer_id": hash_printer_id(broker["device_id"]), "printer_title": broker["Printer_Title"], "printer_color": broker["color"]}for broker in brokers]
     return render_template('index.html', printers=printers)
+
+def hash_printer_id(printer_id):
+    return hashlib.sha256(printer_id.encode()).hexdigest()
 
 def setup_logging():
     local_timezone = tzlocal.get_localzone()
@@ -256,7 +259,7 @@ def on_message(client, userdata, msg):
             error_messages.append(f"fail_reason: {fail_reason}")
 
             socketio.emit('update_time', {
-                'printer_id': userdata["device_id"],
+                'printer_id': hash_printer_id (userdata["device_id"]),
                 'printer': userdata['Printer_Title'],
                 'remaining_time': remaining_time,
                 'approx_end': my_finish_datetime,
@@ -265,7 +268,7 @@ def on_message(client, userdata, msg):
                 'error': printer_states[errorstate],
                 'error_messages': error_messages if errorstate == "ERROR" else []
             })
-
+            
         else:
             first_run = False
     except KeyError as e:
