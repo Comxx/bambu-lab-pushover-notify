@@ -41,13 +41,15 @@
                     <div class="card-body">
                         <h2 class="card-title" style="color: {{ printer.printer_color }};">{{ printer.printer_title }}</h2>
                         <p class="card-text" id="{{ printer.printer_id }}_project_name">Loading...</p>
+                        <p class="card-text" id="{{ printer.printer_id }}_percent">Loading...</p>
                         <p class="card-text">Remaining Time: 
                             <span id="{{ printer.printer_id }}_remaining_days">Loading...</span>d 
                             <span id="{{ printer.printer_id }}_remaining_hours">Loading...</span>h 
                             <span id="{{ printer.printer_id }}_remaining_minutes">Loading...</span>m
                         </p>
                         <p class="card-text" id="{{ printer.printer_id }}_approx_end">Loading...</p>
-                        <p class="card-text" id="{{ printer.printer_id }}_state">Status: Loading...</p>
+                        <p class="card-text" id="{{ printer.printer_id }}_state">Loading...</p>
+                        <p class="card-text" id="{{ printer.printer_id }}_current_stage">Loading...</p>
                         <ul class="card-text" id="{{ printer.printer_id }}_errors" style="color: rgb(255, 255, 255); display: none;"></ul> <!-- Error messages element -->
                     </div>
                 </div>
@@ -69,17 +71,19 @@
         var printerId = data.printer_id;
 
         var projectnameElement = document.getElementById(printerId + '_project_name');
+        var remainingpPercentElement = document.getElementById(printerId + '_percent');
         var remainingDaysElement = document.getElementById(printerId + '_remaining_days');
         var remainingHoursElement = document.getElementById(printerId + '_remaining_hours');
         var remainingMinutesElement = document.getElementById(printerId + '_remaining_minutes');
         var approxEndElement = document.getElementById(printerId + '_approx_end');
         var stateElement = document.getElementById(printerId + '_state');
+        var currentStageElement = document.getElementById(printerId + '_current_stage');
         var errorsElement = document.getElementById(printerId + '_errors');
         var cardElement = document.getElementById(printerId + '_card');
         
         if (projectnameElement && remainingDaysElement && remainingHoursElement && remainingMinutesElement && approxEndElement && stateElement && cardElement && errorsElement) {
             projectnameElement.innerText = "Project Name: " + data.project_name;
-
+            projectnamePercentElement.innerText =  data.percent + "%";
             var remainingTime = data.remaining_time;
             var days = 0;
             var hours = 0;
@@ -112,7 +116,7 @@
                 approxEndElement.innerText = "Approximate End Time: " + data.approx_end;
             }
             stateElement.innerText = "Status: " + data.state;
-
+            currentStageElement.innerText = "Current Stage: " + data.current_stage;
             // Clear existing error messages
             errorsElement.innerHTML = '';
 
