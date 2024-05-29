@@ -83,30 +83,28 @@ CURRENT_STAGE_IDS = {
 
 def get_current_stage_name(stage_id):
     return CURRENT_STAGE_IDS.get(int(stage_id), "unknown")
-# Load initial printer settings from a file
+# Load initial printer settings from a fil
 try:
-    with open('settings.py', 'r') as f:
-        content = f.read().replace('brokers = ', '')
+    with open('settings.json', 'r') as f:
+        content = f.read()
         if content.strip():  # Check if content is not empty
-            brokers = json.loads(content)
+            broker = json.loads(content)
         else:
-            brokers = []
+            broker = []
 except FileNotFoundError:
-    brokers = []
-except json.JSONDecodeError:
-    print("Error: The content of 'settings.py' is not valid JSON.")
-    brokers = []
+    broker = []
 
 @app.route('/')
 def home():
-    printers = [{"printer_id": hash_printer_id(broker["device_id"]), "printer_title": broker["Printer_Title"], "printer_color": broker["color"]}for broker in brokers]
+    printers = [{"printer_id": hash_printer_id(broker["device_id"]), "printer_title": broker["Printer_Title"], "printer_color": broker["color"]} for broker in brokers]
     return render_template('index.html', printers=printers)
+
 @app.route('/save_printer_settings', methods=['POST'])
 def save_printer_settings():
-    global brokers
-    brokers = request.json
-    with open('settings.py', 'w') as f:
-        f.write('brokers = ' + json.dumps(brokers, indent=4))
+    global broker
+    broker = request.json
+    with open('settings.json', 'w') as f:
+        f.write(json.dumps(broker, indent=4))
     return jsonify({"status": "success"})
 
 def hash_printer_id(printer_id):
