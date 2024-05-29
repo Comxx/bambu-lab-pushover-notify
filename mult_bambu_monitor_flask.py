@@ -3,7 +3,6 @@ import logging
 import paho.mqtt.client as paho
 import ssl
 import sys
-from settings import *
 import tzlocal
 from datetime import datetime, timedelta
 from logging.handlers import RotatingFileHandler
@@ -85,10 +84,10 @@ def get_current_stage_name(stage_id):
     return CURRENT_STAGE_IDS.get(int(stage_id), "unknown")
 # Load initial printer settings from a fil
 try:
-    with open('brokers.json', 'r', encoding="UTF-8") as f:
-        broker = json.load(f)
+    with open('settings.json', 'r') as f:
+        brokers = json.load(f)
 except FileNotFoundError:
-    broker = []
+    brokers = []
 
 @app.route('/')
 def home():
@@ -97,10 +96,10 @@ def home():
 
 @app.route('/save_printer_settings', methods=['POST'])
 def save_printer_settings():
-    global broker
-    broker = request.json
+    global brokers
+    brokers = request.json
     with open('settings.json', 'w') as f:
-        f.write(json.dumps(broker, indent=4))
+        f.write(json.dumps(brokers, indent=4))
     return jsonify({"status": "success"})
 
 def hash_printer_id(printer_id):

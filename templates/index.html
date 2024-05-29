@@ -29,6 +29,27 @@
                 padding: 10px; /* Reduce padding on smaller screens */
             }
         }
+        .group-border-blue {
+        border: 2px solid blue;
+        padding: 10px;
+        border-radius: 5px;
+        }
+        .group-border-red {
+        border: 2px solid red;
+        padding: 10px;
+        border-radius: 5px;
+        }
+        .group-header {
+        background-color: blue;
+        color: white;
+        padding: 5px 10px;
+        border-top-left-radius: 5px;
+        border-top-right-radius: 5px;
+        margin-top: -10px; /* Align the header with the border */
+        margin-left: -10px; /* Align the header with the border */
+        margin-right: -10px; /* Align the header with the border */
+        margin-bottom: 10px; /* Space between header and form elements */
+    }
     </style>
 </head>
 <body>
@@ -45,7 +66,7 @@
                         <a class="nav-link active" aria-current="page" href="#">Home</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="#" data-bs-toggle="modal" data-bs-target="#configModal">Config</a>
+                        <a class="nav-link" href="#" data-bs-toggle="modal" data-bs-target="#configModal">Add Printer</a>
                     </li>
                 </ul>
             </div>
@@ -81,68 +102,101 @@
     <!-- Modal for Configuration -->
     <div class="modal fade" id="configModal" tabindex="-1" aria-labelledby="configModalLabel" aria-hidden="true">
         <div class="modal-dialog">
-            <div class="modal-content">
+            <div class="modal-content" style="background-color: black; color: white;">
                 <div class="modal-header">
                     <h5 class="modal-title" id="configModalLabel">Add New Printer</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
                     <form id="addPrinterForm">
-                        <div class="form-group mb-3">
-                            <label for="host">Host:</label>
-                            <input type="text" id="host" name="host" class="form-control" required>
+                        <div class="group-border">
+                            <div class="group-header">Bambu Printer Info:</div>
+                            <div class="form-group mb-3">
+                                <label for="host">Host:</label>
+                                <input type="text" id="host" name="host" class="form-control" required>
+                            </div>
+                            <div class="form-group mb-3">
+                                <label for="port">Port:</label>
+                                <input type="number" id="port" name="port" class="form-control" value="8883" required>
+                            </div>
+                            <div class="form-group mb-3">
+                                <label for="user">User:</label>
+                                <input type="text" id="user" name="user" class="form-control" value="bblp" required>
+                            </div>
+                            <div class="form-group mb-3">
+                                <label for="password">Password:</label>
+                                <input type="password" id="password" name="password" class="form-control" required>
+                            </div>
+                            <div class="form-group mb-3">
+                                <label for="device_id">Device ID:</label>
+                                <input type="text" id="device_id" name="device_id" class="form-control" required>
+                            </div>
+                            <div class="form-group mb-3">
+                                <label for="printer_title">Printer Title:</label>
+                                <input type="text" id="printer_title" name="printer_title" class="form-control" required>
+                            </div>
                         </div>
-                        <div class="form-group mb-3">
-                            <label for="port">Port:</label>
-                            <input type="number" id="port" name="port" class="form-control" value="8883" required>
+                        <div class="group-border">
+                            <div class="group-header">Pushover Info:</div>   
+                            <div class="form-group mb-3">
+                                <label for="po_sound">Pushover Sound:</label>
+                                <select id="po_sound" name="po_sound" class="form-control" required>
+                                    <option value="pushover">Pushover (default)</option>
+                                    <option value="bike">Bike</option>
+                                    <option value="bugle">Bugle</option>
+                                    <option value="cashregister">Cash Register</option>
+                                    <option value="classical">Classical</option>
+                                    <option value="cosmic">Cosmic</option>
+                                    <option value="falling">Falling</option>
+                                    <option value="gamelan">Gamelan</option>
+                                    <option value="incoming">Incoming </option>
+                                    <option value="intermission">Intermission</option>
+                                    <option value="magic">Magic</option>
+                                    <option value="mechanical">Mechanical</option>
+                                    <option value="pianobar">Piano Bar</option>
+                                    <option value="siren">Siren</option>
+                                    <option value="spacealarm">Space Alarm</option>
+                                    <option value="tugboat">Tug Boat</option>
+                                    <option value="alien">Alien Alarm (long)</option>
+                                    <option value="climb">Climb (long)</option>
+                                    <option value="persistent">Persistent (long)</option>
+                                    <option value="echo">Pushover Echo (long)</option>
+                                    <option value="updown">Up Down (long)</option>
+                                    <option value="vibrate">Vibrate Only</option>
+                                    <option value="none">None (silent)</option>
+                                    <!-- Add more options as needed -->
+                                </select>
+                            </div>
+                            <div class="form-group mb-3">
+                                <label for="my_pushover_user">Pushover User Key:</label>
+                                <input type="text" id="my_pushover_user" name="my_pushover_user" class="form-control" required>
+                            </div>
+                            <div class="form-group mb-3">
+                                <label for="my_pushover_app">Pushover App Key:</label>
+                                <input type="text" id="my_pushover_app" name="my_pushover_app" class="form-control" required>
+                            </div>
                         </div>
-                        <div class="form-group mb-3">
-                            <label for="user">User:</label>
-                            <input type="text" id="user" name="user" class="form-control" value="bblp" required>
+                        <div class="group-border">
+                            <div class="group-header">Wled Info:</div>
+                            <div class="form-group mb-3">
+                                <label for="ledlight">LED Light:</label>
+                                <select id="ledlight" name="ledlight" class="form-control" required>
+                                    <option value="true">True</option>
+                                    <option value="false">False</option>
+                                </select>
+                            </div>
+                            <div class="form-group mb-3">
+                                <label for="wled_ip">WLED IP:</label>
+                                <input type="text" id="wled_ip" name="wled_ip" class="form-control">
+                            </div>
                         </div>
-                        <div class="form-group mb-3">
-                            <label for="password">Password:</label>
-                            <input type="password" id="password" name="password" class="form-control" required>
-                        </div>
-                        <div class="form-group mb-3">
-                            <label for="device_id">Device ID:</label>
-                            <input type="text" id="device_id" name="device_id" class="form-control" required>
-                        </div>
-                        <div class="form-group mb-3">
-                            <label for="printer_title">Printer Title:</label>
-                            <input type="text" id="printer_title" name="printer_title" class="form-control" required>
-                        </div>
-                        <div class="form-group mb-3">
-                            <label for="po_sound">Pushover Sound:</label>
-                            <select id="po_sound" name="po_sound" class="form-control" required>
-                                <option value="pushover">pushover</option>
-                                <option value="classical">classical</option>
-                                <!-- Add more options as needed -->
-                            </select>
-                        </div>
-                        <div class="form-group mb-3">
-                            <label for="my_pushover_user">Pushover User Key:</label>
-                            <input type="text" id="my_pushover_user" name="my_pushover_user" class="form-control" required>
-                        </div>
-                        <div class="form-group mb-3">
-                            <label for="my_pushover_app">Pushover App Key:</label>
-                            <input type="text" id="my_pushover_app" name="my_pushover_app" class="form-control" required>
-                        </div>
-                        <div class="form-group mb-3">
-                            <label for="ledlight">LED Light:</label>
-                            <select id="ledlight" name="ledlight" class="form-control" required>
-                                <option value="true">True</option>
-                                <option value="false">False</option>
-                            </select>
-                        </div>
-                        <div class="form-group mb-3">
-                            <label for="wled_ip">WLED IP:</label>
-                            <input type="text" id="wled_ip" name="wled_ip" class="form-control">
-                        </div>
-                        <div class="form-group mb-3">
-                            <label for="color">Color:</label>
-                            <input type="color" id="color" name="color" class="form-control" value="#000000">
-                        </div>
+                        <div class="group-border">
+                            <div class="group-header">Print Color:</div>     
+                            <div class="form-group mb-3">
+                                <label for="color">Color:</label>
+                                <input type="color" id="color" name="color" class="form-control" value="#000000">
+                            </div>
+                        </div>            
                         <button type="submit" class="btn btn-primary mt-3">Add Printer</button>
                     </form>
                 </div>
