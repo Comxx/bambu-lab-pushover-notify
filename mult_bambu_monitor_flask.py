@@ -86,9 +86,17 @@ def get_current_stage_name(stage_id):
 # Load initial printer settings from a file
 try:
     with open('settings.py', 'r') as f:
-        brokers = json.loads(f.read().replace('brokers = ', ''))
+        content = f.read().replace('brokers = ', '')
+        if content.strip():  # Check if content is not empty
+            brokers = json.loads(content)
+        else:
+            brokers = []
 except FileNotFoundError:
     brokers = []
+except json.JSONDecodeError:
+    print("Error: The content of 'settings.py' is not valid JSON.")
+    brokers = []
+
 @app.route('/')
 def home():
     printers = [{"printer_id": hash_printer_id(broker["device_id"]), "printer_title": broker["Printer_Title"], "printer_color": broker["color"]}for broker in brokers]
