@@ -85,12 +85,8 @@ def get_current_stage_name(stage_id):
     return CURRENT_STAGE_IDS.get(int(stage_id), "unknown")
 # Load initial printer settings from a fil
 try:
-    with open('settings.json', 'r') as f:
-        content = f.read()
-        if content.strip():  # Check if content is not empty
-            broker = json.loads(content)
-        else:
-            broker = []
+    with open('brokers.json', 'r', encoding="UTF-8") as f:
+        broker = json.load(f)
 except FileNotFoundError:
     broker = []
 
