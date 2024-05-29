@@ -32,6 +32,26 @@
     </style>
 </head>
 <body>
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#">Panda Creations</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav">
+                    <li class="nav-item">
+                        <a class="nav-link active" aria-current="page" href="#">Home</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" data-bs-toggle="modal" data-bs-target="#configModal">Config</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
     <div class="container">
         <h1 class="mt-5 mb-4 text-center">Panda Creations Bambu Printers</h1>
         <div class="row">
@@ -57,101 +77,211 @@
             {% endfor %}
         </div>
     </div>
-    
 
+    <!-- Modal for Configuration -->
+    <div class="modal fade" id="configModal" tabindex="-1" aria-labelledby="configModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="configModalLabel">Add New Printer</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="addPrinterForm">
+                        <div class="form-group mb-3">
+                            <label for="host">Host:</label>
+                            <input type="text" id="host" name="host" class="form-control" required>
+                        </div>
+                        <div class="form-group mb-3">
+                            <label for="port">Port:</label>
+                            <input type="number" id="port" name="port" class="form-control" value="8883" required>
+                        </div>
+                        <div class="form-group mb-3">
+                            <label for="user">User:</label>
+                            <input type="text" id="user" name="user" class="form-control" value="bblp" required>
+                        </div>
+                        <div class="form-group mb-3">
+                            <label for="password">Password:</label>
+                            <input type="password" id="password" name="password" class="form-control" required>
+                        </div>
+                        <div class="form-group mb-3">
+                            <label for="device_id">Device ID:</label>
+                            <input type="text" id="device_id" name="device_id" class="form-control" required>
+                        </div>
+                        <div class="form-group mb-3">
+                            <label for="printer_title">Printer Title:</label>
+                            <input type="text" id="printer_title" name="printer_title" class="form-control" required>
+                        </div>
+                        <div class="form-group mb-3">
+                            <label for="po_sound">Pushover Sound:</label>
+                            <select id="po_sound" name="po_sound" class="form-control" required>
+                                <option value="pushover">pushover</option>
+                                <option value="classical">classical</option>
+                                <!-- Add more options as needed -->
+                            </select>
+                        </div>
+                        <div class="form-group mb-3">
+                            <label for="my_pushover_user">Pushover User Key:</label>
+                            <input type="text" id="my_pushover_user" name="my_pushover_user" class="form-control" required>
+                        </div>
+                        <div class="form-group mb-3">
+                            <label for="my_pushover_app">Pushover App Key:</label>
+                            <input type="text" id="my_pushover_app" name="my_pushover_app" class="form-control" required>
+                        </div>
+                        <div class="form-group mb-3">
+                            <label for="ledlight">LED Light:</label>
+                            <select id="ledlight" name="ledlight" class="form-control" required>
+                                <option value="true">True</option>
+                                <option value="false">False</option>
+                            </select>
+                        </div>
+                        <div class="form-group mb-3">
+                            <label for="wled_ip">WLED IP:</label>
+                            <input type="text" id="wled_ip" name="wled_ip" class="form-control">
+                        </div>
+                        <div class="form-group mb-3">
+                            <label for="color">Color:</label>
+                            <input type="color" id="color" name="color" class="form-control" value="#000000">
+                        </div>
+                        <button type="submit" class="btn btn-primary mt-3">Add Printer</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
 
-<script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.3/dist/umd/popper.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta3/dist/js/bootstrap.min.js"></script>
-<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.3/dist/umd/popper.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta3/dist/js/bootstrap.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 
-<script>
-    document.addEventListener("DOMContentLoaded", function() {
-    var socket = io();
-    socket.on('update_time', function(data) {
-        var printerId = data.printer_id;
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            var socket = io();
+            socket.on('update_time', function(data) {
+                var printerId = data.printer_id;
 
-        var projectnameElement = document.getElementById(printerId + '_project_name');
-        var remainingpPercentElement = document.getElementById(printerId + '_percent');
-        var remainingDaysElement = document.getElementById(printerId + '_remaining_days');
-        var remainingHoursElement = document.getElementById(printerId + '_remaining_hours');
-        var remainingMinutesElement = document.getElementById(printerId + '_remaining_minutes');
-        var approxEndElement = document.getElementById(printerId + '_approx_end');
-        var stateElement = document.getElementById(printerId + '_state');
-        var currentStageElement = document.getElementById(printerId + '_current_stage');
-        var errorsElement = document.getElementById(printerId + '_errors');
-        var cardElement = document.getElementById(printerId + '_card');
-        
-        if (projectnameElement && remainingDaysElement && remainingHoursElement && remainingMinutesElement && approxEndElement && stateElement && cardElement && errorsElement) {
-            projectnameElement.innerText = "Project Name: " + data.project_name;
-            projectnamePercentElement.innerText =  data.percent + "%";
-            var remainingTime = data.remaining_time;
-            var days = 0;
-            var hours = 0;
-            var minutes = 0;
+                var projectnameElement = document.getElementById(printerId + '_project_name');
+                var remainingPercentElement = document.getElementById(printerId + '_percent');
+                var remainingDaysElement = document.getElementById(printerId + '_remaining_days');
+                var remainingHoursElement = document.getElementById(printerId + '_remaining_hours');
+                var remainingMinutesElement = document.getElementById(printerId + '_remaining_minutes');
+                var approxEndElement = document.getElementById(printerId + '_approx_end');
+                var stateElement = document.getElementById(printerId + '_state');
+                var currentStageElement = document.getElementById(printerId + '_current_stage');
+                var errorsElement = document.getElementById(printerId + '_errors');
+                var cardElement = document.getElementById(printerId + '_card');
 
-            var timePattern = /(\d+)\s*day[s]?\s*,\s*(\d+):(\d+)/; // Pattern for "X days, HH:MM"
-            var timeParts = remainingTime.match(timePattern);
+                if (projectnameElement && remainingPercentElement && remainingDaysElement && remainingHoursElement && remainingMinutesElement && approxEndElement && stateElement && cardElement && errorsElement) {
+                    projectnameElement.innerText = "Project Name: " + data.project_name;
+                    remainingPercentElement.innerText = data.percent + "%";
+                    var remainingTime = data.remaining_time;
+                    var days = 0;
+                    var hours = 0;
+                    var minutes = 0;
 
-            if (timeParts) {
-                days = parseInt(timeParts[1], 10);
-                hours = parseInt(timeParts[2], 10);
-                minutes = parseInt(timeParts[3], 10);
-            } else {
-                // Pattern for "HH:MM"
-                timePattern = /(\d+):(\d+)/;
-                timeParts = remainingTime.match(timePattern);
-                if (timeParts) {
-                    hours = parseInt(timeParts[1], 10);
-                    minutes = parseInt(timeParts[2], 10);
+                    var timePattern = /(\d+)\s*day[s]?\s*,\s*(\d+):(\d+)/; // Pattern for "X days, HH:MM"
+                    var timeParts = remainingTime.match(timePattern);
+
+                    if (timeParts) {
+                        days = parseInt(timeParts[1], 10);
+                        hours = parseInt(timeParts[2], 10);
+                        minutes = parseInt(timeParts[3], 10);
+                    } else {
+                        // Pattern for "HH:MM"
+                        timePattern = /(\d+):(\d+)/;
+                        timeParts = remainingTime.match(timePattern);
+                        if (timeParts) {
+                            hours = parseInt(timeParts[1], 10);
+                            minutes = parseInt(timeParts[2], 10);
+                        }
+                    }
+
+                    remainingDaysElement.innerText = isNaN(days) ? 0 : days;
+                    remainingHoursElement.innerText = isNaN(hours) ? 0 : hours;
+                    remainingMinutesElement.innerText = isNaN(minutes) ? 0 : minutes;
+
+                    if (data.state === 'FINISH') {
+                        approxEndElement.innerText = "Approximate End Time: Done!";
+                    } else {
+                        approxEndElement.innerText = "Approximate End Time: " + data.approx_end;
+                    }
+                    stateElement.innerText = "Status: " + data.state;
+                    currentStageElement.innerText = "Current Stage: " + data.current_stage;
+                    // Clear existing error messages
+                    errorsElement.innerHTML = '';
+
+                    // Display error messages if any
+                    if (data.error === "ERROR" && data.error_messages && data.error_messages.length > 0) {
+                        errorsElement.style.display = 'block';
+                        data.error_messages.forEach(function(message) {
+                            var li = document.createElement('li');
+                            li.innerText = message;
+                            errorsElement.appendChild(li);
+                        });
+                    } else {
+                        errorsElement.style.display = 'none';
+                    }
+                    if (data.error === "ERROR") {
+                        cardElement.style.backgroundColor = 'red';
+                    } else if (data.state === 'RUNNING') {
+                        cardElement.style.backgroundColor = 'green';
+                    } else if (data.state === 'PAUSE') {
+                        cardElement.style.backgroundColor = 'yellow';
+                    } else {
+                        cardElement.style.backgroundColor = ''; // Reset to default or another color
+                    }
+                } else {
+                    console.error('One or more elements not found for printer:', printerId); // Debugging log
                 }
-            }
+            });
 
-            remainingDaysElement.innerText = isNaN(days) ? 0 : days;
-            remainingHoursElement.innerText = isNaN(hours) ? 0 : hours;
-            remainingMinutesElement.innerText = isNaN(minutes) ? 0 : minutes;
+            // Handle connection errors
+            socket.on('connect_error', (error) => {
+                console.error('Connection error:', error); // Debugging log
+            });
 
-            if (data.state === 'FINISH') {
-                approxEndElement.innerText = "Approximate End Time: Done!";
+            // Handle form submission
+            document.getElementById('addPrinterForm').addEventListener('submit', function(event) {
+                event.preventDefault();
+                // Collect form data
+                var formData = {
+                    host: document.getElementById('host').value,
+                    port: document.getElementById('port').value,
+                    user: document.getElementById('user').value,
+                    password: document.getElementById('password').value,
+                    device_id: document.getElementById('device_id').value,
+                    printer_title: document.getElementById('printer_title').value,
+                    po_sound: document.getElementById('po_sound').value,
+                    my_pushover_user: document.getElementById('my_pushover_user').value,
+                    my_pushover_app: document.getElementById('my_pushover_app').value,
+                    ledlight: document.getElementById('ledlight').value,
+                    wled_ip: document.getElementById('wled_ip').value,
+                    color: document.getElementById('color').value
+                };
+
+fetch('/save_printer_settings', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(formData)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                alert('Printer added successfully!');
+                location.reload();
             } else {
-                approxEndElement.innerText = "Approximate End Time: " + data.approx_end;
+                alert('Error adding printer');
             }
-            stateElement.innerText = "Status: " + data.state;
-            currentStageElement.innerText = "Current Stage: " + data.current_stage;
-            // Clear existing error messages
-            errorsElement.innerHTML = '';
+        });
 
-            // Display error messages if any
-            if (data.error === "ERROR" && data.error_messages && data.error_messages.length > 0) {
-                errorsElement.style.display = 'block';
-                data.error_messages.forEach(function(message) {
-                    var li = document.createElement('li');
-                    li.innerText = message;
-                    errorsElement.appendChild(li);
-                });
-            } else {
-                errorsElement.style.display = 'none';
-            }
-            if (data.error === "ERROR") {
-                cardElement.style.backgroundColor = 'red';
-            } else if (data.state === 'RUNNING') {
-                cardElement.style.backgroundColor = 'green';
-            } else if (data.state === 'PAUSE') {
-                cardElement.style.backgroundColor = 'yellow';
-            } else {
-                cardElement.style.backgroundColor = ''; // Reset to default or another color
-            }
-        } else {
-            console.error('One or more elements not found for printer:', printerId); // Debugging log
-        }
-    });
-
-    // Handle connection errors
-    socket.on('connect_error', (error) => {
-        console.error('Connection error:', error); // Debugging log
+        // Close modal
+        var configModal = new bootstrap.Modal(document.getElementById('configModal'));
+        configModal.hide();
     });
 });
-</script>
-
+    </script>
 </body>
 </html>
 

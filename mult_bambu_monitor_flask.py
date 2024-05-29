@@ -12,7 +12,7 @@ import json
 import requests
 import time
 import wled
-from flask import Flask, render_template
+from flask import Flask, request, render_template, jsonify
 from flask_socketio import SocketIO, emit
 import hashlib
 
@@ -83,11 +83,23 @@ CURRENT_STAGE_IDS = {
 
 def get_current_stage_name(stage_id):
     return CURRENT_STAGE_IDS.get(int(stage_id), "unknown")
-
+# Load initial printer settings from a file
+try:
+    with open('settings.py', 'r') as f:
+        brokers = json.loads(f.read().replace('brokers = ', ''))
+except FileNotFoundError:
+    brokers = []
 @app.route('/')
 def home():
     printers = [{"printer_id": hash_printer_id(broker["device_id"]), "printer_title": broker["Printer_Title"], "printer_color": broker["color"]}for broker in brokers]
     return render_template('index.html', printers=printers)
+@app.route('/save_printer_settings', methods=['POST'])
+def save_printer_settings():
+    global brokers
+    brokers = request.json
+    with open('settings.py', 'w') as f:
+        f.write('brokers = ' + json.dumps(brokers, indent=4))
+    return jsonify({"status": "success"})
 
 def hash_printer_id(printer_id):
     return hashlib.sha256(printer_id.encode()).hexdigest()
