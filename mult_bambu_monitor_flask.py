@@ -13,7 +13,8 @@ import time
 import wled
 from flask import Flask, request, render_template, jsonify
 from flask_socketio import SocketIO, emit
-import hashlib
+
+from settings import *
 
 DASH = '\n-------------------------------------------\n'
 doorlight = False
@@ -91,9 +92,28 @@ except FileNotFoundError:
 
 @app.route('/')
 def home():
-    printers = [{"printer_id": hash_printer_id(broker["device_id"]), "printer_title": broker["Printer_Title"], "printer_color": broker["color"]} for broker in brokers]
+    printers = [{"printer_id": broker["device_id"], "printer_title": broker["Printer_Title"], "printer_color": broker["color"]} for broker in brokers]
     return render_template('index.html', printers=printers)
+@app.route('/delete_printer', methods=['POST'])
+def delete_printer():
+    try:
+        printer_id = request.json.get('printer_id')
+        if not printer_id:
+            return jsonify({'status': 'error', 'message': 'Printer ID not provided'})
 
+        with open('settings.json', 'r') as file:
+            settings = json.load(file)
+
+        # Remove the printer with the specified ID
+        settings = [printer for printer in settings if printer['device_id'] != printer_id]
+
+        # Save the updated settings back to the file
+        with open('settings.json', 'w') as file:
+            json.dump(settings, file, indent=4)
+
+        return jsonify({'status': 'success'})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)})
 @app.route('/save_printer_settings', methods=['POST'])
 def save_printer_settings():
     global brokers
@@ -101,10 +121,6 @@ def save_printer_settings():
     with open('settings.json', 'w') as f:
         f.write(json.dumps(brokers, indent=4))
     return jsonify({"status": "success"})
-
-def hash_printer_id(printer_id):
-    return hashlib.sha256(printer_id.encode()).hexdigest()
-
 def setup_logging():
     local_timezone = tzlocal.get_localzone()
     current_datetime = datetime.now(local_timezone)
@@ -322,7 +338,7 @@ def on_message(client, userdata, msg):
             error_messages.append(f"fail_reason: {fail_reason}")
 
             socketio.emit('update_time', {
-                'printer_id': hash_printer_id (userdata["device_id"]),
+                'printer_id': userdata["device_id"],
                 'printer': userdata['Printer_Title'],
                 'percent': percent_done,
                 'remaining_time': remaining_time,
