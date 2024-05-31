@@ -355,44 +355,6 @@
             }
         });
     });
-    document.querySelectorAll('.edit-btn').forEach(function(button) {
-        button.addEventListener('click', function(event) {
-            event.preventDefault();
-            var printerId = this.getAttribute('data-printer-id');
-            
-            // Send a GET request to fetch printer details
-            fetch(`/get_printer_details/${printerId}`)
-            .then(response => response.json())
-            .then(data => {
-                if (data.status === 'success') {
-                    // Populate form fields with printer details
-                    document.getElementById('host').value = data.details.host;
-                    document.getElementById('port').value = data.details.port;
-                    document.getElementById('user').value = data.details.user;
-                    document.getElementById('password').value = data.details.password;
-                    document.getElementById('device_id').value = data.details.device_id;
-                    document.getElementById('printer_title').value = data.details.printer_title;
-                    document.getElementById('po_sound').value = data.details.po_sound;
-                    document.getElementById('my_pushover_user').value = data.details.my_pushover_user;
-                    document.getElementById('my_pushover_app').value = data.details.my_pushover_app;
-                    document.getElementById('ledlight').value = data.details.ledlight;
-                    document.getElementById('wled_ip').value = data.details.wled_ip;
-                    document.getElementById('color').value = data.details.color;
-                    
-                    // Open the modal for editing
-                    var configModal = new bootstrap.Modal(document.getElementById('configModal'));
-                    configModal.show();
-                } else {
-                    // Handle error
-                    alert('Error fetching printer details');
-                }
-            })
-            .catch(error => {
-                console.error('Error fetching printer details:', error);
-                alert('Error fetching printer details');
-            });
-        });
-    });   
 fetch('/save_printer_settings', {
             method: 'POST',
             headers: {
