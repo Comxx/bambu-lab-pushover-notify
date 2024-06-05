@@ -30,26 +30,26 @@
             }
         }
         .group-border-blue {
-        border: 2px solid blue;
-        padding: 10px;
-        border-radius: 5px;
+            border: 2px solid blue;
+            padding: 10px;
+            border-radius: 5px;
         }
         .group-border-red {
-        border: 2px solid red;
-        padding: 10px;
-        border-radius: 5px;
+            border: 2px solid red;
+            padding: 10px;
+            border-radius: 5px;
         }
         .group-header {
-        background-color: blue;
-        color: white;
-        padding: 5px 10px;
-        border-top-left-radius: 5px;
-        border-top-right-radius: 5px;
-        margin-top: -10px; /* Align the header with the border */
-        margin-left: -10px; /* Align the header with the border */
-        margin-right: -10px; /* Align the header with the border */
-        margin-bottom: 10px; /* Space between header and form elements */
-    }
+            background-color: blue;
+            color: white;
+            padding: 5px 10px;
+            border-top-left-radius: 5px;
+            border-top-right-radius: 5px;
+            margin-top: -10px; /* Align the header with the border */
+            margin-left: -10px; /* Align the header with the border */
+            margin-right: -10px; /* Align the header with the border */
+            margin-bottom: 10px; /* Space between header and form elements */
+        }
     </style>
 </head>
 <body>
@@ -66,7 +66,7 @@
                         <a class="nav-link active" aria-current="page" href="#">Home</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="#" data-bs-toggle="modal" data-bs-target="#configModal">Add Printer</a>
+                        <a class="nav-link" href="#" data-bs-toggle="modal" data-bs-target="#configModal" onclick="addNewPrinter()">Add Printer</a>
                     </li>
                 </ul>
             </div>
@@ -95,10 +95,8 @@
                         <form method="post" action="/delete_printer" class="d-inline">
                             <input type="hidden" name="printer_id" value="{{ printer.device_id }}">
                             <button type="submit" class="btn btn-danger btn-sm">Delete</button>
-                            <form method="post" action="/edit_printer" class="d-inline">
-                                <input type="hidden" name="printer_id" value="{{ printer.device_id }}">
-                                <button type="submit" class="btn btn-info btn-sm">Edit Printer</button>
                         </form>
+                        <button class="btn btn-info btn-sm" onclick="editPrinterSettings('{{ printer.device_id }}', '{{ printer.printer_title }}', '{{ printer.host }}', '{{ printer.port }}', '{{ printer.user }}', '{{ printer.password }}', '{{ printer.po_sound }}', '{{ printer.my_pushover_user }}', '{{ printer.my_pushover_app }}', '{{ printer.ledlight }}', '{{ printer.wled_ip }}', '{{ printer.printer_color }}')">Edit Printer</button>
                     </div>
                 </div>
             </div>
@@ -111,11 +109,12 @@
         <div class="modal-dialog">
             <div class="modal-content" style="background-color: black; color: white;">
                 <div class="modal-header">
-                    <h5 class="modal-title" id="configModalLabel">Add New Printer</h5>
+                    <h5 class="modal-title" id="configModalLabel">Add/Edit Printer</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
-                    <form id="addPrinterForm">
+                    <form id="addPrinterForm" method="post" action="/save_printer">
+                        <input type="hidden" id="editing_printer_id" name="editing_printer_id">
                         <div class="group-border">
                             <div class="group-header">Bambu Printer Info:</div>
                             <div class="form-group mb-3">
@@ -156,7 +155,7 @@
                                     <option value="cosmic">Cosmic</option>
                                     <option value="falling">Falling</option>
                                     <option value="gamelan">Gamelan</option>
-                                    <option value="incoming">Incoming </option>
+                                    <option value="incoming">Incoming</option>
                                     <option value="intermission">Intermission</option>
                                     <option value="magic">Magic</option>
                                     <option value="mechanical">Mechanical</option>
@@ -169,27 +168,25 @@
                                     <option value="persistent">Persistent (long)</option>
                                     <option value="echo">Pushover Echo (long)</option>
                                     <option value="updown">Up Down (long)</option>
-                                    <option value="vibrate">Vibrate Only</option>
                                     <option value="none">None (silent)</option>
-                                    <!-- Add more options as needed -->
                                 </select>
                             </div>
                             <div class="form-group mb-3">
-                                <label for="my_pushover_user">Pushover User Key:</label>
+                                <label for="my_pushover_user">Pushover User:</label>
                                 <input type="text" id="my_pushover_user" name="my_pushover_user" class="form-control" required>
                             </div>
                             <div class="form-group mb-3">
-                                <label for="my_pushover_app">Pushover App Key:</label>
+                                <label for="my_pushover_app">Pushover App:</label>
                                 <input type="text" id="my_pushover_app" name="my_pushover_app" class="form-control" required>
                             </div>
                         </div>
                         <div class="group-border">
-                            <div class="group-header">Wled Info:</div>
+                            <div class="group-header">WLED Info:</div>   
                             <div class="form-group mb-3">
-                                <label for="ledlight">LED Light:</label>
+                                <label for="ledlight">WLED Enabled:</label>
                                 <select id="ledlight" name="ledlight" class="form-control" required>
-                                    <option value="true">True</option>
-                                    <option value="false">False</option>
+                                    <option value="True">True</option>
+                                    <option value="False">False</option>
                                 </select>
                             </div>
                             <div class="form-group mb-3">
@@ -198,186 +195,224 @@
                             </div>
                         </div>
                         <div class="group-border">
-                            <div class="group-header">Print Color:</div>     
+                            <div class="group-header">Styling Info:</div>   
                             <div class="form-group mb-3">
-                                <label for="color">Color:</label>
-                                <input type="color" id="color" name="color" class="form-control" value="#000000">
+                                <label for="printer_color">Printer Color:</label>
+                                <input type="text" id="printer_color" name="printer_color" class="form-control" required>
                             </div>
-                        </div>            
-                        <button type="submit" class="btn btn-primary mt-3">Add Printer</button>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="submit" class="btn btn-primary">Save</button>
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                        </div>
                     </form>
                 </div>
             </div>
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.3/dist/umd/popper.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta3/dist/js/bootstrap.min.js"></script>
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-
+    <!-- Edit Printer Script -->
     <script>
-        document.addEventListener("DOMContentLoaded", function() {
-            var socket = io();
-            socket.on('update_time', function(data) {
-                var printerId = data.printer_id;
+        function editPrinterSettings(device_id, printer_title, host, port, user, password, po_sound, my_pushover_user, my_pushover_app, ledlight, wled_ip, printer_color) {
+            document.getElementById('editing_printer_id').value = device_id;
+            document.getElementById('host').value = host;
+            document.getElementById('port').value = port;
+            document.getElementById('user').value = user;
+            document.getElementById('password').value = password;
+            document.getElementById('device_id').value = device_id;
+            document.getElementById('printer_title').value = printer_title;
+            document.getElementById('po_sound').value = po_sound;
+            document.getElementById('my_pushover_user').value = my_pushover_user;
+            document.getElementById('my_pushover_app').value = my_pushover_app;
+            document.getElementById('ledlight').value = ledlight;
+            document.getElementById('wled_ip').value = wled_ip;
+            document.getElementById('printer_color').value = printer_color;
+            var configModal = new bootstrap.Modal(document.getElementById('configModal'), {});
+            configModal.show();
+        }
 
-                var projectnameElement = document.getElementById(printerId + '_project_name');
-                var remainingPercentElement = document.getElementById(printerId + '_percent');
-                var remainingDaysElement = document.getElementById(printerId + '_remaining_days');
-                var remainingHoursElement = document.getElementById(printerId + '_remaining_hours');
-                var remainingMinutesElement = document.getElementById(printerId + '_remaining_minutes');
-                var approxEndElement = document.getElementById(printerId + '_approx_end');
-                var stateElement = document.getElementById(printerId + '_state');
-                var currentStageElement = document.getElementById(printerId + '_current_stage');
-                var errorsElement = document.getElementById(printerId + '_errors');
-                var cardElement = document.getElementById(printerId + '_card');
-                
-            
-            
-                if (projectnameElement && remainingPercentElement && remainingDaysElement && remainingHoursElement && remainingMinutesElement && approxEndElement && stateElement && cardElement && errorsElement) {
-                    projectnameElement.innerText = "Project Name: " + data.project_name;
-                    remainingPercentElement.innerText = data.percent + "%";
-                    var remainingTime = data.remaining_time;
-                    var days = 0;
-                    var hours = 0;
-                    var minutes = 0;
+        function addNewPrinter() {
+            document.getElementById('editing_printer_id').value = '';
+            document.getElementById('host').value = '';
+            document.getElementById('port').value = '8883';
+            document.getElementById('user').value = 'bblp';
+            document.getElementById('password').value = '';
+            document.getElementById('device_id').value = '';
+            document.getElementById('printer_title').value = '';
+            document.getElementById('po_sound').value = 'pushover';
+            document.getElementById('my_pushover_user').value = '';
+            document.getElementById('my_pushover_app').value = '';
+            document.getElementById('ledlight').value = 'True';
+            document.getElementById('wled_ip').value = '';
+            document.getElementById('printer_color').value = '';
+            var configModal = new bootstrap.Modal(document.getElementById('configModal'), {});
+            configModal.show();
+        }
+    </script>
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.2/dist/umd/popper.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta3/dist/js/bootstrap.min.js"></script>
 
-                    var timePattern = /(\d+)\s*day[s]?\s*,\s*(\d+):(\d+)/; // Pattern for "X days, HH:MM"
-                    var timeParts = remainingTime.match(timePattern);
+<!-- Socket.IO client-side script to handle real-time updates -->
+<script>
+    const socket = io();
+    socket.on('printer_update', function(data) {
+        const printerId = data.printer_id;
+        const projectnameElement = document.getElementById(printerId + '_project_name');
+        const remainingPercentElement = document.getElementById(printerId + '_percent');
+        const remainingDaysElement = document.getElementById(printerId + '_remaining_days');
+        const remainingHoursElement = document.getElementById(printerId + '_remaining_hours');
+        const remainingMinutesElement = document.getElementById(printerId + '_remaining_minutes');
+        const approxEndElement = document.getElementById(printerId + '_approx_end');
+        const stateElement = document.getElementById(printerId + '_state');
+        const currentStageElement = document.getElementById(printerId + '_current_stage');
+        const cardElement = document.getElementById(printerId + '_card');
+        const errorsElement = document.getElementById(printerId + '_errors');
 
-                    if (timeParts) {
-                        days = parseInt(timeParts[1], 10);
-                        hours = parseInt(timeParts[2], 10);
-                        minutes = parseInt(timeParts[3], 10);
-                    } else {
-                        // Pattern for "HH:MM"
-                        timePattern = /(\d+):(\d+)/;
-                        timeParts = remainingTime.match(timePattern);
-                        if (timeParts) {
-                            hours = parseInt(timeParts[1], 10);
-                            minutes = parseInt(timeParts[2], 10);
-                        }
-                    }
+        if (projectnameElement && remainingPercentElement && remainingDaysElement && remainingHoursElement && remainingMinutesElement && approxEndElement && stateElement && cardElement && errorsElement) {
+            projectnameElement.innerText = "Project Name: " + data.project_name;
+            remainingPercentElement.innerText = data.percent + "%";
+            var remainingTime = data.remaining_time;
+            var days = 0;
+            var hours = 0;
+            var minutes = 0;
 
-                    remainingDaysElement.innerText = isNaN(days) ? 0 : days;
-                    remainingHoursElement.innerText = isNaN(hours) ? 0 : hours;
-                    remainingMinutesElement.innerText = isNaN(minutes) ? 0 : minutes;
+            var timePattern = /(\d+)\s*day[s]?\s*,\s*(\d+):(\d+)/; // Pattern for "X days, HH:MM"
+            var timeParts = remainingTime.match(timePattern);
 
-                    if (data.state === 'FINISH') {
-                        approxEndElement.innerText = "Approximate End Time: Done!";
-                    } else {
-                        approxEndElement.innerText = "Approximate End Time: " + data.approx_end;
-                    }
-                    stateElement.innerText = "Status: " + data.state;
-                    currentStageElement.innerText = "Current Stage: " + data.current_stage;
-                    // Clear existing error messages
-                    errorsElement.innerHTML = '';
+            if (timeParts) {
+                days = parseInt(timeParts[1], 10);
+                hours = parseInt(timeParts[2], 10);
+                minutes = parseInt(timeParts[3], 10);
+            } else {
+                // Pattern for "HH:MM"
+                timePattern = /(\d+):(\d+)/;
+                timeParts = remainingTime.match(timePattern);
+                if (timeParts) {
+                    hours = parseInt(timeParts[1], 10);
+                    minutes = parseInt(timeParts[2], 10);
+                }
+            }
 
-                    // Display error messages if any
-                    if (data.error === "ERROR" && data.error_messages && data.error_messages.length > 0) {
-                        errorsElement.style.display = 'block';
-                        data.error_messages.forEach(function(message) {
-                            var li = document.createElement('li');
-                            li.innerText = message;
-                            errorsElement.appendChild(li);
+            remainingDaysElement.innerText = isNaN(days) ? 0 : days;
+            remainingHoursElement.innerText = isNaN(hours) ? 0 : hours;
+            remainingMinutesElement.innerText = isNaN(minutes) ? 0 : minutes;
+
+            if (data.state === 'FINISH') {
+                approxEndElement.innerText = "Approximate End Time: Done!";
+            } else {
+                approxEndElement.innerText = "Approximate End Time: " + data.approx_end;
+            }
+            stateElement.innerText = "Status: " + data.state;
+            currentStageElement.innerText = "Current Stage: " + data.current_stage;
+            // Clear existing error messages
+            errorsElement.innerHTML = '';
+
+            // Display error messages if any
+            if (data.error === "ERROR" && data.error_messages && data.error_messages.length > 0) {
+                errorsElement.style.display = 'block';
+                data.error_messages.forEach(function(message) {
+                    var li = document.createElement('li');
+                    li.innerText = message;
+                    errorsElement.appendChild(li);
+                });
+            } else {
+                errorsElement.style.display = 'none';
+            }
+            if (data.error === "ERROR") {
+                cardElement.style.backgroundColor = 'red';
+            } else if (data.state === 'RUNNING') {
+                cardElement.style.backgroundColor = 'green';
+            } else if (data.state === 'PAUSE') {
+                cardElement.style.backgroundColor = 'yellow';
+            } else {
+                cardElement.style.backgroundColor = ''; // Reset to default or another color
+            }
+        } else {
+            console.error('One or more elements not found for printer:', printerId); // Debugging log
+        }
+    });
+
+    // Handle connection errors
+    socket.on('connect_error', (error) => {
+        console.error('Connection error:', error); // Debugging log
+    });
+
+    // Handle form submission
+    document.getElementById('addPrinterForm').addEventListener('submit', function(event) {
+        event.preventDefault();
+        // Collect form data
+        var formData = {
+            host: document.getElementById('host').value,
+            port: document.getElementById('port').value,
+            user: document.getElementById('user').value,
+            password: document.getElementById('password').value,
+            device_id: document.getElementById('device_id').value,
+            printer_title: document.getElementById('printer_title').value,
+            po_sound: document.getElementById('po_sound').value,
+            my_pushover_user: document.getElementById('my_pushover_user').value,
+            my_pushover_app: document.getElementById('my_pushover_app').value,
+            ledlight: document.getElementById('ledlight').value,
+            wled_ip: document.getElementById('wled_ip').value,
+            color: document.getElementById('color').value
+        };
+        document.querySelectorAll('.delete-btn').forEach(function(button) {
+            button.addEventListener('click', function(event) {
+                event.preventDefault();
+                var printerId = this.getAttribute('data-printer-id');
+
+                // Ask for confirmation before deleting
+                var confirmation = confirm("Are you sure you want to delete this printer?");
+
+                if (confirmation) {
+                    // Send a POST request to delete_printer endpoint
+                    fetch('/delete_printer', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                printer_id: printerId
+                            })
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.status === 'success') {
+                                // Reload the page to reflect the changes
+                                location.reload();
+                            } else {
+                                // Handle error
+                                alert('Error deleting printer');
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error deleting printer:', error);
+                            alert('Error deleting printer');
                         });
-                    } else {
-                        errorsElement.style.display = 'none';
-                    }
-                    if (data.error === "ERROR") {
-                        cardElement.style.backgroundColor = 'red';
-                    } else if (data.state === 'RUNNING') {
-                        cardElement.style.backgroundColor = 'green';
-                    } else if (data.state === 'PAUSE') {
-                        cardElement.style.backgroundColor = 'yellow';
-                    } else {
-                        cardElement.style.backgroundColor = ''; // Reset to default or another color
-                    }
-                } else {
-                    console.error('One or more elements not found for printer:', printerId); // Debugging log
                 }
             });
-
-            // Handle connection errors
-            socket.on('connect_error', (error) => {
-                console.error('Connection error:', error); // Debugging log
+        });
+        fetch('/save_printer_settings', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(formData)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    alert('Printer added successfully!');
+                    location.reload();
+                } else {
+                    alert('Error adding printer');
+                }
             });
-
-            // Handle form submission
-            document.getElementById('addPrinterForm').addEventListener('submit', function(event) {
-                event.preventDefault();
-                // Collect form data
-                var formData = {
-                    host: document.getElementById('host').value,
-                    port: document.getElementById('port').value,
-                    user: document.getElementById('user').value,
-                    password: document.getElementById('password').value,
-                    device_id: document.getElementById('device_id').value,
-                    printer_title: document.getElementById('printer_title').value,
-                    po_sound: document.getElementById('po_sound').value,
-                    my_pushover_user: document.getElementById('my_pushover_user').value,
-                    my_pushover_app: document.getElementById('my_pushover_app').value,
-                    ledlight: document.getElementById('ledlight').value,
-                    wled_ip: document.getElementById('wled_ip').value,
-                    color: document.getElementById('color').value
-                };
-                document.querySelectorAll('.delete-btn').forEach(function(button) {
-        button.addEventListener('click', function(event) {
-            event.preventDefault();
-            var printerId = this.getAttribute('data-printer-id');
-            
-            // Ask for confirmation before deleting
-            var confirmation = confirm("Are you sure you want to delete this printer?");
-            
-            if (confirmation) {
-                // Send a POST request to delete_printer endpoint
-                fetch('/delete_printer', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ printer_id: printerId })
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.status === 'success') {
-                        // Reload the page to reflect the changes
-                        location.reload();
-                    } else {
-                        // Handle error
-                        alert('Error deleting printer');
-                    }
-                })
-                .catch(error => {
-                    console.error('Error deleting printer:', error);
-                    alert('Error deleting printer');
-                });
-            }
-        });
-    });
-fetch('/save_printer_settings', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(formData)
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.status === 'success') {
-                alert('Printer added successfully!');
-                location.reload();
-            } else {
-                alert('Error adding printer');
-            }
-        });
 
         // Close modal
         var configModal = new bootstrap.Modal(document.getElementById('configModal'));
         configModal.hide();
     });
-});
-    </script>
+</script>
 </body>
 </html>
-

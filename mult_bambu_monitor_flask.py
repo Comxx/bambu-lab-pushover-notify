@@ -13,7 +13,7 @@ import time
 import wled
 from flask import Flask, request, render_template, jsonify
 from flask_socketio import SocketIO, emit
-
+import socket
 from settings import *
 
 DASH = '\n-------------------------------------------\n'
@@ -92,7 +92,23 @@ except FileNotFoundError:
 
 @app.route('/')
 def home():
-    printers = [{"printer_id": broker["device_id"], "printer_title": broker["Printer_Title"], "printer_color": broker["color"]} for broker in brokers]
+    printers = [
+    {
+        "printer_id": broker["device_id"],
+        "host": broker["host"],
+        "port": broker["port"],
+        "user": broker["user"],
+        "password": broker["password"],
+        "printer_title": broker["Printer_Title"],
+        "po_sound": broker["PO_SOUND"],
+        "my_pushover_user": broker["my_pushover_user"],
+        "my_pushover_app": broker["my_pushover_app"],
+        "ledlight": broker["ledlight"],
+        "wled_ip": broker["wled_ip"],
+        "printer_color": broker["color"]
+    } 
+    for broker in brokers
+]
     return render_template('index.html', printers=printers)
 @app.route('/delete_printer', methods=['POST'])
 def delete_printer():
@@ -337,7 +353,7 @@ def on_message(client, userdata, msg):
                 fail_reason = 'N/A'
             error_messages.append(f"fail_reason: {fail_reason}")
 
-            socketio.emit('update_time', {
+            socketio.emit('update_tprinter_update', {
                 'printer_id': userdata["device_id"],
                 'printer': userdata['Printer_Title'],
                 'percent': percent_done,
@@ -439,7 +455,10 @@ def main(argv):
     except Exception as e:
         logging.error(f"Fatal error in main: {e}")
         print("Fatal error Please read Logs")
-
+    local_ip = socket.gethostbyname(socket.gethostname())
+    port = 5000  # Flask default port
+    print(f'Web interface is available at http://{local_ip}:{port}')
 
 if __name__ == "__main__":
-    main(sys.argv[1:])    
+    main(sys.argv[1:]) 
+       
