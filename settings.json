@@ -8,7 +8,7 @@
         "PO_SOUND": "classical", 
         "my_pushover_user": "your_pushover_user_key", 
         "my_pushover_app": "the_application_token",
-        "ledligth":   true,
+        "ledlight":   true,
         "wled_ip": "192.168.1.100",
         "color": "#800080"
         },
@@ -21,7 +21,7 @@
         "PO_SOUND": "pushover", 
         "my_pushover_user": "your_pushover_user_key2", 
         "my_pushover_app": "the_application_token2",
-        "ledligth":   true,
+        "ledlight":   true,
         "wled_ip": "192.168.1.101",
         "color": "#3338FF"
         }

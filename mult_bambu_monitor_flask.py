@@ -14,7 +14,6 @@ import wled
 from flask import Flask, request, render_template, jsonify
 from flask_socketio import SocketIO, emit
 import socket
-from settings import *
 
 DASH = '\n-------------------------------------------\n'
 doorlight = False
@@ -352,8 +351,8 @@ def on_message(client, userdata, msg):
             else:
                 fail_reason = 'N/A'
             error_messages.append(f"fail_reason: {fail_reason}")
-
-            socketio.emit('update_tprinter_update', {
+            error_state = printer_states[errorstate]
+            socketio.emit('printer_update', {
                 'printer_id': userdata["device_id"],
                 'printer': userdata['Printer_Title'],
                 'percent': percent_done,
@@ -362,7 +361,7 @@ def on_message(client, userdata, msg):
                 'state': gcode_state,
                 'project_name': dataDict['print']['subtask_name'],
                 'current_stage': get_current_stage_name(dataDict['print'].get('mc_print_stage')),  
-                'error': printer_states[errorstate],
+                'error': error_state,
                 'error_messages': error_messages if errorstate == "ERROR" else []
             })
             
