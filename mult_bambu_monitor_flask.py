@@ -219,7 +219,7 @@ def on_message(client, userdata, msg):
                 if gcode_state == "FINISH" or gcode_state == "IDLE" or gcode_state == "FAILED": 
                     if printer_state['doorOpen']: 
                         if not printer_state['doorlight']:
-                            if userdata['ledligth']:
+                            if userdata['ledlight']:
                                 wled.set_power(userdata['wled_ip'], True)
                                 wled.set_brightness(userdata['wled_ip'], 255)
                                 wled.set_color(userdata['wled_ip'], (255, 255, 255))
@@ -230,7 +230,7 @@ def on_message(client, userdata, msg):
                                 printer_state['doorlight'] = True 
                     else:
                         if printer_state['doorlight']: 
-                            if userdata['ledligth']:
+                            if userdata['ledlight']:
                                 wled.set_power(userdata['wled_ip'], False)
                                 logging.info("Closed")
                                 printer_state['doorlight'] = False
