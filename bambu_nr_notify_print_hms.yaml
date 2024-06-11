@@ -1,0 +1,328 @@
+blueprint:
+  name: "[BAMBU] Notify on Print Error HMS"
+  author: "Comxx"
+  description: |
+    Send a notification of a print error to a valid device, including HMS descriptions.
+    ### Information
+    This automation will let you send a notification of each new top-level error from your Bambu printer that requires immediate attention, including HMS descriptions.
+
+    It will not notify you for each unique HMS information push, only print errors which usually halt prints.
+
+    You can send notifications to the following:
+      - Home Assistant Notification Centre
+      - Mobile-App push notifications (via HA mobile_app)
+      - Amazon Alexa Speakers TTS announcements (via alexa media player integration)
+      - Desktop notification centres (via HASS Agent integration)
+
+    For mobile-apps, you can also optionally choose a camera or image entity to send to the push notification. When blank, it will not send an image.
+
+    Additionally, you can now also set any number of custom actions to run on print error.
+
+    ## Requirements
+    - [My Bambu -> HomeAssistant Integration via NodeRed](https://www.wolfwithsword.com/bambulab-to-home-assistant-nodered-configurator/)
+              
+  domain: automation
+  input:
+    print_status:
+      name: Print Status Sensor
+      description: |
+        Print status sensor from the integration.
+        NodeRed Integration: `sensor.<model>_<printer_name>_print_status`
+      selector:
+        entity:
+          filter:
+            - domain: sensor
+              integration: mqtt
+    hms_sensor:
+      name: HMS Sensor
+      description: "The HMS sensor to monitor for errors."
+      selector:
+        entity:
+          filter:
+            - domain: sensor
+              integration: mqtt
+    image_or_camera:
+      name: "Optional: Image or Camera Snapshot Entity"
+      default: ""
+      description: "An Image or Camera Entity to send a preview with to mobile-app. Leave empty if you do not want to use this."
+      selector:
+        entity:
+          filter:
+            - domain: camera
+            - domain: image
+    notify_ha_persist:
+      name: Send Notification in HomeAssistant Notification Centre
+      default: false
+      selector:
+        boolean:
+    notify_devices_mobile:
+      name: Mobile Notify Devices
+      description: "Mobile Devices that can work with the notify service. Sends push notifications."
+      default: []
+      selector:
+        device:
+          multiple: true
+          filter:
+            - integration: mobile_app
+    notify_devices_desktops:
+      name: Desktop Notify Devices (HASS Agent)
+      description: "Desktop Devices that can work with the notify service. Sends push notifications."
+      default: []
+      selector:
+        device:
+          multiple: true
+          filter:
+            - integration: hass_agent
+    notify_devices_alexa:
+      name: Alexa Notify Devices (Alexa Media)
+      description: "Alexa Devices that can work with the notify service for tts announcements"
+      default: []
+      selector:
+        device:
+          multiple: true
+          filter:
+            - integration: alexa_media
+    custom_actions:
+      name: Custom Actions
+      description: "Custom Actions to run. Please provide proper structure, devices, and service data as applicable"
+      default: []
+      selector:
+        action: {}
+    custom_title:
+      name: Custom Notification Title
+      description: "Customizable title for the notifications."
+      default: "Bambu - Print error detected!"
+      selector:
+        text:
+	start_time:
+      name: Start Time
+      description: "The time when the automation should start triggering."
+      default: "07:00:00"
+      selector:
+        time:
+    end_time:
+      name: End Time
+      description: "The time when the automation should stop triggering."
+      default: "23:00:00"
+      selector:
+        time:
+variables:
+  image_s: !input image_or_camera
+  hms_s: !input hms_sensor
+
+trigger:
+  - platform: state
+    entity_id: !input hms_sensor
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 2
+
+condition:
+  - condition: and
+    conditions:
+    - condition: not
+      conditions:
+        - condition: or
+          conditions:
+		  - condition: time
+			after: !input start_time
+			before:!input end_time
+          - condition: state
+            entity_id: !input print_status
+            state: OFFLINE
+          - condition: state
+            entity_id: !input hms_sensor
+            state: 0
+          - condition: state
+            entity_id: !input hms_sensor
+            attribute: description
+            state: "Printing was cancelled."
+
+action:
+  - alias: "Run the custom actions"
+    choose: []
+    default: !input custom_actions
+  - alias: Send notification to each mobile device
+    repeat:
+      for_each: !input notify_devices_mobile
+      sequence:
+        - service: "notify.mobile_app_{{ device_attr(repeat.item, 'name') | slugify }}"
+          data:
+            title: !input custom_title
+            message: >-
+              {% set hms_descriptions = [] %}
+              {% set sensors_to_check = [
+                  states.sensor.x1c_comxx_printer_hms_common,
+                  states.sensor.x1c_comxx_printer_hms_fatal,
+                  states.sensor.x1c_comxx_printer_hms_info,
+                  states.sensor.x1c_comxx_printer_hms_serious,
+                  states.sensor.x1c_comxx_printer_hms_unknown
+              ] %}
+              {% set ignore_list = ['hms_0c00_0300_0002_0004', 'hms_0c00_0300_0003_000b', 'hms_0c00_0100_0001_0004'] %}
+              {% set ignore_substrings = ['friendly_name', 'unit_of_measurement', 'custom_ui_state_card', 'icon', 'supported_features', 'entity_picture', 'severity', 'module'] %}
+              {% set hms = namespace(errors=[], matched=false) %}
+              {% for sensor in sensors_to_check if sensor.state != '0' %}
+                  {% for attr, value in sensor.attributes.items() %}
+                      {% set lowercase_attr = attr|lower %}
+                      {% set hms.matched = false %}
+                      {% for substring in ignore_substrings %}
+                          {% set lowercase_substring = substring|lower %}
+                          {% if lowercase_substring in lowercase_attr %}
+                              {% set hms.matched = true %}
+                              {% break %}
+                          {% endif %}
+                      {% endfor %}
+                      {% for ignore_item in ignore_list %}
+                          {% set lowercase_ignore_item = ignore_item|lower %}
+                          {% if lowercase_ignore_item in lowercase_attr %}
+                              {% set hms.matched = true %}
+                              {% break %}
+                          {% endif %}
+                      {% endfor %}
+                      {% if not hms.matched %}
+                          {% set hms_descriptions = hms_descriptions + [value] %}
+                      {% endif %}
+                  {% endfor %}
+              {% endfor %}
+              {{ hms_descriptions | join(", ") }}
+            data:
+              image: >-
+                {% if image_s %}
+                  /api/{{states[image_s].domain}}_proxy/{{image_s}}
+                {% else %}
+                  ""
+                {% endif %}
+  - alias: Send notification to each desktop device
+    repeat:
+      for_each: !input notify_devices_desktops
+      sequence:
+        - service: "notify.{{ device_attr(repeat.item, 'name') | slugify }}"
+          data:
+            title: !input custom_title
+            message: >-
+              {% set hms_descriptions = [] %}
+              {% set sensors_to_check = [
+                  states.sensor.x1c_comxx_printer_hms_common,
+                  states.sensor.x1c_comxx_printer_hms_fatal,
+                  states.sensor.x1c_comxx_printer_hms_info,
+                  states.sensor.x1c_comxx_printer_hms_serious,
+                  states.sensor.x1c_comxx_printer_hms_unknown
+              ] %}
+              {% set ignore_list = ['hms_0c00_0300_0002_0004', 'hms_0c00_0300_0003_000b', 'hms_0c00_0100_0001_0004'] %}
+              {% set ignore_substrings = ['friendly_name', 'unit_of_measurement', 'custom_ui_state_card', 'icon', 'supported_features', 'entity_picture', 'severity', 'module'] %}
+              {% set hms = namespace(errors=[], matched=false) %}
+              {% for sensor in sensors_to_check if sensor.state != '0' %}
+                  {% for attr, value in sensor.attributes.items() %}
+                      {% set lowercase_attr = attr|lower %}
+                      {% set hms.matched = false %}
+                      {% for substring in ignore_substrings %}
+                          {% set lowercase_substring = substring|lower %}
+                          {% if lowercase_substring in lowercase_attr %}
+                              {% set hms.matched = true %}
+                              {% break %}
+                          {% endif %}
+                      {% endfor %}
+                      {% for ignore_item in ignore_list %}
+                          {% set lowercase_ignore_item = ignore_item|lower %}
+                          {% if lowercase_ignore_item in lowercase_attr %}
+                              {% set hms.matched = true %}
+                              {% break %}
+                          {% endif %}
+                      {% endfor %}
+                      {% if not hms.matched %}
+                          {% set hms_descriptions = hms_descriptions + [value] %}
+                      {% endif %}
+                  {% endfor %}
+              {% endfor %}
+              {{ hms_descriptions | join(", ") }}
+  - alias: Send notification to each alexa media device
+    repeat:
+      for_each: !input notify_devices_alexa
+      sequence:
+        - service: "notify.alexa_media_{{ device_attr(repeat.item, 'name') | slugify }}"
+          data:
+            title: !input custom_title
+            message: >-
+              Comxx Printer has a print error! {% set hms_descriptions = [] %}
+              {% set sensors_to_check = [
+                  states.sensor.x1c_comxx_printer_hms_common,
+                  states.sensor.x1c_comxx_printer_hms_fatal,
+                  states.sensor.x1c_comxx_printer_hms_info,
+                  states.sensor.x1c_comxx_printer_hms_serious,
+                  states.sensor.x1c_comxx_printer_hms_unknown
+              ] %}
+              {% set ignore_list = ['hms_0c00_0300_0002_0004', 'hms_0c00_0300_0003_000b', 'hms_0c00_0100_0001_0004'] %}
+              {% set ignore_substrings = ['friendly_name', 'unit_of_measurement', 'custom_ui_state_card', 'icon', 'supported_features', 'entity_picture', 'severity', 'module'] %}
+              {% set hms = namespace(errors=[], matched=false) %}
+              {% for sensor in sensors_to_check if sensor.state != '0' %}
+                  {% for attr, value in sensor.attributes.items() %}
+                      {% set lowercase_attr = attr|lower %}
+                      {% set hms.matched = false %}
+                      {% for substring in ignore_substrings %}
+                          {% set lowercase_substring = substring|lower %}
+                          {% if lowercase_substring in lowercase_attr %}
+                              {% set hms.matched = true %}
+                              {% break %}
+                          {% endif %}
+                      {% endfor %}
+                      {% for ignore_item in ignore_list %}
+                          {% set lowercase_ignore_item = ignore_item|lower %}
+                          {% if lowercase_ignore_item in lowercase_attr %}
+                              {% set hms.matched = true %}
+                              {% break %}
+                          {% endif %}
+                      {% endfor %}
+                      {% if not hms.matched %}
+                          {% set hms_descriptions = hms_descriptions + [value] %}
+                      {% endif %}
+                  {% endfor %}
+              {% endfor %}
+              {{ hms_descriptions | join(", ") }}
+            data:
+              type: "announce"
+  - alias: Send notification to HA Notif Centre
+    choose:
+      - conditions:
+        - condition: template
+          value_template: "{{ notify_ha_persist }}"
+        sequence:
+          - service: "notify.persistent_notification"
+            data:
+              title: !input custom_title
+              message: >-
+                {% set hms_descriptions = [] %}
+                {% set sensors_to_check = [
+                    states.sensor.x1c_comxx_printer_hms_common,
+                    states.sensor.x1c_comxx_printer_hms_fatal,
+                    states.sensor.x1c_comxx_printer_hms_info,
+                    states.sensor.x1c_comxx_printer_hms_serious,
+                    states.sensor.x1c_comxx_printer_hms_unknown
+                ] %}
+                {% set ignore_list = ['hms_0c00_0300_0002_0004', 'hms_0c00_0300_0003_000b', 'hms_0c00_0100_0001_0004'] %}
+                {% set ignore_substrings = ['friendly_name', 'unit_of_measurement', 'custom_ui_state_card', 'icon', 'supported_features', 'entity_picture', 'severity', 'module'] %}
+                {% set hms = namespace(errors=[], matched=false) %}
+                {% for sensor in sensors_to_check if sensor.state != '0' %}
+                    {% for attr, value in sensor.attributes.items() %}
+                        {% set lowercase_attr = attr|lower %}
+                        {% set hms.matched = false %}
+                        {% for substring in ignore_substrings %}
+                            {% set lowercase_substring = substring|lower %}
+                            {% if lowercase_substring in lowercase_attr %}
+                                {% set hms.matched = true %}
+                                {% break %}
+                            {% endif %}
+                        {% endfor %}
+                        {% for ignore_item in ignore_list %}
+                            {% set lowercase_ignore_item = ignore_item|lower %}
+                            {% if lowercase_ignore_item in lowercase_attr %}
+                                {% set hms.matched = true %}
+                                {% break %}
+                            {% endif %}
+                        {% endfor %}
+                        {% if not hms.matched %}
+                            {% set hms_descriptions = hms_descriptions + [value] %}
+                        {% endif %}
+                    {% endfor %}
+                {% endfor %}
+                {{ hms_descriptions | join(", ") }}
