@@ -35,7 +35,9 @@ blueprint:
               integration: mqtt
     hms_sensor:
       name: HMS Sensor
-      description: "The HMS sensor to monitor for errors."
+      description: |
+        Print HMS sensor from the integration.
+        NodeRed Integration: `sensor.<model>_<printer_name>_print_hms`
       selector:
         entity:
           filter:
@@ -125,9 +127,9 @@ condition:
       conditions:
         - condition: or
           conditions:
-		  - condition: time
-			after: !input start_time
-			before:!input end_time
+          - condition: time
+            after: !input start_time
+            before:!input end_time
           - condition: state
             entity_id: !input print_status
             state: OFFLINE
