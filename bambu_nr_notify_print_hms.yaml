@@ -49,10 +49,6 @@ condition:
 
               {% set hms = namespace(errors=[], matched=false) %}
 
-
-              
-
-
               {% for sensor in hms_sensors_list if sensor.state != '0' %}
                   {% for attr in sensor.attributes %}
                       {% set lowercase_attr = attr|lower %}
