@@ -1,4 +1,4 @@
-bwolfwithswordvariables:
+variables:
   error_s: !input error_sensor
   image_s: !input image_or_camera
 
@@ -25,10 +25,10 @@ condition:
           - condition: state
             entity_id: !input print_status
             state: OFFLINE
-          - condition: numeric_state
+          - condition: state
             entity_id: !input error_sensor
             attribute: code
-            above: 0
+            state: 0
           - condition: state
             entity_id: !input error_sensor
             attribute: description
@@ -37,47 +37,7 @@ condition:
             entity_id: !input error_sensor
             attribute: description
             state: Printing was cancelled
-          - condition: template
-            value_template: >
-              {% set ignore_list = ['hms_0c00_0300_0002_0004',
-              'hms_0c00_0300_0003_000b', 'hms_0c00_0100_0001_0004'] %}
-
-              {% set ignore_substrings = ['friendly_name', 'unit_of_measurement',
-              'custom_ui_state_card', 'icon', 'supported_features', 'entity_picture',
-              'severity', 'module'] %}
-
-
-              {% set hms = namespace(errors=[], matched=false) %}
-
-
-              
-
-
-              {% for sensor in hms_sensors_list if sensor.state != '0' %}
-                  {% for attr in sensor.attributes %}
-                      {% set lowercase_attr = attr|lower %}
-                      {% set hms.matched = false %}
-                      {% for substring in ignore_substrings %}
-                          {% set lowercase_substring = substring|lower %}
-                          {% if lowercase_substring in lowercase_attr %}
-                              {% set hms.matched = true %}
-                              {% break %}
-                          {% endif %}
-                      {% endfor %}
-                      {% for ignore_item in ignore_list %}
-                          {% set lowercase_ignore_item = ignore_item|lower %}
-                          {% if lowercase_ignore_item in lowercase_attr %}  
-                              {% set hms.matched = true %}
-                              {% break %}
-                          {% endif %}
-                      {% endfor %}
-                      {% if not hms.matched %}
-                          {% set hms.errors = hms.errors + [attr ~ ": " ~ sensor.attributes[attr]] %}
-                      {% endif %}
-                  {% endfor %}
-              {% endfor %}
-
-              {{ hms.errors|count > 0 }} 
+            
     - condition: state
       entity_id: !input error_sensor
       state: Error
@@ -91,7 +51,8 @@ action:
       sequence:
         - service: "notify.mobile_app_{{ device_attr(repeat.item, 'name') | slugify }}"
           data:
-            title: !input custom_title
+            title: >-
+              {{device_attr(error_s, 'name')|replace("_"," ")}} - Print error detected!
             message: >-
               {{state_attr(error_s, 'description')}}
             data:
@@ -117,7 +78,8 @@ action:
       sequence:
         - service: "notify.alexa_media_{{ device_attr(repeat.item, 'name') | slugify }}"
           data:
-            title: !input custom_title
+            title: >-
+              {{device_attr(error_s, 'name')|replace("_"," ")}} - Print error detected!
             message: >-
               Bambu {{device_attr(error_s, 'name')|replace("_"," ")}} has a print error! {{state_attr(error_s, 'description')}}
             data:
@@ -130,12 +92,13 @@ action:
         sequence:
           - service: "notify.persistent_notification"
             data:
-              title: !input custom_title
+              title: >-
+                {{device_attr(error_s, 'name')|replace("_"," ")}} - Print error detected!
               message: >-
                 {{state_attr(error_s, 'description')}}
 
 blueprint:
-  name: "[BAMBU] Notify on Print Error HMS"
+  name: "[BAMBU] Notify on Print Error"
   author: "Comxx"
   description: |
               Send a notification of a print error to a valid device
@@ -161,10 +124,10 @@ blueprint:
   domain: automation
   input:
     error_sensor:
-      name: Print HMS Sensor
+      name: Print Error Sensor
       description: |
-                    The print error sensor from the integration.
-                    NodeRed Integration: `sensor.<model>_<printer_name>_print_hms`
+                    The print error sensor from the integration. Not any of the HMS sensors!
+                    NodeRed Integration: `sensor.<model>_<printer_name>_print_error`
       selector:
         entity:
           filter:
