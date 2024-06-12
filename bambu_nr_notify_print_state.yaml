@@ -70,9 +70,9 @@ action:
             title: !input custom_title - Print {{ states(status_s) }}
             message: >-
               {% if is_state(status_s, 'FINISH') or is_state(status_s, 'IDLE') %}
-                Bambu {{ custom_title }} - Print complete
+                {{ custom_title }} - Print complete
               {% elif is_state(status_s, 'FAILED') %}
-                Bambu {{ custom_title }} - Print has failed
+                {{ custom_title }} - Print has failed
               {% endif %}
             data:
               type: "announce"

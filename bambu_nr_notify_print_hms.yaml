@@ -1,7 +1,7 @@
-bwolfwithswordvariables:
+variables:
   error_s: !input error_sensor
   image_s: !input image_or_camera
-
+  hms_sensors_list: !input hms_sensors
 mode: single
 trigger:
   - platform: state
@@ -103,8 +103,7 @@ action:
       sequence:
         - service: "notify.{{ device_attr(repeat.item, 'name') | slugify }}"
           data:
-            title: >-
-              {{device_attr(error_s, 'name')|replace("_"," ")}} - Print error detected!
+            title: !input custom_title
             message: >-
               {{state_attr(error_s, 'description')}}
   - alias: Send notification to each alexa media device
@@ -115,7 +114,35 @@ action:
           data:
             title: !input custom_title
             message: >-
-              Bambu {{device_attr(error_s, 'name')|replace("_"," ")}} has a print error! {{state_attr(error_s, 'description')}}
+              {{ custom_title }} has a print error!
+
+              {%- set ignore_list = ['hms_0c00_0300_0002_0004', 'hms_0c00_0300_0003_000b', 'hms_0c00_0100_0001_0004'] %}
+              {%- set ignore_substrings = ['friendly_name', 'unit_of_measurement', 'custom_ui_state_card', 'icon', 'supported_features', 'entity_picture', 'severity', 'module'] %}
+              {%- set hms = namespace(errors=[], matched=false) %}
+              {%- for sensor in hms_sensors_list if sensor.state != '0' %}
+                  {%- for attr in sensor.attributes %}
+                      {%- set lowercase_attr = attr|lower %}
+                      {%- set hms.matched = false %}
+                      {%- for substring in ignore_substrings %}
+                          {%- set lowercase_substring = substring|lower %}
+                          {%- if lowercase_substring in lowercase_attr %}
+                              {%- set hms.matched = true %}
+                              {%- break %}
+                          {%- endif %}
+                      {%- endfor %}
+                      {%- for ignore_item in ignore_list %}
+                          {%- set lowercase_ignore_item = ignore_item|lower %}
+                          {%- if lowercase_ignore_item in lowercase_attr %}
+                              {%- set hms.matched = true %}
+                              {%- break %}
+                          {%- endif %}
+                      {%- endfor %}
+                      {%- if not hms.matched %}
+                          {%- set hms.errors = hms.errors + [attr ~ ": " ~ sensor.attributes[attr]] %}
+                      {%- endif %}
+                  {%- endfor %}
+              {%- endfor %}
+              {{ hms.errors | join("\n") }}
             data:
               type: "announce"
   - alias: Send notification to HA Notif Centre
@@ -176,6 +203,16 @@ blueprint:
           filter:
             - domain: sensor
               integration: mqtt
+    hms_sensors:
+      name: HMS Sensors List
+      description: |
+          List of HMS sensors to monitor for errors.
+      selector:
+        entity:
+          filter:
+            - domain: sensor
+              integration: mqtt
+          multiple: true         
     start_time:
       name: Start Time
       description: "The time when the automation should start triggering."
