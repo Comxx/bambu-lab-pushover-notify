@@ -1,29 +1,26 @@
+import logging
+from bambu_cloud import BambuCloud
 
-import os
-import requests
-import json
+# Configure logging
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# Replace these with your actual method of securely retrieving stored credentials
-BAMBU_EMAIL = "commxx@gmail.com"
-BAMBU_PASSWORD = 'Steven25@@##'
+def main():
+    # Configuration
+    region = 'US'  # e.g., 'China' or 'US'
+    email = ''    
+    password = ''
+    
+    # Initialize BambuCloud instance
+    bambu_cloud = BambuCloud(region=region, email=email, username='', auth_token='')
 
-url = 'https://api.bambulab.com/v1/user-service/user/login'  # Change to the correct URL if needed
+    # Login to get auth token and username
+    print("Attempting to log in to Bambu Cloud.")
+    try:
+        bambu_cloud.login(region=region, email=email, password=password)
+        print(f"Access Token: {bambu_cloud.auth_token}")
+        print(f"Username: {bambu_cloud.username}")
+    except ValueError as e:
+        print(f"An error occurred: {e}")
 
-headers = {
-    'Content-Type': 'application/json'
-}
-
-payload = {
-    "account": BAMBU_EMAIL,
-    "password": BAMBU_PASSWORD
-}
-
-response = requests.post(url, headers=headers, json=payload)
-
-if response.status_code == 200:
-    print("Request was successful.")
-    print("Response:", response.json())
-else:
-    print("Failed to send request.")
-    print("Status Code:", response.status_code)
-    print("Response:", response.text)
+if __name__ == '__main__':
+    main()
