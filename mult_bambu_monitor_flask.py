@@ -309,35 +309,56 @@ def on_message(client, userdata, msg):
                     msg_text += "<li>Name: " + dataDict['print']['subtask_name'] + " </li>"
                 msg_text += f"<li>Remaining time: {remaining_time} </li>"
                 msg_text += "<li>Aprox End: " + my_finish_datetime + "</li>"
-
                 fail_reason = ""
-                if( ('fail_reason' in dataDict['print'] and len(dataDict['print']['fail_reason']) > 1) or ( 'print_error' in dataDict['print'] and dataDict['print']['print_error'] != 0 ) or gcode_state == "FAILED" ):
-                    printer_states[errorstate] = "ERROR"
-                    if 'print_error' in dataDict['print'] and dataDict['print']['print_error'] is not None:
-                        msg_text += f"<li>print_error: {dataDict['print']['print_error']}</li>"
-                    if 'mc_print_error_code' in dataDict['print'] and dataDict['print']['mc_print_error_code'] is not None:
-                        msg_text += f"<li>mc_print_error_code: {dataDict['print']['mc_print_error_code']}</li>"
-                    if device__HMS_error_code is not None:
-                        msg_text += f"<li>HMS code: {device__HMS_error_code}</li>"
-                        msg_text += f"<li>Description: {found_device_error['intro']}</li>"
-                    if 'fail_reason' in dataDict['print']:
-                        fail_reason = dataDict['print']['fail_reason']
+                if userdata["printer_type"] == "A1":
+                    if( ( 'print_error' in dataDict['print'] and dataDict['print']['print_error'] != 0 ) or gcode_state == "FAILED" ):
+                        printer_states[errorstate] = "ERROR"
+                        if 'print_error' in dataDict['print'] and dataDict['print']['print_error'] is not None:
+                            msg_text += f"<li>print_error: {dataDict['print']['print_error']}</li>"   
+                        if device__HMS_error_code is not None:
+                            msg_text += f"<li>HMS code: {device__HMS_error_code}</li>"
+                            msg_text += f"<li>Description: {found_device_error['intro']}</li>"
+                        priority = 1
+                        msg_text += "</ul>"
+                    if not first_run:
+                        message = po_user.create_message(
+                            title=userdata['Printer_Title'],
+                            message=msg_text,
+                            url=f"https://wiki.bambulab.com/en/x1/troubleshooting/hmscode/{device__HMS_error_code}" if device__HMS_error_code else "",
+                            html=True,
+                            sound=userdata['PO_SOUND'],
+                            priority=priority
+                        )
+                        message.send()
+                        device__HMS_error_code = ""
                     else:
-                        fail_reason = 'N/A'
-                    msg_text += f"<li>fail_reason: {fail_reason}</li>"
-                    priority = 1
-                    msg_text += "</ul>"
-                if not first_run:
-                    message = po_user.create_message(
-                        title=userdata['Printer_Title'],
-                        message=msg_text,
-                        url=f"https://wiki.bambulab.com/en/x1/troubleshooting/hmscode/{device__HMS_error_code}" if device__HMS_error_code else "",
-                        html=True,
-                        sound=userdata['PO_SOUND'],
-                        priority=priority
-                    )
-                    message.send()
-                    device__HMS_error_code = ""
+                        if( ('fail_reason' in dataDict['print'] and len(dataDict['print']['fail_reason']) > 1) or ( 'print_error' in dataDict['print'] and dataDict['print']['print_error'] != 0 ) or gcode_state == "FAILED" ):
+                            printer_states[errorstate] = "ERROR"
+                            if 'print_error' in dataDict['print'] and dataDict['print']['print_error'] is not None:
+                                msg_text += f"<li>print_error: {dataDict['print']['print_error']}</li>"
+                            if 'mc_print_error_code' in dataDict['print'] and dataDict['print']['mc_print_error_code'] is not None:
+                                msg_text += f"<li>mc_print_error_code: {dataDict['print']['mc_print_error_code']}</li>"
+                            if device__HMS_error_code is not None:
+                                msg_text += f"<li>HMS code: {device__HMS_error_code}</li>"
+                                msg_text += f"<li>Description: {found_device_error['intro']}</li>"
+                            if 'fail_reason' in dataDict['print']:
+                                fail_reason = dataDict['print']['fail_reason']
+                            else:
+                                fail_reason = 'N/A'
+                            msg_text += f"<li>fail_reason: {fail_reason}</li>"
+                            priority = 1
+                            msg_text += "</ul>"
+                        if not first_run:
+                            message = po_user.create_message(
+                                title=userdata['Printer_Title'],
+                                message=msg_text,
+                                url=f"https://wiki.bambulab.com/en/x1/troubleshooting/hmscode/{device__HMS_error_code}" if device__HMS_error_code else "",
+                                html=True,
+                                sound=userdata['PO_SOUND'],
+                                priority=priority
+                            )
+                            message.send()
+                            device__HMS_error_code = ""
 
             error_messages = []
 
