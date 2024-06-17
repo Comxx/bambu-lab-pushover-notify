@@ -15,7 +15,7 @@ import wled
 from flask import Flask, request, render_template, jsonify
 from flask_socketio import SocketIO, emit
 import socket
-import bambu_cloud
+from bambu_cloud import BambuCloud
 
 DASH = '\n-------------------------------------------\n'
 doorlight = False
@@ -422,7 +422,7 @@ def search_error(error_code, error_list):
 def connect_to_broker(broker):
     Mqttpassworrd = ''
     Mqttuser = ''
-    
+    bambu_cloud = BambuCloud(region="US", email=broker["user"], username='', auth_token='')
     if broker["printer_type"] == "A1":
         bambu_cloud.login(region="US", email=broker["user"], password= broker["password"])
         Mqttpassworrd = bambu_cloud.auth_token
