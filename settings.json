@@ -10,7 +10,8 @@
         "my_pushover_app": "the_application_token",
         "ledlight":   true,
         "wled_ip": "192.168.1.100",
-        "color": "#800080"
+        "color": "#800080",
+        "printer_type": "X1C"   
         },
     {"host": "127.0.0.8", 
         "port": 8883, 
@@ -23,6 +24,7 @@
         "my_pushover_app": "the_application_token2",
         "ledlight":   true,
         "wled_ip": "192.168.1.101",
-        "color": "#3338FF"
+        "color": "#3338FF",
+        "printer_type": "A1"
         }
         ]

@@ -1,4 +1,5 @@
 #!/usr/bin/python
+from ast import If
 import logging
 import paho.mqtt.client as paho
 import ssl
@@ -14,6 +15,7 @@ import wled
 from flask import Flask, request, render_template, jsonify
 from flask_socketio import SocketIO, emit
 import socket
+import bambu_cloud
 
 DASH = '\n-------------------------------------------\n'
 doorlight = False
@@ -418,16 +420,26 @@ def search_error(error_code, error_list):
     except Exception as e:
         logging.error(f"Unexpected error in earch_error: {e}")                  
 def connect_to_broker(broker):
+    Mqttpassworrd = ''
+    Mqttuser = ''
+    
+    if broker["printer_type"] == "A1":
+        bambu_cloud.login(region="US", email=broker["user"], password= broker["password"])
+        Mqttpassworrd = bambu_cloud.auth_token
+        Mqttuser = bambu_cloud.username
+    else:
+        Mqttpassworrd = broker["password"]
+        Mqttuser = broker["user"]    
     client = paho.Client(paho.CallbackAPIVersion.VERSION2)
     client.tls_set(ca_certs=None, certfile=None, keyfile=None, cert_reqs=ssl.CERT_NONE, tls_version=ssl.PROTOCOL_TLS, ciphers=None)
     client.tls_insecure_set(True)
-    client.username_pw_set(broker["user"], broker["password"])
+    client.username_pw_set(Mqttuser, Mqttpassworrd)
     client.user_data_set(broker)  # Pass the broker data to use in callbacks
     client.on_connect = on_connect
     client.on_message = on_message
     client.on_publish = on_publish
     client.connect(broker["host"], broker["port"], 60)
-    client.loop_start()  # Use loop_start() to start thart the client loop asynchronously
+    client.loop_start()  # Use loop_start() to start the client loop asynchronously
     return client
 
 def main(argv):
