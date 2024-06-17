@@ -364,16 +364,9 @@ def on_message(client, userdata, msg):
 
             if 'print_error' in dataDict['print'] and dataDict['print']['print_error'] is not None:
                 error_messages.append(f"print_error: {dataDict['print']['print_error']}")
-            if 'mc_print_error_code' in dataDict['print'] and dataDict['print']['mc_print_error_code'] is not None:
-                error_messages.append(f"mc_print_error_code: {dataDict['print']['mc_print_error_code']}")
             if device__HMS_error_code is not None:
                 error_messages.append(f"HMS code: {device__HMS_error_code}")
-                error_messages.append(f"Description: {found_device_error['intro']}")
-            if 'fail_reason' in dataDict['print']:
-                fail_reason = dataDict['print']['fail_reason']
-            else:
-                fail_reason = 'N/A'
-            error_messages.append(f"fail_reason: {fail_reason}")
+                error_messages.append(f"Description: {found_device_error['intro']}") 
             error_state = printer_states[errorstate]
             socketio.emit('printer_update', {
                 'printer_id': userdata["device_id"],
