@@ -331,23 +331,23 @@ def on_message(client, userdata, msg):
                         )
                         message.send()
                         device__HMS_error_code = ""
-                    else:
-                        if( ('fail_reason' in dataDict['print'] and len(dataDict['print']['fail_reason']) > 1) or ( 'print_error' in dataDict['print'] and dataDict['print']['print_error'] != 0 ) or gcode_state == "FAILED" ):
-                            printer_states[errorstate] = "ERROR"
-                            if 'print_error' in dataDict['print'] and dataDict['print']['print_error'] is not None:
-                                msg_text += f"<li>print_error: {dataDict['print']['print_error']}</li>"
-                            if 'mc_print_error_code' in dataDict['print'] and dataDict['print']['mc_print_error_code'] is not None:
-                                msg_text += f"<li>mc_print_error_code: {dataDict['print']['mc_print_error_code']}</li>"
-                            if device__HMS_error_code is not None:
-                                msg_text += f"<li>HMS code: {device__HMS_error_code}</li>"
-                                msg_text += f"<li>Description: {found_device_error['intro']}</li>"
-                            if 'fail_reason' in dataDict['print']:
-                                fail_reason = dataDict['print']['fail_reason']
-                            else:
-                                fail_reason = 'N/A'
-                            msg_text += f"<li>fail_reason: {fail_reason}</li>"
-                            priority = 1
-                            msg_text += "</ul>"
+                if userdata["printer_type"] == "X1C":
+                    if( ('fail_reason' in dataDict['print'] and len(dataDict['print']['fail_reason']) > 1) or ( 'print_error' in dataDict['print'] and dataDict['print']['print_error'] != 0 ) or gcode_state == "FAILED" ):
+                        printer_states[errorstate] = "ERROR"
+                        if 'print_error' in dataDict['print'] and dataDict['print']['print_error'] is not None:
+                            msg_text += f"<li>print_error: {dataDict['print']['print_error']}</li>"
+                        if 'mc_print_error_code' in dataDict['print'] and dataDict['print']['mc_print_error_code'] is not None:
+                            msg_text += f"<li>mc_print_error_code: {dataDict['print']['mc_print_error_code']}</li>"
+                        if device__HMS_error_code is not None:
+                            msg_text += f"<li>HMS code: {device__HMS_error_code}</li>"
+                            msg_text += f"<li>Description: {found_device_error['intro']}</li>"
+                        if 'fail_reason' in dataDict['print']:
+                            fail_reason = dataDict['print']['fail_reason']
+                        else:
+                            fail_reason = 'N/A'
+                        msg_text += f"<li>fail_reason: {fail_reason}</li>"
+                        priority = 1
+                        msg_text += "</ul>"
                         if not first_run:
                             message = po_user.create_message(
                                 title=userdata['Printer_Title'],
