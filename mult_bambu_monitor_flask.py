@@ -212,70 +212,71 @@ def on_message(client, userdata, msg):
             percent_done = dataDict['print'].get('mc_percent', 0) 
             print_error = dataDict['print'].get('print_error')
             current_stage = get_current_stage_name(dataDict['print'].get('mc_print_stage'))
-            
-        if "print" in dataDict and "home_flag" in dataDict["print"]:
-            home_flag = dataDict["print"]["home_flag"]
-            door_state = bool((home_flag >> 23) & 1)
-            if printer_state['doorOpen'] != door_state:
-                printer_state['doorOpen'] = door_state
-                if gcode_state == "FINISH" or gcode_state == "IDLE" or gcode_state == "FAILED": 
-                    if printer_state['doorOpen']: 
-                        if not printer_state['doorlight']:
-                            if userdata['ledlight']:
-                                wled.set_power(userdata['wled_ip'], True)
-                                wled.set_brightness(userdata['wled_ip'], 255)
-                                wled.set_color(userdata['wled_ip'], (255, 255, 255))
-                                logging.info("Opened")
-                                printer_state['doorlight'] = True
-                            else:
-                                logging.info("Opened No WLED")
-                                printer_state['doorlight'] = True 
-                    else:
-                        if printer_state['doorlight']: 
-                            if userdata['ledlight']:
-                                wled.set_power(userdata['wled_ip'], False)
-                                logging.info("Closed")
-                                printer_state['doorlight'] = False
-                            else:
-                                logging.info("Closed No WLED")
-                                printer_state['doorlight'] = False
+                    
+            if userdata['printer_type'] == "X1C":
+                if "print" in dataDict and "home_flag" in dataDict["print"]:
+                    home_flag = dataDict["print"]["home_flag"]
+                    door_state = bool((home_flag >> 23) & 1)
+                    if printer_state['doorOpen'] != door_state:
+                            printer_state['doorOpen'] = door_state
+                            if gcode_state == "FINISH" or gcode_state == "IDLE" or gcode_state == "FAILED": 
+                                if printer_state['doorOpen']: 
+                                    if not printer_state['doorlight']:
+                                        if userdata['ledlight']:
+                                            wled.set_power(userdata['wled_ip'], True)
+                                            wled.set_brightness(userdata['wled_ip'], 255)
+                                            wled.set_color(userdata['wled_ip'], (255, 255, 255))
+                                            logging.info("Opened")
+                                            printer_state['doorlight'] = True
+                                        else:
+                                            logging.info("Opened No WLED")
+                                            printer_state['doorlight'] = True 
+                                else:
+                                    if printer_state['doorlight']: 
+                                        if userdata['ledlight']:
+                                            wled.set_power(userdata['wled_ip'], False)
+                                            logging.info("Closed")
+                                            printer_state['doorlight'] = False
+                                        else:
+                                            logging.info("Closed No WLED")
+                                            printer_state['doorlight'] = False
             if printer_state['previous_print_error'] == 50348044 and print_error == 0:
-                chamberlight_off_data = {
-                    "system": {
-                        "sequence_id": "2003",
-                        "command": "ledctrl",
-                        "led_node": "chamber_light",
-                        "led_mode": "off",
-                        "led_on_time": 500,
-                        "led_off_time": 500,
-                        "loop_times": 0,
-                        "interval_time": 0
-                    },
-                    "user_id": "123456789"
-                }
-                Chamberlogo_off_data = {
-                    "print": {
-                        "sequence_id": "2026",
-                        "command": "gcode_line",
-                        "param": "M960 S5 P0 \n"
-                    },
-                    "user_id": "1234567890"
-                }
+                    chamberlight_off_data = {
+                        "system": {
+                            "sequence_id": "2003",
+                            "command": "ledctrl",
+                            "led_node": "chamber_light",
+                            "led_mode": "off",
+                            "led_on_time": 500,
+                            "led_off_time": 500,
+                            "loop_times": 0,
+                            "interval_time": 0
+                        },
+                        "user_id": "123456789"
+                    }
+                    Chamberlogo_off_data = {
+                        "print": {
+                            "sequence_id": "2026",
+                            "command": "gcode_line",
+                            "param": "M960 S5 P0 \n"
+                        },
+                        "user_id": "1234567890"
+                    }
 
-                payload = json.dumps(chamberlight_off_data)
-                payloadlogo = json.dumps(Chamberlogo_off_data)
-                client.publish("device/" + userdata["device_id"] + "/request", payload)
-                client.publish("device/" + userdata["device_id"] + "/request", payloadlogo)
-                message = po_user.create_message(
-                    title=f"{userdata['Printer_Title']} Cancelled",
-                    message="Print Cancelled",
-                    sound=userdata['PO_SOUND'],
-                    priority=1
-                )
-                message.send()
-                logging.info("Print cancelled on " + userdata['Printer_Title'])
-                printer_state['previous_print_error'] = print_error
-                return
+                    payload = json.dumps(chamberlight_off_data)
+                    payloadlogo = json.dumps(Chamberlogo_off_data)
+                    client.publish("device/" + userdata["device_id"] + "/request", payload)
+                    client.publish("device/" + userdata["device_id"] + "/request", payloadlogo)
+                    message = po_user.create_message(
+                        title=f"{userdata['Printer_Title']} Cancelled",
+                        message="Print Cancelled",
+                        sound=userdata['PO_SOUND'],
+                        priority=1
+                    )
+                    message.send()
+                    logging.info("Print cancelled on " + userdata['Printer_Title'])
+                    printer_state['previous_print_error'] = print_error
+                    return
             else:
                 printer_state['previous_print_error'] = print_error
 
