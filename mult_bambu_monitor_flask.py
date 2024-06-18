@@ -16,6 +16,7 @@ from flask import Flask, request, render_template, jsonify
 from flask_socketio import SocketIO, emit
 import socket
 from bambu_cloud import BambuCloud
+import traceback
 
 DASH = '\n-------------------------------------------\n'
 doorlight = False
@@ -150,7 +151,7 @@ def setup_logging():
     rotating_handler.setFormatter(log_formatter)
     
     logger = logging.getLogger()
-    logger.setLevel(logging.INFO)
+    logger.setLevel(logging.ERROR)
     logger.addHandler(rotating_handler)   
 def on_connect(client, userdata, flags, reason_code, properties):
     client.subscribe("device/"+userdata["device_id"]+"/report", 0)
@@ -396,6 +397,7 @@ def on_message(client, userdata, msg):
         logging.error("Failed to decode JSON from MQTT message: {e}")
     except Exception as e:
         logging.error(f"Unexpected error in on_message: {e}")
+        logging.error(traceback.format_exc())
 
 
 def hms_code(attr, code):
