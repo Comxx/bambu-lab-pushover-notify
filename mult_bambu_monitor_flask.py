@@ -282,7 +282,7 @@ def on_message(client, userdata, msg):
                     return
             else:
                 printer_state['previous_print_error'] = print_error
-
+            
             remaining_time = ""
             if 'mc_remaining_time' in dataDict['print']:
                 mc_remaining_time = dataDict['print']['mc_remaining_time']
@@ -399,7 +399,7 @@ def on_message(client, userdata, msg):
         logging.error("Failed to decode JSON from MQTT message: {e}")
     except Exception as e:
         logging.error(f"Unexpected error in on_message: {e}")
-        logging.error(traceback.format_exc())
+        #logging.error(traceback.format_exc())
 
 
 def hms_code(attr, code):
