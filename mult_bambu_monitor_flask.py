@@ -162,8 +162,7 @@ def on_publish(client, userdata, mid, reason_codes, properties):
 
 def on_message(client, userdata, msg):
     global DASH, gcode_state_prev, first_run, percent_notify, previous_print_error, my_finish_datetime, doorlight, doorOpen, previous_gcode_states, printer_states, errorstate, current_stage
-    try:
-        if userdata['printer_type'] == "X1C":   
+    try:   
             po_app = Application(userdata['my_pushover_app'])
             po_user = po_app.get_user(userdata['my_pushover_user'])
             server_identifier = (userdata['password'], userdata['device_id'])
@@ -215,7 +214,7 @@ def on_message(client, userdata, msg):
                 percent_done = dataDict['print'].get('mc_percent', 0) 
                 print_error = dataDict['print'].get('print_error')
 
-                current_stage = get_current_stage_name(dataDict['print'].get('mc_print_stage'))
+                #current_stage = get_current_stage_name(dataDict['print'].get('mc_print_stage'))
                         
                 
                 if "print" in dataDict and "home_flag" in dataDict["print"]:
@@ -387,7 +386,7 @@ def on_message(client, userdata, msg):
                     'approx_end': my_finish_datetime,
                     'state': gcode_state,
                     'project_name': dataDict['print'].get('subtask_name', 'Unknown'),
-                    'current_stage': get_current_stage_name(dataDict['print'].get('mc_print_stage')),  
+                    'current_stage': 'need Fix',  
                     'error': error_state,
                     'error_messages': error_messages if errorstate == "ERROR" else []
                 })
