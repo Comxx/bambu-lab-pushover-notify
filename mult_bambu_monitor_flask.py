@@ -393,6 +393,8 @@ def on_message(client, userdata, msg):
             
         else:
             first_run = False
+        if userdata['printer_type'] == "A1":
+            time.sleep(2)    
     except KeyError as e:
         logging.error(f"KeyError accessing 'gcode_state': {e}")
     except json.JSONDecodeError as e:
