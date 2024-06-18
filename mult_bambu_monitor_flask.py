@@ -82,8 +82,9 @@ CURRENT_STAGE_IDS = {
     # P1 returns 255 for idle
     255: "idle",  # DUPLICATED
 }
-
 def get_current_stage_name(stage_id):
+    if stage_id is None:
+        return "unknown"
     return CURRENT_STAGE_IDS.get(int(stage_id), "unknown")
 # Load initial printer settings from a fil
 try:
@@ -151,7 +152,7 @@ def setup_logging():
     rotating_handler.setFormatter(log_formatter)
     
     logger = logging.getLogger()
-    logger.setLevel(logging.ERROR)
+    logger.setLevel(logging.INFO)
     logger.addHandler(rotating_handler)   
 def on_connect(client, userdata, flags, reason_code, properties):
     client.subscribe("device/"+userdata["device_id"]+"/report", 0)
@@ -212,7 +213,8 @@ def on_message(client, userdata, msg):
             gcode_state = dataDict['print'].get('gcode_state')
             percent_done = dataDict['print'].get('mc_percent', 0) 
             print_error = dataDict['print'].get('print_error')
-            current_stage = get_current_stage_name(dataDict['print'].get('mc_print_stage'))
+            mc_print_stage = dataDict['print'].get('mc_print_stage')
+            current_stage = get_current_stage_name(mc_print_stage)
                     
             if userdata['printer_type'] == "X1C":
                 if "print" in dataDict and "home_flag" in dataDict["print"]:
