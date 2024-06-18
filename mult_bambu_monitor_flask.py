@@ -172,7 +172,8 @@ def on_message(client, userdata, msg):
                 return
             msgData = msg.payload.decode('utf-8')
             dataDict = json.loads(msgData)
-
+            if userdata['printer_type'] == 'A1':
+                logging.info("Message received from A1 printer: {}".format(dataDict))
             if 'print' in dataDict:
                 device_id = userdata['device_id']
                 if not device_id:
