@@ -213,11 +213,11 @@ def on_message(client, userdata, msg):
             gcode_state = dataDict['print'].get('gcode_state')
             percent_done = dataDict['print'].get('mc_percent', 0) 
             print_error = dataDict['print'].get('print_error')
-           
+
             current_stage = get_current_stage_name(dataDict['print'].get('mc_print_stage'))
                     
-            if userdata['printer_type'] == "X1C":
-                if "print" in dataDict and "home_flag" in dataDict["print"]:
+            
+            if "print" in dataDict and "home_flag" in dataDict["print"]:
                     home_flag = dataDict["print"]["home_flag"]
                     door_state = bool((home_flag >> 23) & 1)
                     if printer_state['doorOpen'] != door_state:
@@ -444,6 +444,9 @@ def search_error(error_code, error_list):
         return None
     except Exception as e:
         logging.error(f"Unexpected error in earch_error: {e}")                  
+def on_disconnect(client, userdata, rc):
+    if rc != 0:
+        logging.warning(f"Unexpected disconnection. Reconnecting... (rc={rc})")
 def connect_to_broker(broker):
     Mqttpassworrd = ''
     Mqttuser = ''
@@ -463,6 +466,7 @@ def connect_to_broker(broker):
     client.on_connect = on_connect
     client.on_message = on_message
     client.on_publish = on_publish
+    client.on_disconnect = on_disconnect
     client.connect(broker["host"], broker["port"], 60)
     client.loop_start()  # Use loop_start() to start the client loop asynchronously
     return client
