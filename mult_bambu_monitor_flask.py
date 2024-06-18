@@ -213,8 +213,8 @@ def on_message(client, userdata, msg):
             gcode_state = dataDict['print'].get('gcode_state')
             percent_done = dataDict['print'].get('mc_percent', 0) 
             print_error = dataDict['print'].get('print_error')
-            mc_print_stage = dataDict['print'].get('mc_print_stage')
-            current_stage = get_current_stage_name(mc_print_stage)
+           
+            current_stage = get_current_stage_name(dataDict['print'].get('mc_print_stage'))
                     
             if userdata['printer_type'] == "X1C":
                 if "print" in dataDict and "home_flag" in dataDict["print"]:
@@ -385,7 +385,7 @@ def on_message(client, userdata, msg):
                 'remaining_time': remaining_time,
                 'approx_end': my_finish_datetime,
                 'state': gcode_state,
-                'project_name': dataDict['print']['subtask_name'],
+                'project_name': dataDict['print'].get('subtask_name', 'Unknown'),
                 'current_stage': get_current_stage_name(dataDict['print'].get('mc_print_stage')),  
                 'error': error_state,
                 'error_messages': error_messages if errorstate == "ERROR" else []
@@ -399,7 +399,7 @@ def on_message(client, userdata, msg):
         logging.error("Failed to decode JSON from MQTT message: {e}")
     except Exception as e:
         logging.error(f"Unexpected error in on_message: {e}")
-        #logging.error(traceback.format_exc())
+        logging.error(traceback.format_exc())
 
 
 def hms_code(attr, code):
