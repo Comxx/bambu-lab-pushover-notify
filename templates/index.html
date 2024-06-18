@@ -57,16 +57,6 @@
         .progress {
             background-color: gray; /* Set the background color of the progress bar to gray */
         }
-
-        @keyframes flash-border {
-            0% { border-color: red; }
-            50% { border-color: var(--flash-color, yellow); }
-            100% { border-color: red; }
-        }
-
-        .flash-error {
-            animation: flash-border 1s infinite;
-        }
     </style>
 </head>
 <body>
@@ -259,27 +249,6 @@
                 currentStageElement.innerText = "Current Stage: " + data.current_stage;
                 
                 // Clear existing error messages
-                errorsElement.innerHTML = '';
-    
-                // Display error messages if any
-                if (data.error === "ERROR" && data.error_messages && data.error_messages.length > 0) {
-                    errorsElement.style.display = 'block';
-                    data.error_messages.forEach(function(message) {
-                        var li = document.createElement('li');
-                        li.innerText = message;
-                        errorsElement.appendChild(li);
-                    });
-                    // Apply flash-border class and set animation style
-                    cardElement.classList.add('flash-border');
-                    cardElement.style.setProperty('--flash-color', data.printer_color);
-                } else {
-                    errorsElement.style.display = 'none';
-                    cardElement.classList.remove('flash-border');
-                }
-            } else {
-                console.error('One or more elements not found for printer:', printerId);
-            }
-        });
     
         // Handle connection errors
         socket.on('connect_error', (error) => {

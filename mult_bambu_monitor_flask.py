@@ -301,7 +301,8 @@ def on_message(client, userdata, msg):
                             logging.error("mc_remaining_time is None")
                     else:
                         logging.error("'mc_remaining_time' not found in dataDict['print']")
-
+                else:
+                    remaining_time = "unknown"
                 if gcode_state and (gcode_state != prev_state['state'] or prev_state['state'] is None):
                     priority = 0
                     printer_states[errorstate] = "NONE"
