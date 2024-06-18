@@ -281,17 +281,23 @@ def on_message(client, userdata, msg):
 
             remaining_time = ""
             if 'mc_remaining_time' in dataDict['print']:
-                time_left_seconds = int(dataDict['print']['mc_remaining_time']) * 60
-                if time_left_seconds != 0:
-                    aprox_finish_time = time.time() + time_left_seconds
-                    unix_timestamp = float(aprox_finish_time)
-                    local_timezone = tzlocal.get_localzone()
-                    local_time = datetime.fromtimestamp(unix_timestamp, local_timezone)
-                    my_finish_datetime = local_time.strftime("%m-%d-%Y %I:%M %p (%Z)")
-                    remaining_time = str(timedelta(minutes=dataDict['print']['mc_remaining_time']))
+                mc_remaining_time = dataDict['print']['mc_remaining_time']
+                if mc_remaining_time is not None:
+                    time_left_seconds = int(mc_remaining_time) * 60
+                    if time_left_seconds != 0:
+                        aprox_finish_time = time.time() + time_left_seconds
+                        unix_timestamp = float(aprox_finish_time)
+                        local_timezone = tzlocal.get_localzone()
+                        local_time = datetime.fromtimestamp(unix_timestamp, local_timezone)
+                        my_finish_datetime = local_time.strftime("%m-%d-%Y %I:%M %p (%Z)")
+                        remaining_time = str(timedelta(minutes=mc_remaining_time))
+                    else:
+                        if gcode_state == "FINISH" and time_left_seconds == 0:
+                            my_finish_datetime = "Done!"
                 else:
-                    if gcode_state == "FINISH" and time_left_seconds == 0:
-                        my_finish_datetime = "Done!"
+                    logging.error("mc_remaining_time is None")
+            else:
+                logging.error("'mc_remaining_time' not found in dataDict['print']")
 
             if gcode_state and (gcode_state != prev_state['state'] or prev_state['state'] is None):
                 priority = 0
