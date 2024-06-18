@@ -284,7 +284,7 @@ def on_message(client, userdata, msg):
                     printer_state['previous_print_error'] = print_error
                 
                 remaining_time = ""
-                if 'mc_remaining_time' in dataDict['print']:
+                if 'print' in dataDict and 'mc_remaining_time' in dataDict['print']:
                     mc_remaining_time = dataDict['print']['mc_remaining_time']
                     if mc_remaining_time is not None:
                         time_left_seconds = int(mc_remaining_time) * 60
