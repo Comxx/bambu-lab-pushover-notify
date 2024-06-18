@@ -57,6 +57,7 @@
         .progress {
             background-color: gray; /* Set the background color of the progress bar to gray */
         }
+
     </style>
 </head>
 <body>
@@ -249,6 +250,11 @@
                 currentStageElement.innerText = "Current Stage: " + data.current_stage;
                 
                 // Clear existing error messages
+                errorsElement.innerHTML = '';
+    
+                // Display error messages if any
+            } 
+        });
     
         // Handle connection errors
         socket.on('connect_error', (error) => {
