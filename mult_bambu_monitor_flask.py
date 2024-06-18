@@ -265,7 +265,6 @@ def on_message(client, userdata, msg):
                             },
                             "user_id": "1234567890"
                         }
-
                         payload = json.dumps(chamberlight_off_data)
                         payloadlogo = json.dumps(Chamberlogo_off_data)
                         client.publish("device/" + userdata["device_id"] + "/request", payload)
@@ -282,26 +281,26 @@ def on_message(client, userdata, msg):
                         return
                 else:
                     printer_state['previous_print_error'] = print_error
-                
-                remaining_time = ""
-                if 'print' in dataDict and 'mc_remaining_time' in dataDict['print']:
-                    mc_remaining_time = dataDict['print']['mc_remaining_time']
-                    if mc_remaining_time is not None:
-                        time_left_seconds = int(mc_remaining_time) * 60
-                        if time_left_seconds != 0:
-                            aprox_finish_time = time.time() + time_left_seconds
-                            unix_timestamp = float(aprox_finish_time)
-                            local_timezone = tzlocal.get_localzone()
-                            local_time = datetime.fromtimestamp(unix_timestamp, local_timezone)
-                            my_finish_datetime = local_time.strftime("%m-%d-%Y %I:%M %p (%Z)")
-                            remaining_time = str(timedelta(minutes=mc_remaining_time))
+                if userdata['printer_type'] == "X1C":
+                    remaining_time = ""
+                    if 'print' in dataDict and 'mc_remaining_time' in dataDict['print']:
+                        mc_remaining_time = dataDict['print']['mc_remaining_time']
+                        if mc_remaining_time is not None:
+                            time_left_seconds = int(mc_remaining_time) * 60
+                            if time_left_seconds != 0:
+                                aprox_finish_time = time.time() + time_left_seconds
+                                unix_timestamp = float(aprox_finish_time)
+                                local_timezone = tzlocal.get_localzone()
+                                local_time = datetime.fromtimestamp(unix_timestamp, local_timezone)
+                                my_finish_datetime = local_time.strftime("%m-%d-%Y %I:%M %p (%Z)")
+                                remaining_time = str(timedelta(minutes=mc_remaining_time))
+                            else:
+                                if gcode_state == "FINISH" and time_left_seconds == 0:
+                                    my_finish_datetime = "Done!"
                         else:
-                            if gcode_state == "FINISH" and time_left_seconds == 0:
-                                my_finish_datetime = "Done!"
+                            logging.error("mc_remaining_time is None")
                     else:
-                        logging.error("mc_remaining_time is None")
-                else:
-                    logging.error("'mc_remaining_time' not found in dataDict['print']")
+                        logging.error("'mc_remaining_time' not found in dataDict['print']")
 
                 if gcode_state and (gcode_state != prev_state['state'] or prev_state['state'] is None):
                     priority = 0
