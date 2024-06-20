@@ -462,7 +462,8 @@ def main():
     thread_statuses = {}
 
     for broker in brokers:
-        thread = threading.Thread(target=mqtt_client_thread, args=(broker,))
+        thread_name = f"Thread-{broker['device_id']}"
+        thread = threading.Thread(target=mqtt_client_thread, args=(broker,), name=thread_name)
         thread.start()
         threads.append(thread)
         thread_statuses[thread.name] = True
