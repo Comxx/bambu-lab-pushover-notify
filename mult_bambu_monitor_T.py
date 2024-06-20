@@ -445,17 +445,18 @@ def mqtt_client_thread(broker):
             Mqttuser = bambu_cloud.username
     else:
         Mqttpassword = broker["password"]
-        Mqttuser = broker["user"]
-
-    client = paho.Client(client_id="", userdata=broker, protocol=paho.MQTTv5)
-    client.on_connect = on_connect
-    client.on_publish = on_publish
-    client.on_message = on_message
-    client.tls_set(tls_version=ssl.PROTOCOL_TLSv1_2)
+        Mqttuser = broker["user"] 
+    client = paho.Client(paho.CallbackAPIVersion.VERSION2)
+    client.tls_set(ca_certs=None, certfile=None, keyfile=None, cert_reqs=ssl.CERT_NONE, tls_version=ssl.PROTOCOL_TLS, ciphers=None)
+    client.tls_insecure_set(True)
     client.username_pw_set(Mqttuser, Mqttpassword)
-    client.connect(broker["host"], int(broker["port"]), keepalive=60)
-    client.loop_forever()
-
+    client.user_data_set(broker)  # Pass the broker data to use in callbacks
+    client.on_connect = on_connect
+    client.on_message = on_message
+    client.on_publish = on_publish
+    client.connect(broker["host"], broker["port"], 60)
+    client.loop_start()  # Use loop_start() to start the client loop asynchronously
+    return client
 def main():
     setup_logging()
     threads = []
