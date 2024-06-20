@@ -420,7 +420,7 @@ def fetch_english_errors():
 
 def mqtt_client_thread(broker):
     global auth_details
-    
+    logging.debug(f" printer info device_id{broker['device_id']} Printer type {broker['printer_type']}")
     # For A1 printers, handle BambuCloud authentication and update MQTT credentials
     if broker["printer_type"] == "A1":
         logging.debug("Connecting to A1 printer using BambuCloud")
