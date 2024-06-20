@@ -434,8 +434,11 @@ def mqtt_client_thread(broker):
         else:
             logging.debug("Authentication details not found for A1 printer sdding it.")
             bambu_cloud = BambuCloud(region="US", email=broker["user"], username='', auth_token='')
+            logging.debug("Connecting to BambuCloud")
             if bambu_cloud.auth_token is None:
                 bambu_cloud.login(region="US", email=broker["user"], password=broker["password"])
+            bambu_cloud.auth_token = {bambu_cloud.auth_token}
+            logging.debug(f"Authentication token: {bambu_cloud.auth_token}")
             
             # Store the authentication details
             auth_details[device_id] = {
