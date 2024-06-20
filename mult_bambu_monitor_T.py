@@ -436,8 +436,7 @@ def mqtt_client_thread(broker):
             bambu_cloud = BambuCloud(region="US", email=broker["user"], username='', auth_token='')
             logging.debug("Connecting to BambuCloud")
             bambu_cloud.login(region="US", email=broker["user"], password=broker["password"])
-            bambu_cloud.auth_token = {bambu_cloud.auth_token}
-            logging.debug(f"Authentication token: {bambu_cloud.auth_token}")
+            logging.debug(bambu_cloud.auth_token)
             
             # Store the authentication details
             auth_details[device_id] = {
