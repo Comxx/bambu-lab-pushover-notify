@@ -163,7 +163,6 @@ def setup_logging():
     logger = logging.getLogger()
     logger.setLevel(logging.INFO)
     logger.addHandler(rotating_handler)
-
 def on_connect(client, userdata, flags, reason_code, properties):
     client.subscribe("device/" + userdata["device_id"] + "/report", 0)
 
@@ -485,8 +484,10 @@ def main():
                     if thread.name == flask_thread.name:
                         new_thread = threading.Thread(target=lambda: socketio.run(app, host='0.0.0.0', port=5000))
                     else:
-                        broker = next(b for b in brokers if b["device_id"] in thread.name)
-                        new_thread = threading.Thread(target=mqtt_client_thread, args=(broker,))
+                        broker = next((b for b in brokers if b["device_id"] in thread.name), None)
+                    if broker is None:
+                        print("No matching broker found for thread:", thread.name)
+                    new_thread = threading.Thread(target=mqtt_client_thread, args=(broker,))
                     new_thread.start()
                     threads.append(new_thread)
                     thread_statuses[new_thread.name] = True
