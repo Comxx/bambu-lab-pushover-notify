@@ -423,13 +423,16 @@ def mqtt_client_thread(broker):
     
     # For A1 printers, handle BambuCloud authentication and update MQTT credentials
     if broker["printer_type"] == "A1":
+        logging.debug("Connecting to A1 printer using BambuCloud")
         device_id = broker["device_id"]
         
         # Check if authentication details are already available
         if device_id in auth_details:
+            logging.debug("Authentication details found for A1 printer")
             Mqttpassword = auth_details[device_id]['auth_token']
             Mqttuser = auth_details[device_id]['username']
         else:
+            logging.debug("Authentication details not found for A1 printer sdding it.")
             bambu_cloud = BambuCloud(region="US", email=broker["user"], username='', auth_token='')
             if bambu_cloud.auth_token is None:
                 bambu_cloud.login(region="US", email=broker["user"], password=broker["password"])
