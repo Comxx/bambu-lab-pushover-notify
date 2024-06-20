@@ -462,8 +462,7 @@ def main():
     thread_statuses = {}
 
     for broker in brokers:
-        thread_name = f"Thread-{broker['device_id']}"
-        thread = threading.Thread(target=mqtt_client_thread, args=(broker,), name=thread_name)
+        thread = threading.Thread(target=mqtt_client_thread, args=(broker,))
         thread.start()
         threads.append(thread)
         thread_statuses[thread.name] = True
@@ -473,33 +472,6 @@ def main():
     flask_thread.start()
     threads.append(flask_thread)
     thread_statuses[flask_thread.name] = True
-
-    # Watchdog function
-    def watchdog():
-        while True:
-            for thread in threads:
-                if not thread.is_alive():
-                    logging.error(f"Thread {thread.name} is not alive. Restarting...")
-                    thread_statuses[thread.name] = False
-                    # Restart the thread
-                    if thread.name == flask_thread.name:
-                        new_thread = threading.Thread(target=lambda: socketio.run(app, host='0.0.0.0', port=5000))
-                    else:
-                        # Move the 'next' line here to ensure 'broker' is defined
-                        broker = next((b for b in brokers if b["device_id"] in thread.name), None)
-                        if broker is None:
-                            print("No matching broker found for thread:", thread.name)
-                            continue  # Skip restarting the thread if no broker is found
-                        new_thread = threading.Thread(target=mqtt_client_thread, args=(broker,))
-                    new_thread.start()
-                    threads.append(new_thread)
-                    thread_statuses[new_thread.name] = True
-            time.sleep(10)
-
-    # Start the watchdog in a separate thread
-    watchdog_thread = threading.Thread(target=watchdog, daemon=True)
-    watchdog_thread.start()
-
     for thread in threads:
         thread.join()
 
