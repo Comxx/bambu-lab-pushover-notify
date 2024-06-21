@@ -422,33 +422,33 @@ def mqtt_client_thread(broker):
     global auth_details
     logging.debug(f" printer info device_id{broker['device_id']} Printer type {broker['printer_type']}")
     # For A1 printers, handle BambuCloud authentication and update MQTT credentials
-    if broker["printer_type"] == "A1":
-        logging.debug("Connecting to A1 printer using BambuCloud")
-        device_id = broker["device_id"]
+    # if broker["printer_type"] == "A1":
+    #     logging.debug("Connecting to A1 printer using BambuCloud")
+    #     device_id = broker["device_id"]
         
         # Check if authentication details are already available
-        if device_id in auth_details:
-            logging.debug("Authentication details found for A1 printer")
-            Mqttpassword = auth_details[device_id]['auth_token']
-            Mqttuser = auth_details[device_id]['username']
-        else:
-            logging.debug("Authentication details not found for A1 printer sdding it.")
-            bambu_cloud = BambuCloud(region="US", email=broker["user"], username='', auth_token='')
-            logging.debug("Connecting to BambuCloud")
-            bambu_cloud.login(region="US", email=broker["user"], password=broker["password"])
-            logging.debug(bambu_cloud.auth_token)
+    #     if device_id in auth_details:
+    #         logging.debug("Authentication details found for A1 printer")
+    #         Mqttpassword = auth_details[device_id]['auth_token']
+    #         Mqttuser = auth_details[device_id]['username']
+    #     else:
+    #         logging.debug("Authentication details not found for A1 printer sdding it.")
+    #         bambu_cloud = BambuCloud(region="US", email=broker["user"], username='', auth_token='')
+    #         logging.debug("Connecting to BambuCloud")
+    #         bambu_cloud.login(region="US", email=broker["user"], password=broker["password"])
+    #         logging.debug(bambu_cloud.auth_token)
             
-            # Store the authentication details
-            auth_details[device_id] = {
-                'auth_token': bambu_cloud.auth_token,
-                'username': bambu_cloud.username
-            }
+    #         Store the authentication details
+    #         auth_details[device_id] = {
+    #             'auth_token': bambu_cloud.auth_token,
+    #             'username': bambu_cloud.username
+    #         }
             
-            Mqttpassword = bambu_cloud.auth_token
-            Mqttuser = bambu_cloud.username
-    else:
-        Mqttpassword = broker["password"]
-        Mqttuser = broker["user"] 
+    #         Mqttpassword = bambu_cloud.auth_token
+    #         Mqttuser = bambu_cloud.username
+    # else:
+    Mqttpassword = broker["password"]
+    Mqttuser = broker["user"] 
     client = paho.Client(paho.CallbackAPIVersion.VERSION2)
     client.tls_set(ca_certs=None, certfile=None, keyfile=None, cert_reqs=ssl.CERT_NONE, tls_version=ssl.PROTOCOL_TLS, ciphers=None)
     client.tls_insecure_set(True)
