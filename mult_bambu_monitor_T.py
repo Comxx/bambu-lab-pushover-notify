@@ -49,8 +49,8 @@ class PrinterManager:
         self.brokers = self.load_initial_settings()
         self.setup_logging()
 
-        app = Flask(__name__)
-        socketio = SocketIO(self.app)
+        self.app = Flask(__name__)
+        self.socketio = SocketIO(self.app)
 
         self.setup_routes()
         
