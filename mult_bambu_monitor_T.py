@@ -323,8 +323,6 @@ class PrinterManager:
                         else:
                             if self.gcode_state == "FINISH" and time_left_seconds == 0:
                                 self.my_finish_datetime = "Done!"
-                    else:
-                            logging.error("'mc_remaining_time' not found in dataDict['print']")
                     if self.gcode_state and (self.gcode_state != prev_state['state'] or prev_state['state'] is None):
                         priority = 0
                         self.printer_states[self.errorstate] = "NONE"
@@ -352,7 +350,7 @@ class PrinterManager:
                                 msg_text += f"<li>Description: {found_device_error['intro']}</li>"
                             priority = 1
                             msg_text += "</ul>"
-                        if not first_run:
+                        if not self.first_run:
                             message = po_user.create_message(
                                 title=userdata['Printer_Title'],
                                 message=msg_text,
@@ -386,7 +384,7 @@ class PrinterManager:
                     })
                     
                 else:
-                    first_run = False
+                    self.first_run = False
         except KeyError as e:
                 logging.error(f"KeyError accessing 'gcode_state': {e}")
         except json.JSONDecodeError as e:
