@@ -234,6 +234,11 @@ class PrinterManager:
                     self.mc_percent = dataDict['print'].get("mc_percent", self.printer_states[device_id]['mc_percent'])
                     self.print_error = dataDict['print'].get("print_error", self.printer_states[device_id]['print_error'])
                     self.mc_remaining_time = dataDict['print'].get("mc_remaining_time", self.printer_states[device_id]['mc_remaining_time'])
+                    self.door_open = self.printer_states[device_id].get('doorOpen', '')
+                    self.previous_print_error = self.printer_states[device_id].get('previous_print_error', 0)
+                    self.doorlight = self.printer_states[device_id].get('doorlight', False)
+                    self.gcode_state_prev = self.printer_states[device_id].get('gcode_state_prev', ''),
+                    self.errorstate = self.printer_states[device_id].get('errorstate', '')
                     
                     # Update printer state in the dictionary
                     self.printer_states[device_id] = {
@@ -246,13 +251,12 @@ class PrinterManager:
                         'mc_percent': self.mc_percent,
                         'print_error': self.print_error,
                         'mc_remaining_time': self.mc_remaining_time,
-                        'previous_print_error': self.printer_states[device_id].get('previous_print_error', 0),
-                        'doorlight': self.printer_states[device_id].get('doorlight', False),
-                        'doorOpen': self.printer_states[device_id].get('doorOpen', False),
-                        'gcode_state_prev': self.printer_states[device_id].get('gcode_state_prev', ''),
-                        'errorstate': self.printer_states[device_id].get('errorstate', '')
+                        'previous_print_error': self.previous_print_error,
+                        'doorlight': self.doorlight,
+                        'doorOpen': self.door_open,
+                        'gcode_state_prev': self.gcode_state_prev,
+                        'errorstate': self.errorstate
                     }
-                    
                     hms_data = dataDict['print'].get('hms', [{'attr': 0, 'code': 0}])
 
                     if hms_data:
@@ -278,30 +282,30 @@ class PrinterManager:
                     if "print" in dataDict and "home_flag" in dataDict["print"]:
                             home_flag = dataDict["print"]["home_flag"]
                             door_state = bool((home_flag >> 23) & 1)
-                            if self.printer_states['doorOpen'] != door_state:
-                                    self.printer_states['doorOpen'] = door_state
+                            if self.door_open != door_state:
+                                    self.door_open = door_state
                                     if self.gcode_state == "FINISH" or self.gcode_state == "IDLE" or self.gcode_state == "FAILED": 
-                                        if self.printer_states['doorOpen']: 
-                                            if not self.printer_states['doorlight']:
+                                        if self.door_open: 
+                                            if not self.doorlight:
                                                 if userdata['ledlight']:
                                                     wled.set_power(userdata['wled_ip'], True)
                                                     wled.set_brightness(userdata['wled_ip'], 255)
                                                     wled.set_color(userdata['wled_ip'], (255, 255, 255))
                                                     logging.info("Opened")
-                                                    self.printer_states['doorlight'] = True
+                                                    self.doorlight = True
                                                 else:
                                                     logging.info("Opened No WLED")
-                                                    self.printer_states['doorlight'] = True 
+                                                    self.doorlight = True 
                                         else:
-                                            if self.printer_states['doorlight']: 
+                                            if self.doorlight: 
                                                 if userdata['ledlight']:
                                                     wled.set_power(userdata['wled_ip'], False)
                                                     logging.info("Closed")
-                                                    self.printer_states['doorlight'] = False
+                                                    self.doorlight = False
                                                 else:
                                                     logging.info("Closed No WLED")
-                                                    self.printer_states['doorlight'] = False
-                    if self.printer_states['previous_print_error'] == 50348044 and self.print_error == 0:
+                                                    self.doorlight = False
+                    if self.previous_print_error == 50348044 and self.print_error == 0:
                             chamberlight_off_data = {
                                 "system": {
                                     "sequence_id": "2003",
@@ -335,10 +339,10 @@ class PrinterManager:
                             )
                             message.send()
                             logging.info("Print cancelled on " + userdata['Printer_Title'])
-                            self.printer_states['previous_print_error'] = self.print_error
+                            self.previous_print_error = self.print_error
                             return
                     else:
-                        self.printer_states['previous_print_error'] = self.print_error
+                        self.previous_print_error = self.print_error
                         remaining_time = ""
                     
                     time_left_seconds = int(self.mc_remaining_time) * 60
