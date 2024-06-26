@@ -189,7 +189,6 @@ class PrinterManager:
         logging.info(f"Message published successfully to {userdata['Printer_Title']}")
 
     def on_message(self, client, userdata, msg):
-        #global DASH, gcode_state_prev, first_run, percent_notify, previous_print_error, my_finish_datetime, doorlight, doorOpen, previous_gcode_states, printer_states, errorstate, current_stage
         try:   
                 po_app = Application(userdata['my_pushover_app'])
                 po_user = po_app.get_user(userdata['my_pushover_user'])
@@ -311,18 +310,18 @@ class PrinterManager:
                     else:
                         printer_state['previous_print_error'] = self.print_error
                         remaining_time = ""
-                    if 'print' in dataDict and 'mc_remaining_time' in dataDict['print']:
-                        time_left_seconds = int(self.mc_remaining_time) * 60
-                        if time_left_seconds != 0:
-                            aprox_finish_time = time.time() + time_left_seconds
-                            unix_timestamp = float(aprox_finish_time)
-                            local_timezone = tzlocal.get_localzone()
-                            local_time = datetime.fromtimestamp(unix_timestamp, local_timezone)
-                            self.my_finish_datetime = local_time.strftime("%m-%d-%Y %I:%M %p (%Z)")
-                            remaining_time = str(timedelta(minutes=self.mc_remaining_time))
-                        else:
-                            if self.gcode_state == "FINISH" and time_left_seconds == 0:
-                                self.my_finish_datetime = "Done!"
+                    
+                    time_left_seconds = int(self.mc_remaining_time) * 60
+                    if time_left_seconds != 0:
+                        aprox_finish_time = time.time() + time_left_seconds
+                        unix_timestamp = float(aprox_finish_time)
+                        local_timezone = tzlocal.get_localzone()
+                        local_time = datetime.fromtimestamp(unix_timestamp, local_timezone)
+                        self.my_finish_datetime = local_time.strftime("%m-%d-%Y %I:%M %p (%Z)"), self.my_finish_datetime
+                        remaining_time = str(timedelta(minutes=self.mc_remaining_time))
+                    else:
+                        if self.gcode_state == "FINISH" and time_left_seconds == 0:
+                            self.my_finish_datetime = "Done!"
                     if self.gcode_state and (self.gcode_state != prev_state['state'] or prev_state['state'] is None):
                         priority = 0
                         self.printer_states[self.errorstate] = "NONE"
@@ -364,7 +363,7 @@ class PrinterManager:
 
                     error_messages = []
 
-                    if 'print_error' in dataDict['print'] and self.print_error is not None:
+                    if self.print_error is not None:
                         error_messages.append(f"print_error: {self.print_error}")
                     if device__HMS_error_code is not None:
                         error_messages.append(f"HMS code: {device__HMS_error_code}")
