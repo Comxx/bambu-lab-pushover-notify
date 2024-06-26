@@ -215,7 +215,13 @@ class PrinterManager:
                             'project_id': self.project_id,
                             'mc_percent': self.mc_percent,
                             'print_error': self.print_error,
-                            'mc_remaining_time': self.mc_remaining_time
+                            'mc_remaining_time': self.mc_remaining_time,
+                            'previous_print_error': 0,
+                            'doorlight': False,
+                            'doorOpen': "",
+                            'gcode_state_prev': '',
+                            'errorstate': ''
+                        
                         }
                     
                     # Update printer state with new data
@@ -241,16 +247,6 @@ class PrinterManager:
                         'print_error': self.print_error,
                         'mc_remaining_time': self.mc_remaining_time
                     }
-                    
-                    # Initialize state for new printer
-                    if device_id not in self.printer_states:
-                        self.printer_states[device_id] = {
-                            'previous_print_error': 0,
-                            'doorlight': False,
-                            'doorOpen': "",
-                            'gcode_state_prev': '',
-                            'errorstate': ''
-                        }
 
                     printer_state = self.printer_states[device_id]
                     
