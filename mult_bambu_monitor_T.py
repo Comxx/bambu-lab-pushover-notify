@@ -30,7 +30,7 @@ class PrinterManager:
         self.cached_data = None
         self.gcode_state_prev = ''
         self.previous_print_error = 0
-        self.my_finish_datetime = ""
+        self.my_finish_datetime = None
         self.previous_gcode_states = {}
         self.printer_states = {}
         self.errorstate = ''
@@ -312,18 +312,17 @@ class PrinterManager:
                         printer_state['previous_print_error'] = self.print_error
                         remaining_time = ""
                     if 'print' in dataDict and 'mc_remaining_time' in dataDict['print']:
-                        mc_remaining_time = dataDict['print']['mc_remaining_time']
                         time_left_seconds = int(self.mc_remaining_time) * 60
                         if time_left_seconds != 0:
                             aprox_finish_time = time.time() + time_left_seconds
                             unix_timestamp = float(aprox_finish_time)
                             local_timezone = tzlocal.get_localzone()
                             local_time = datetime.fromtimestamp(unix_timestamp, local_timezone)
-                            my_finish_datetime = local_time.strftime("%m-%d-%Y %I:%M %p (%Z)")
+                            self.my_finish_datetime = local_time.strftime("%m-%d-%Y %I:%M %p (%Z)")
                             remaining_time = str(timedelta(minutes=self.mc_remaining_time))
                         else:
                             if self.gcode_state == "FINISH" and time_left_seconds == 0:
-                                my_finish_datetime = "Done!"
+                                self.my_finish_datetime = "Done!"
                     else:
                             logging.error("'mc_remaining_time' not found in dataDict['print']")
                     if self.gcode_state and (self.gcode_state != prev_state['state'] or prev_state['state'] is None):
@@ -338,11 +337,11 @@ class PrinterManager:
                         msg_text = "<ul>"
                         msg_text += "<li>State: " + self.gcode_state + " </li>"
                         msg_text += f"<li>Percent: {self.mc_percent}% </li>"
-                        msg_text += f"<li>Lines: {self.layer_num}/{self.layer_total} </li>"
+                        msg_text += f"<li>Lines: {self.layer_num}/{self.total_layer_num} </li>"
                         if 'subtask_name' in dataDict['print']:
                             msg_text += "<li>Name: " + self.subtask_name + " </li>"
                         msg_text += f"<li>Remaining time: {remaining_time} </li>"
-                        msg_text += "<li>Aprox End: " + my_finish_datetime + "</li>"
+                        msg_text += "<li>Aprox End: " + self.my_finish_datetime + "</li>"
                         fail_reason = ""
                         if( ( 'print_error' in dataDict['print'] and dataDict['print']['print_error'] != 0 ) or self.gcode_state == "FAILED" ):
                             self.printer_states[self.errorstate] = "ERROR"
@@ -378,7 +377,7 @@ class PrinterManager:
                         'printer': userdata['Printer_Title'],
                         'percent': self.mc_percent,
                         'remaining_time': remaining_time,
-                        'approx_end': my_finish_datetime,
+                        'approx_end': self.my_finish_datetime,
                         'state': self.gcode_state,
                         'project_name': self.subtask_name,
                         'current_stage': self.current_stage,  
