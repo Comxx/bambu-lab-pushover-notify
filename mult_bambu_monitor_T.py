@@ -17,6 +17,7 @@ from flask_socketio import SocketIO, emit
 import socket
 from bambu_cloud import BambuCloud
 import traceback
+import signal
 class PrinterManager:
     
     def __init__(self):
@@ -53,7 +54,7 @@ class PrinterManager:
         self.socketio = SocketIO(self.app)
 
         self.setup_routes()
-        
+        signal.signal(signal.SIGINT, self.signal_handler)
         
     CURRENT_STAGE_IDS = {
         "default": "unknown",
@@ -494,9 +495,26 @@ class PrinterManager:
 
         for thread in threads:
             thread.join()    
-            
-if __name__ == "__main__":
-    manager = PrinterManager()
-    manager.start()
+    def signal_handler(self, sig, frame):
+        logging.info("SIGINT received. Cleaning up...")
+        self.cleanup()
+        sys.exit(0)
 
+    def cleanup(self):
+        # Perform cleanup tasks here
+        logging.info("Performing cleanup...")
+        for device_id, client in self.mqtt_clients.items():
+            client.loop_stop()
+            client.disconnect()
+            logging.info(f"Disconnected MQTT client for device ID: {device_id}")
+
+        self.socketio.stop()            
+if __name__ == "__main__":
+    try:
+        manager = PrinterManager()
+        manager.start()
+    except Exception as e:
+        logging.error(f"Unexpected error: {e}")
+        traceback.print_exc()
+        sys.exit(1)
 
