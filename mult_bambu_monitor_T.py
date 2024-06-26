@@ -421,16 +421,15 @@ class PrinterManager:
 
 
     def fetch_english_errors(self):
-        global last_fetch_time, cached_data
-        if last_fetch_time is None or (datetime.now() - last_fetch_time).days >= 1:
+        if self.last_fetch_time is None or (datetime.now() - self.last_fetch_time).days >= 1:
             url = "https://e.bambulab.com/query.php?lang=en"
             try:
                 response = requests.get(url, timeout=60)  
                 response.raise_for_status()  
                 data = response.json()
-                last_fetch_time = datetime.now()  
-                cached_data = data["data"]["device_hms"]["en"]
-                return cached_data
+                self.last_fetch_time = datetime.now()  
+                self.cached_data = data["data"]["device_hms"]["en"]
+                return self.cached_data
             except requests.exceptions.RequestException as e:
                 logging.error(f"Failed to fetch data: {e}")
                 return None
@@ -440,7 +439,7 @@ class PrinterManager:
             except Exception as e:
                 logging.error(f"Unexpected error in fetch_english_errors: {e}")
         else:
-            return cached_data  
+            return self.cached_data  
 
     def mqtt_client_thread(self, broker):
         global auth_details
