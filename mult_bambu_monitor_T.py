@@ -317,7 +317,7 @@ class PrinterManager:
                         unix_timestamp = float(aprox_finish_time)
                         local_timezone = tzlocal.get_localzone()
                         local_time = datetime.fromtimestamp(unix_timestamp, local_timezone)
-                        self.my_finish_datetime = local_time.strftime("%m-%d-%Y %I:%M %p (%Z)"), self.my_finish_datetime
+                        self.my_finish_datetime = local_time.strftime("%m-%d-%Y %I:%M %p (%Z)")
                         remaining_time = str(timedelta(minutes=self.mc_remaining_time))
                     else:
                         if self.gcode_state == "FINISH" and time_left_seconds == 0:
