@@ -37,6 +37,7 @@ class PrinterManager:
         self.errorstate = ''
         self.current_stage = 'unknown'
         self.auth_details = {}
+        self.socket_connections = {}
         self.stg_cur:int = None
         self.gcode_state:str = None
         self.layer_num:int = None
@@ -202,15 +203,44 @@ class PrinterManager:
                 dataDict = json.loads(msgData)
                 if 'print' in dataDict:
                     device_id = userdata['device_id']
-                    self.stg_cur = dataDict['print'].get("stg_cur", self.stg_cur)
-                    self.gcode_state = dataDict['print'].get("gcode_state", self.gcode_state)
-                    self.layer_num = dataDict['print'].get("layer_num", self.layer_num)
-                    self.total_layer_num = dataDict['print'].get("total_layer_num", self.total_layer_num)
-                    self.subtask_name = dataDict['print'].get("subtask_name", self.subtask_name)
-                    self.project_id = dataDict['print'].get("project_id", self.project_id)
-                    self.mc_percent = dataDict['print'].get("mc_percent", self.mc_percent)
-                    self.print_error = dataDict['print'].get("print_error", self.print_error)
-                    self.mc_remaining_time = dataDict['print'].get("mc_remaining_time", self.mc_remaining_time)
+    
+                    # Initialize printer state if it doesn't exist
+                    if device_id not in self.printer_states:
+                        self.printer_states[device_id] = {
+                            'stg_cur': self.stg_cur,
+                            'gcode_state': self.gcode_state,
+                            'layer_num': self.layer_num,
+                            'total_layer_num': self.total_layer_num,
+                            'subtask_name': self.subtask_name,
+                            'project_id': self.project_id,
+                            'mc_percent': self.mc_percent,
+                            'print_error': self.print_error,
+                            'mc_remaining_time': self.mc_remaining_time
+                        }
+                    
+                    # Update printer state with new data
+                    self.stg_cur = dataDict['print'].get("stg_cur", self.printer_states[device_id]['stg_cur'])
+                    self.gcode_state = dataDict['print'].get("gcode_state", self.printer_states[device_id]['gcode_state'])
+                    self.layer_num = dataDict['print'].get("layer_num", self.printer_states[device_id]['layer_num'])
+                    self.total_layer_num = dataDict['print'].get("total_layer_num", self.printer_states[device_id]['total_layer_num'])
+                    self.subtask_name = dataDict['print'].get("subtask_name", self.printer_states[device_id]['subtask_name'])
+                    self.project_id = dataDict['print'].get("project_id", self.printer_states[device_id]['project_id'])
+                    self.mc_percent = dataDict['print'].get("mc_percent", self.printer_states[device_id]['mc_percent'])
+                    self.print_error = dataDict['print'].get("print_error", self.printer_states[device_id]['print_error'])
+                    self.mc_remaining_time = dataDict['print'].get("mc_remaining_time", self.printer_states[device_id]['mc_remaining_time'])
+                    
+                    # Update printer state in the dictionary
+                    self.printer_states[device_id] = {
+                        'stg_cur': self.stg_cur,
+                        'gcode_state': self.gcode_state,
+                        'layer_num': self.layer_num,
+                        'total_layer_num': self.total_layer_num,
+                        'subtask_name': self.subtask_name,
+                        'project_id': self.project_id,
+                        'mc_percent': self.mc_percent,
+                        'print_error': self.print_error,
+                        'mc_remaining_time': self.mc_remaining_time
+                    }
                     
                     # Initialize state for new printer
                     if device_id not in self.printer_states:
@@ -507,6 +537,8 @@ class PrinterManager:
             client.loop_stop()
             client.disconnect()
             logging.info(f"Disconnected MQTT client for device ID: {device_id}")
+        for socket_conn in self.socket_connections.values():
+            socket_conn.disconnect()    
 
         self.socketio.stop()            
 if __name__ == "__main__":
