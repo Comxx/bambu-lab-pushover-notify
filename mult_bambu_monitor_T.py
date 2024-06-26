@@ -177,10 +177,12 @@ class PrinterManager:
     def on_connect(self, client, userdata, flags, reason_code, properties):
         client.subscribe("device/" + userdata["device_id"] + "/report", 0)
         getInfo = {"info": {"sequence_id": "0", "command": "get_version"}}
-        if not client.publish(getInfo):
+        payloadvesion = json.dumps(getInfo)
+        if not client.publish("device/" + userdata["device_id"] + "/request", payloadvesion):
             raise Exception("Failed to publish get_version")
         pushAll = { "pushing": { "sequence_id": "1", "command": "pushall" }, "user_id": "1234567890"}
-        if not client.publish(pushAll):
+        payloadpushall = json.dumps(pushAll)
+        if not client.publish("device/" + userdata["device_id"] + "/request", payloadpushall):
             raise Exception("Failed to publish full sync")
 
     def on_publish(self, client, userdata, mid, reason_codes, properties):
