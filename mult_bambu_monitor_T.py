@@ -362,7 +362,7 @@ class PrinterManager:
                             self.my_finish_datetime = "Done!"
                     if self.gcode_state and (self.gcode_state != prev_state['state'] or prev_state['state'] is None):
                         priority = 0
-                        self.printer_states[self.errorstate] = "NONE"
+                        self.printer_states[device_id]['errorstate'],= ''
                         logging.info(self.DASH)
                         logging.info(userdata["Printer_Title"] + " gcode_state has changed to " + self.gcode_state)
                         json_formatted_str = json.dumps(dataDict, indent=2)
@@ -379,7 +379,7 @@ class PrinterManager:
                         msg_text += "<li>Aprox End: " + self.my_finish_datetime + "</li>"
                         fail_reason = ""
                         if( ( 'print_error' in dataDict['print'] and dataDict['print']['print_error'] != 0 ) or self.gcode_state == "FAILED" ):
-                            self.printer_states[self.errorstate] = "ERROR"
+                            self.printer_states[device_id]['errorstate'] = "ERROR"
                             if 'print_error' in dataDict['print'] and dataDict['print']['print_error'] is not None:
                                 msg_text += f"<li>print_error: {self.print_error}</li>"   
                             if device__HMS_error_code is not None:
@@ -406,7 +406,6 @@ class PrinterManager:
                     if device__HMS_error_code is not None:
                         error_messages.append(f"HMS code: {device__HMS_error_code}")
                         error_messages.append(f"Description: {found_device_error['intro']}") 
-                    error_state = self.printer_states[self.errorstate]
                     self.socketio.emit('printer_update', {
                         'printer_id': userdata["device_id"],
                         'printer': userdata['Printer_Title'],
@@ -416,7 +415,7 @@ class PrinterManager:
                         'state': self.gcode_state,
                         'project_name': self.subtask_name,
                         'current_stage': self.current_stage,  
-                        'error': error_state,
+                        'error': self.errorstate,
                         'error_messages': error_messages if self.errorstate == "ERROR" else []
                     })
                     
@@ -429,6 +428,7 @@ class PrinterManager:
         except Exception as e:
                 logging.error(f"Unexpected error in on_message: {e}")
                 logging.error(traceback.format_exc())
+                
     def hms_code(self,attr, code):
         try:
             if not isinstance(attr, int) or attr < 0 or not isinstance(code, int) or code < 0:
@@ -441,7 +441,9 @@ class PrinterManager:
             return ""
         except Exception as e:
             logging.error(f"Unexpected error in hms_code: {e}")
-
+    def error_code_to_hex(decimal_error_code):
+        hex_error_code = hex(decimal_error_code)[2:] 
+        return hex_error_code if hex_error_code else '0'
     def search_error(self, error_code, english_errors):
         try:
             for error in english_errors:
