@@ -390,8 +390,7 @@ class PrinterManager:
                         if( ( 'print_error' in dataDict['print'] and dataDict['print']['print_error'] != 0 ) or self.gcode_state == "FAILED" ):
                             self.printer_states[device_id]['errorstate'] = "ERROR"
                             msg_text += f"<li>print_error: {self.print_error}</li>"
-                            if device__HMS_error_code is None:
-                                msg_text += f"<li>Description: {found_device_error['intro']}</li>"  
+                            msg_text += f"<li>Description: {found_device_error['intro']}</li>"  
                             if device__HMS_error_code is not None:
                                 msg_text += f"<li>HMS code: {device__HMS_error_code}</li>"
                                 msg_text += f"<li>Description: {found_hms_error['intro']}</li>"
