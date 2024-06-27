@@ -493,20 +493,17 @@ class PrinterManager:
                     response = requests.get(url, timeout=60)
                     response.raise_for_status()  # Raise an exception for bad status codes
                     data = response.json()
-                    # Print or log the fetched data
-                    print("Fetched JSON data:")
-                    print(data)
                     self.last_fetch_error_time = datetime.now()
                     self.cached_device_error_data = data.get("data", {}).get("device_error", {}).get("en", [])
                     return self.cached_device_error_data
                 except requests.exceptions.RequestException as e:
-                    print(f"Failed to fetch data: {e}")
+                    logging.error(f"Failed to fetch data: {e}")
                     return None
-                except json.JSONDecodeError as e:
-                    print(f"Failed to decode JSON from response: {e}")
+                except json.JSONDecodeError:
+                    logging.error("Failed to decode JSON from response")
                     return None
                 except Exception as e:
-                    print(f"Unexpected error in fetch_english_errors: {e}")
+                    logging.error(f"Unexpected error in fetch_english_errors: {e}")
                     return None
             else:
                 return self.cached_device_error_data
