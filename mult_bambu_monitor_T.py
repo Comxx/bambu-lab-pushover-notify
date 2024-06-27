@@ -254,6 +254,11 @@ class PrinterManager:
                         'mc_percent': self.mc_percent,
                         'print_error': self.print_error,
                         'mc_remaining_time': self.mc_remaining_time,
+                        'previous_print_error': 0,
+                        'doorlight': False,
+                        'doorOpen': "",
+                        'gcode_state_prev': '',
+                        'errorstate': ''
                     }
                     hms_data = dataDict['print'].get('hms', [{'attr': 0, 'code': 0}])
 
@@ -367,7 +372,7 @@ class PrinterManager:
                             self.my_finish_datetime = "Done!"
                     if self.gcode_state and (self.gcode_state != prev_state['state'] or prev_state['state'] is None):
                         priority = 0
-                        self.printer_states[device_id]['errorstate'],= ''
+                        self.printer_states[device_id]['errorstate'] = ''
                         logging.info(self.DASH)
                         logging.info(userdata["Printer_Title"] + " gcode_state has changed to " + self.gcode_state)
                         json_formatted_str = json.dumps(dataDict, indent=2)
