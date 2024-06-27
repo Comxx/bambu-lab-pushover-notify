@@ -29,8 +29,7 @@ class PrinterManager:
         self.message_sent = False
         self.last_fetch_time = None
         self.cached_data = None
-        self.last_fetch_time = None
-        self.cached_data = None
+        self.last_fetch_error_time = None
         self.cached_device_error_data = None
         self.gcode_state_prev = ''
         self.previous_print_error = 0
