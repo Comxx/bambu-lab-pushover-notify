@@ -29,6 +29,9 @@ class PrinterManager:
         self.message_sent = False
         self.last_fetch_time = None
         self.cached_data = None
+        self.last_fetch_time = None
+        self.cached_data = None
+        self.cached_device_error_data = None
         self.gcode_state_prev = ''
         self.previous_print_error = 0
         self.my_finish_datetime = None
@@ -267,10 +270,12 @@ class PrinterManager:
                     english_errors = self.fetch_english_errors() or []
 
                     error_code_to_hms_cleaned = str(device__HMS_error_code).replace('_', '')
-                    found_device_error = self.search_error(error_code_to_hms_cleaned, english_errors)
-
-                    if found_device_error is None:
-                        found_device_error = {'intro': 'Unknown error'}
+                    found_hms_error = self.search_error(error_code_to_hms_cleaned, english_errors)
+                    hex_error_code = self.decimal_to_hex(self.print_error)
+                    device_errors = self.fetch_device_errors() or []
+                    found_device_error = self.search_error(hex_error_code, device_errors)
+                    if found_hms_error is None:
+                        found_hms_error = {'intro': 'Unknown error'}
                         
                     self.current_stage = self.get_current_stage_name(dataDict['print'].get('mc_print_stage'))
                     
@@ -380,11 +385,12 @@ class PrinterManager:
                         fail_reason = ""
                         if( ( 'print_error' in dataDict['print'] and dataDict['print']['print_error'] != 0 ) or self.gcode_state == "FAILED" ):
                             self.printer_states[device_id]['errorstate'] = "ERROR"
-                            if 'print_error' in dataDict['print'] and dataDict['print']['print_error'] is not None:
-                                msg_text += f"<li>print_error: {self.print_error}</li>"   
+                            msg_text += f"<li>print_error: {self.print_error}</li>"
+                            if device__HMS_error_code is None:
+                                msg_text += f"<li>Description: {found_device_error['intro']}</li>"  
                             if device__HMS_error_code is not None:
                                 msg_text += f"<li>HMS code: {device__HMS_error_code}</li>"
-                                msg_text += f"<li>Description: {found_device_error['intro']}</li>"
+                                msg_text += f"<li>Description: {found_hms_error['intro']}</li>"
                             priority = 1
                             msg_text += "</ul>"
                         if not self.first_run:
@@ -405,7 +411,7 @@ class PrinterManager:
                         error_messages.append(f"print_error: {self.print_error}")
                     if device__HMS_error_code is not None:
                         error_messages.append(f"HMS code: {device__HMS_error_code}")
-                        error_messages.append(f"Description: {found_device_error['intro']}") 
+                        error_messages.append(f"Description: {found_hms_error['intro']}") 
                     self.socketio.emit('printer_update', {
                         'printer_id': userdata["device_id"],
                         'printer': userdata['Printer_Title'],
@@ -441,9 +447,11 @@ class PrinterManager:
             return ""
         except Exception as e:
             logging.error(f"Unexpected error in hms_code: {e}")
-    def error_code_to_hex(decimal_error_code):
-        hex_error_code = hex(decimal_error_code)[2:] 
-        return hex_error_code if hex_error_code else '0'
+    def decimal_to_hex(self, decimal_error_code):
+        hex_error_code = hex(decimal_error_code)[2:]
+        
+        hex_error_code = hex_error_code.zfill(8)
+        return hex_error_code
     def search_error(self, error_code, english_errors):
         try:
             for error in english_errors:
@@ -452,9 +460,6 @@ class PrinterManager:
             return None
         except Exception as e:
             logging.error(f"Unexpected error in earch_error: {e}")  
-
-
-
 
     def fetch_english_errors(self):
         if self.last_fetch_time is None or (datetime.now() - self.last_fetch_time).days >= 1:
@@ -477,6 +482,30 @@ class PrinterManager:
         else:
             return self.cached_data  
 
+    def fetch_device_errors(self):
+            if self.last_fetch_error_time is None or (datetime.now() - self.last_fetch_error_time).days >= 1:
+                url = "https://e.bambulab.com/query.php?lang=en"
+                try:
+                    response = requests.get(url, timeout=60)
+                    response.raise_for_status()  # Raise an exception for bad status codes
+                    data = response.json()
+                    # Print or log the fetched data
+                    print("Fetched JSON data:")
+                    print(data)
+                    self.last_fetch_error_time = datetime.now()
+                    self.cached_device_error_data = data.get("data", {}).get("device_error", {}).get("en", [])
+                    return self.cached_device_error_data
+                except requests.exceptions.RequestException as e:
+                    print(f"Failed to fetch data: {e}")
+                    return None
+                except json.JSONDecodeError as e:
+                    print(f"Failed to decode JSON from response: {e}")
+                    return None
+                except Exception as e:
+                    print(f"Unexpected error in fetch_english_errors: {e}")
+                    return None
+            else:
+                return self.cached_device_error_data
     def mqtt_client_thread(self, broker):
         global auth_details
         logging.debug(f" printer info device_id{broker['device_id']} Printer type {broker['printer_type']}")

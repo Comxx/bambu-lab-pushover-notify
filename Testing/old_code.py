@@ -7,7 +7,7 @@ class ErrorHandler:
         self.cached_data = None
         self.cached_device_error_data = None
         
-    def decimal_to_hex_without_leading_zeros(self, decimal_error_code):
+    def decimal_to_hex(self, decimal_error_code):
         # Convert the decimal number to a hexadecimal string without the '0x' prefix
         hex_error_code = hex(decimal_error_code)[2:]
         
@@ -59,7 +59,7 @@ class ErrorHandler:
 if __name__ == "__main__":
     handler = ErrorHandler()
     decimal_error_code = 117538823
-    hex_error_code = handler.decimal_to_hex_without_leading_zeros(decimal_error_code)
+    hex_error_code = handler.decimal_to_hex(decimal_error_code)
     english_errors = handler.fetch_device_errors() or []
     found_device_error = handler.search_error_device_error(hex_error_code, english_errors)
 
