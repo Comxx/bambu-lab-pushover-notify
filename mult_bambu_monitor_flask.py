@@ -24,7 +24,6 @@ doorOpen = ""
 # Global state
 first_run = False
 percent_notify = False
-percent_done = 0
 message_sent = False
 last_fetch_time = None
 cached_data = None
@@ -162,11 +161,22 @@ def on_publish(client, userdata, mid, reason_codes, properties):
 
 def on_message(client, userdata, msg):
     global DASH, gcode_state_prev, first_run, percent_notify, previous_print_error, my_finish_datetime, doorlight, doorOpen, previous_gcode_states, printer_states, errorstate, current_stage
-    try:   
+    try:    
+            stg_cur:int = None
+            gcode_state:str = None
+            layer_num:int = None
+            total_layer_num:int = None
+            subtask_name:str = None
+            percent_done:int = None
+            mc_remaining_time:int = None
+            project_id:str = None
+            print_error:int = None
+            printer_status = {}
             po_app = Application(userdata['my_pushover_app'])
             po_user = po_app.get_user(userdata['my_pushover_user'])
             server_identifier = (userdata['password'], userdata['device_id'])
             prev_state = previous_gcode_states.get(server_identifier, {'state': None})
+            
             if msg.payload is None:
                 logging.info("No message received from Printer")
                 return
@@ -179,6 +189,46 @@ def on_message(client, userdata, msg):
                 if not device_id:
                     logging.error("Device ID not found in the message")
                     return
+                if device_id not in printer_status:
+                        printer_status[device_id] = {
+                            'stg_cur': stg_cur,
+                            'gcode_state': gcode_state,
+                            'layer_num': layer_num,
+                            'total_layer_num': total_layer_num,
+                            'subtask_name': subtask_name,
+                            'project_id': project_id,
+                            'print_error': print_error,
+                            'mc_remaining_time': mc_remaining_time,
+                            'percent_done': percent_done,
+                            'mc_print_stage': mc_print_stage
+                        }
+                    
+                    # Update printer state with new data
+                stg_cur = dataDict['print'].get("stg_cur", printer_status[device_id]['stg_cur'])
+                gcode_state = dataDict['print'].get("gcode_state", printer_status[device_id]['gcode_state'])
+                layer_num = dataDict['print'].get("layer_num", printer_status[device_id]['layer_num'])
+                total_layer_num = dataDict['print'].get("total_layer_num", printer_status[device_id]['total_layer_num'])
+                subtask_name = dataDict['print'].get("subtask_name", printer_status[device_id]['subtask_name'])
+                project_id = dataDict['print'].get("project_id", printer_status[device_id]['project_id'])
+                percent_done = dataDict['print'].get("mc_percent", printer_status[device_id]['percent_done'])
+                print_error = dataDict['print'].get("print_error", printer_status[device_id]['print_error'])
+                mc_remaining_time = dataDict['print'].get("mc_remaining_time", printer_status[device_id]['mc_remaining_time'])
+                mc_print_stage = dataDict['print'].get("mc_print_stage", printer_status[device_id]['mc_print_stage'])
+                current_stage = get_current_stage_name(mc_print_stage) 
+                    # Update printer state in the dictionary
+                printer_status[device_id] = {
+                    'stg_cur': stg_cur,
+                    'gcode_state': gcode_state,
+                    'layer_num': layer_num,
+                    'total_layer_num': total_layer_num,
+                    'subtask_name': subtask_name,
+                    'project_id': project_id,
+                    'percent_done': percent_done,
+                    'print_error': print_error,
+                    'mc_remaining_time': mc_remaining_time,
+                    'mc_print_stage': mc_print_stage
+                }
+                
                 # Initialize state for new printer
                 if device_id not in printer_states:
                     printer_states[device_id] = {
@@ -206,17 +256,14 @@ def on_message(client, userdata, msg):
                 english_errors = fetch_english_errors() or []
 
                 error_code_to_hms_cleaned = str(device__HMS_error_code).replace('_', '')
-                found_device_error = search_error(error_code_to_hms_cleaned, english_errors)
-
+                found_hms_error = search_error(error_code_to_hms_cleaned, english_errors)
+                hex_error_code = decimal_to_hex(print_error)
+                device_errors = fetch_device_errors() or []
+                found_device_error = search_error(hex_error_code, device_errors)
+                if found_hms_error is None:
+                    found_hms_error = {'intro': 'Unknown error'}
                 if found_device_error is None:
-                    found_device_error = {'intro': 'Unknown error'}
-
-                gcode_state = dataDict['print'].get('gcode_state')
-                percent_done = dataDict['print'].get('mc_percent', 0) 
-                print_error = dataDict['print'].get('print_error')
-
-                #current_stage = get_current_stage_name(dataDict['print'].get('mc_print_stage'))
-                        
+                    found_device_error = {'intro': 'Unknown error'}         
                 
                 if "print" in dataDict and "home_flag" in dataDict["print"]:
                         home_flag = dataDict["print"]["home_flag"]
@@ -282,31 +329,21 @@ def on_message(client, userdata, msg):
                         return
                 else:
                     printer_state['previous_print_error'] = print_error
-                if userdata['printer_type'] == "X1C":
                     remaining_time = ""
-                    if 'print' in dataDict and 'mc_remaining_time' in dataDict['print']:
-                        mc_remaining_time = dataDict['print']['mc_remaining_time']
-                        if mc_remaining_time is not None:
-                            time_left_seconds = int(mc_remaining_time) * 60
-                            if time_left_seconds != 0:
-                                aprox_finish_time = time.time() + time_left_seconds
-                                unix_timestamp = float(aprox_finish_time)
-                                local_timezone = tzlocal.get_localzone()
-                                local_time = datetime.fromtimestamp(unix_timestamp, local_timezone)
-                                my_finish_datetime = local_time.strftime("%m-%d-%Y %I:%M %p (%Z)")
-                                remaining_time = str(timedelta(minutes=mc_remaining_time))
-                            else:
-                                if gcode_state == "FINISH" and time_left_seconds == 0:
-                                    my_finish_datetime = "Done!"
-                        else:
-                            logging.error("mc_remaining_time is None")
-                    else:
-                        logging.error("'mc_remaining_time' not found in dataDict['print']")
+                time_left_seconds = int(mc_remaining_time) * 60
+                if time_left_seconds != 0:
+                    aprox_finish_time = time.time() + time_left_seconds
+                    unix_timestamp = float(aprox_finish_time)
+                    local_timezone = tzlocal.get_localzone()
+                    local_time = datetime.fromtimestamp(unix_timestamp, local_timezone)
+                    my_finish_datetime = local_time.strftime("%m-%d-%Y %I:%M %p (%Z)")
+                    remaining_time = str(timedelta(minutes=mc_remaining_time))
                 else:
-                    remaining_time = "unknown"
+                    if gcode_state == "FINISH" and time_left_seconds == 0:
+                        my_finish_datetime = "Done!"
                 if gcode_state and (gcode_state != prev_state['state'] or prev_state['state'] is None):
                     priority = 0
-                    printer_states[errorstate] = "NONE"
+                    printer_state[errorstate] = "NONE"
                     logging.info(DASH)
                     logging.info(userdata["Printer_Title"] + " gcode_state has changed to " + gcode_state)
                     json_formatted_str = json.dumps(dataDict, indent=2)
@@ -316,19 +353,20 @@ def on_message(client, userdata, msg):
                     msg_text = "<ul>"
                     msg_text += "<li>State: " + gcode_state + " </li>"
                     msg_text += f"<li>Percent: {percent_done}% </li>"
+                    msg_text += f"<li>Lines: {layer_num}/{total_layer_num} </li>"
                     if 'subtask_name' in dataDict['print']:
-                        msg_text += "<li>Name: " + dataDict['print']['subtask_name'] + " </li>"
+                        msg_text += "<li>Name: " + subtask_name + " </li>"
                     msg_text += f"<li>Remaining time: {remaining_time} </li>"
                     msg_text += "<li>Aprox End: " + my_finish_datetime + "</li>"
-                    fail_reason = ""
-                    #if userdata["printer_type"] == "A1":
-                    if( ( 'print_error' in dataDict['print'] and dataDict['print']['print_error'] != 0 ) or gcode_state == "FAILED" ):
-                        printer_states[errorstate] = "ERROR"
-                        if 'print_error' in dataDict['print'] and dataDict['print']['print_error'] is not None:
-                            msg_text += f"<li>print_error: {dataDict['print']['print_error']}</li>"   
+                    if( ( 'print_error' in dataDict['print'] and print_error != 0 ) or gcode_state == "FAILED" ):
+                        printer_state[errorstate] = "ERROR"
+                        if 'print_error' in dataDict['print'] and print_error is not None:
+                            msg_text += f"<li>print_error: {print_error}</li>"
+                        if device__HMS_error_code is None:   
+                            msg_text += f"<li>Description: {found_device_error['intro']}</li>"
                         if device__HMS_error_code is not None:
                             msg_text += f"<li>HMS code: {device__HMS_error_code}</li>"
-                            msg_text += f"<li>Description: {found_device_error['intro']}</li>"
+                            msg_text += f"<li>Description: {found_hms_error['intro']}</li>"
                         priority = 1
                         msg_text += "</ul>"
                     if not first_run:
@@ -342,42 +380,13 @@ def on_message(client, userdata, msg):
                         )
                         message.send()
                         device__HMS_error_code = ""
-                # if userdata["printer_type"] == "X1C":
-                    # if( ('fail_reason' in dataDict['print'] and len(dataDict['print']['fail_reason']) > 1) or ( 'print_error' in dataDict['print'] and dataDict['print']['print_error'] != 0 ) or gcode_state == "FAILED" ):
-                        #    printer_states[errorstate] = "ERROR"
-                        #    if 'print_error' in dataDict['print'] and dataDict['print']['print_error'] is not None:
-                        #       msg_text += f"<li>print_error: {dataDict['print']['print_error']}</li>"
-                        #  if 'mc_print_error_code' in dataDict['print'] and dataDict['print']['mc_print_error_code'] is not None:
-                        #     msg_text += f"<li>mc_print_error_code: {dataDict['print']['mc_print_error_code']}</li>"
-                        #  if device__HMS_error_code is not None:
-                        #     msg_text += f"<li>HMS code: {device__HMS_error_code}</li>"
-                        #     msg_text += f"<li>Description: {found_device_error['intro']}</li>"
-                        # if 'fail_reason' in dataDict['print']:
-                        #      fail_reason = dataDict['print']['fail_reason']
-                        #  else:
-                        #      fail_reason = 'N/A'
-                        #  msg_text += f"<li>fail_reason: {fail_reason}</li>"
-                        #  priority = 1
-                        # msg_text += "</ul>"
-                        # if not first_run:
-                        #     message = po_user.create_message(
-                        #         title=userdata['Printer_Title'],
-                            #        message=msg_text,
-                            #       url=f"https://wiki.bambulab.com/en/x1/troubleshooting/hmscode/{device__HMS_error_code}" if device__HMS_error_code else "",
-                            #       html=True,
-                            #        sound=userdata['PO_SOUND'],
-                            #       priority=priority
-                            #   )
-                            #   message.send()
-                            #   device__HMS_error_code = ""
-
                 error_messages = []
 
-                if 'print_error' in dataDict['print'] and dataDict['print']['print_error'] is not None:
+                if 'print_error' in dataDict['print'] and print_error is not None:
                     error_messages.append(f"print_error: {dataDict['print']['print_error']}")
                 if device__HMS_error_code is not None:
                     error_messages.append(f"HMS code: {device__HMS_error_code}")
-                    error_messages.append(f"Description: {found_device_error['intro']}") 
+                    error_messages.append(f"Description: {found_hms_error['intro']}") 
                 error_state = printer_states[errorstate]
                 socketio.emit('printer_update', {
                     'printer_id': userdata["device_id"],
@@ -386,8 +395,8 @@ def on_message(client, userdata, msg):
                     'remaining_time': remaining_time,
                     'approx_end': my_finish_datetime,
                     'state': gcode_state,
-                    'project_name': dataDict['print'].get('subtask_name', 'Unknown'),
-                    'current_stage': 'need Fix',  
+                    'project_name': [subtask_name, 'Unknown'],
+                    'current_stage': current_stage,  
                     'error': error_state,
                     'error_messages': error_messages if errorstate == "ERROR" else []
                 })
@@ -436,7 +445,34 @@ def fetch_english_errors():
         except Exception as e:
             logging.error(f"Unexpected error in fetch_english_errors: {e}")
     else:
-        return cached_data  
+        return cached_data 
+def fetch_device_errors():
+            last_fetch_error_time = None
+            if last_fetch_error_time is None or (datetime.now() - last_fetch_error_time).days >= 1:
+                url = "https://e.bambulab.com/query.php?lang=en"
+                try:
+                    response = requests.get(url, timeout=60)
+                    response.raise_for_status()  # Raise an exception for bad status codes
+                    data = response.json()
+                    last_fetch_error_time = datetime.now()
+                    cached_device_error_data = data.get("data", {}).get("device_error", {}).get("en", [])
+                    return cached_device_error_data
+                except requests.exceptions.RequestException as e:
+                    logging.error(f"Failed to fetch data: {e}")
+                    return None
+                except json.JSONDecodeError:
+                    logging.error("Failed to decode JSON from response")
+                    return None
+                except Exception as e:
+                    logging.error(f"Unexpected error in fetch_english_errors: {e}")
+                    return None
+            else:
+                return cached_device_error_data    
+def decimal_to_hex(decimal_error_code):
+    hex_error_code = hex(decimal_error_code)[2:]
+
+    hex_error_code = hex_error_code.zfill(8)
+    return hex_error_code     
 def search_error(error_code, error_list):
     try:
         for error in error_list:
@@ -501,5 +537,4 @@ def main(argv):
     print(f'Web interface is available at http://{local_ip}:{port}')
 
 if __name__ == "__main__":
-    main(sys.argv[1:]) 
-       
+    main(sys.argv[1:])     

@@ -68,3 +68,13 @@ if __name__ == "__main__":
         print(f"Found device error: {found_device_error}")
     else:
         print("No matching device error found.")
+stg_cur = dataDict['print'].get("stg_cur", printer_status[device_id]['stg_cur'])
+                gcode_state = dataDict['print'].get("gcode_state", printer_status[device_id]['gcode_state'])
+                layer_num = dataDict['print'].get("layer_num", printer_status[device_id]['layer_num'])
+                total_layer_num = dataDict['print'].get("total_layer_num", printer_status[device_id]['total_layer_num'])
+                subtask_name = dataDict['print'].get("subtask_name", printer_status[device_id]['subtask_name'])
+                project_id = dataDict['print'].get("project_id", printer_status[device_id]['project_id'])
+                percent_done = dataDict['print'].get("mc_percent", printer_status[device_id]['percent_done'])
+                print_error = dataDict['print'].get("print_error", printer_status[device_id]['print_error'])
+                mc_remaining_time = dataDict['print'].get("mc_remaining_time", printer_status[device_id]['mc_remaining_time'])
+                mc_print_stage = dataDict['print'].get("mc_print_stage", printer_status[device_id]['mc_print_stage'])
