@@ -19,20 +19,15 @@ from bambu_cloud import BambuCloud
 import traceback
 
 DASH = '\n-------------------------------------------\n'
-doorlight = False
-doorOpen = ""
 # Global state
 first_run = False
 percent_notify = False
 message_sent = False
 last_fetch_time = None
 cached_data = None
-gcode_state_prev = ''
-previous_print_error = 0
 my_finish_datetime = ""
 previous_gcode_states = {}
 printer_states = {}
-errorstate = ''
 current_stage  = 'unknown'
 stg_cur:int = None
 gcode_state:str = None
@@ -294,9 +289,8 @@ def on_message(client, userdata, msg):
                     printer_states[device_id] = {
                         'previous_print_error': 0,
                         'doorlight': False,
-                        'doorOpen': "",
-                        'gcode_state_prev': '',
-                        'errorstate': ''
+                        'doorOpen': False,
+                        'errorstate': 'None'
                     }
                 logging.info(f"Existing printer_states keys: {printer_states.keys()}")
                 printer_state = printer_states[device_id]
@@ -447,7 +441,7 @@ def on_message(client, userdata, msg):
                 if device__HMS_error_code is not None:
                     error_messages.append(f"HMS code: {device__HMS_error_code}")
                     error_messages.append(f"Description: {found_hms_error['intro']}") 
-                error_state = printer_states[errorstate]
+                # error_state = printer_states[errorstate]
                 socketio.emit('printer_update', {
                     'printer_id': userdata["device_id"],
                     'printer': userdata['Printer_Title'],
@@ -457,8 +451,8 @@ def on_message(client, userdata, msg):
                     'state': gcode_state,
                     'project_name': subtask_name,
                     'current_stage': get_current_stage_name(mc_print_stage),  
-                    'error': error_state,
-                    'error_messages': error_messages if error_state == "ERROR" else []
+                    'error': "",
+                    'error_messages': ""
                 })
                 
             else:
