@@ -34,6 +34,17 @@ previous_gcode_states = {}
 printer_states = {}
 errorstate = ''
 current_stage  = 'unknown'
+stg_cur:int = None
+gcode_state:str = None
+layer_num:int = None
+total_layer_num:int = None
+subtask_name:str = None
+percent_done:int = None
+mc_remaining_time:int = None
+project_id:str = None
+print_error:int = 0
+mc_print_stage:str = None
+printer_status = {}
 # Initialize Flask app and SocketIO
 app = Flask(__name__)
 socketio = SocketIO(app)
@@ -169,19 +180,8 @@ def on_publish(client, userdata, mid, reason_codes, properties):
     logging.info(f"Message published successfully to {userdata['Printer_Title']}")  
 
 def on_message(client, userdata, msg):
-    global DASH, gcode_state_prev, first_run, percent_notify, previous_print_error, my_finish_datetime, doorlight, doorOpen, previous_gcode_states, printer_states, errorstate, current_stage
+    global DASH, gcode_state_prev, first_run, percent_notify, previous_print_error, my_finish_datetime, doorlight, doorOpen, previous_gcode_states, printer_states, errorstate, current_stage, stg_cur, gcode_state, layer_num, total_layer_num, subtask_name, percent_done, mc_remaining_time, project_id, print_error, mc_print_stage, printer_status
     try:    
-            stg_cur:int = None
-            gcode_state:str = None
-            layer_num:int = None
-            total_layer_num:int = None
-            subtask_name:str = None
-            percent_done:int = None
-            mc_remaining_time:int = None
-            project_id:str = None
-            print_error:int = None
-            mc_print_stage:int = None
-            printer_status = {}
             po_app = Application(userdata['my_pushover_app'])
             po_user = po_app.get_user(userdata['my_pushover_user'])
             server_identifier = (userdata['password'], userdata['device_id'])
@@ -192,8 +192,6 @@ def on_message(client, userdata, msg):
                 return
             msgData = msg.payload.decode('utf-8')
             dataDict = json.loads(msgData)
-            if userdata['printer_type'] == 'A1':
-                logging.info("Message received from A1 printer: {}".format(dataDict))
             if 'print' in dataDict:
                 device_id = userdata['device_id']
                 if not device_id:
