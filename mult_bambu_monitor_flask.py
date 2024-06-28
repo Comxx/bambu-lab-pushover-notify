@@ -225,7 +225,7 @@ def on_message(client, userdata, msg):
                 mc_remaining_time = dataDict['print'].get("mc_remaining_time", printer_status[device_id]['mc_remaining_time'])
                 mc_print_stage = dataDict['print'].get("mc_print_stage", printer_status[device_id]['mc_print_stage'])
                 current_stage = get_current_stage_name(mc_print_stage) 
-                    # Update printer state in the dictionary
+                # Update printer state in the dictionary
                 printer_status[device_id] = {
                     'stg_cur': stg_cur,
                     'gcode_state': gcode_state,
@@ -405,10 +405,10 @@ def on_message(client, userdata, msg):
                     'remaining_time': remaining_time,
                     'approx_end': my_finish_datetime,
                     'state': gcode_state,
-                    'project_name': [subtask_name, 'Unknown'],
+                    'project_name': subtask_name,
                     'current_stage': current_stage,  
                     'error': error_state,
-                    'error_messages': error_messages if errorstate == "ERROR" else []
+                    'error_messages': error_messages if error_state == "ERROR" else []
                 })
                 
             else:
