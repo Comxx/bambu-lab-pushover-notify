@@ -292,9 +292,9 @@ def on_message(client, userdata, msg):
                         'doorOpen': False,
                         'errorstate': 'None'
                     }
-                logging.info(f"Existing printer_states keys: {printer_states.keys()}")
+                logging.debug(f"Existing printer_states keys: {printer_states.keys()}")
                 printer_state = printer_states[device_id]
-                logging.info(f"Existing printer_states: {printer_state}")
+                logging.debug(f"Existing printer_states: {printer_state}")
                 hms_data = dataDict['print'].get('hms', [{'attr': 0, 'code': 0}])
 
                 if hms_data:
@@ -397,7 +397,7 @@ def on_message(client, userdata, msg):
                         my_finish_datetime = "Done!"
                 if gcode_state and (gcode_state != prev_state['state'] or prev_state['state'] is None):
                     priority = 0
-                    printer_state[errorstate] = "NONE"
+                    #printer_state[errorstate] = "NONE"
                     logging.info(DASH)
                     logging.info(userdata["Printer_Title"] + " gcode_state has changed to " + gcode_state)
                     json_formatted_str = json.dumps(dataDict, indent=2)
@@ -413,7 +413,7 @@ def on_message(client, userdata, msg):
                     msg_text += f"<li>Remaining time: {remaining_time} </li>"
                     msg_text += "<li>Aprox End: " + my_finish_datetime + "</li>"
                     if( ( 'print_error' in dataDict['print'] and print_error != 0 ) or gcode_state == "FAILED" ):
-                        printer_state[errorstate] = "ERROR"
+                        #printer_state[errorstate] = "ERROR"
                         if 'print_error' in dataDict['print'] and print_error is not None:
                             msg_text += f"<li>print_error: {print_error}</li>"
                         if device__HMS_error_code is None:   
