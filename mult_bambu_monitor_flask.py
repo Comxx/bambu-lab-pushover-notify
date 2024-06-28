@@ -171,6 +171,7 @@ def on_message(client, userdata, msg):
             mc_remaining_time:int = None
             project_id:str = None
             print_error:int = None
+            mc_print_stage:int = None
             printer_status = {}
             po_app = Application(userdata['my_pushover_app'])
             po_user = po_app.get_user(userdata['my_pushover_user'])
