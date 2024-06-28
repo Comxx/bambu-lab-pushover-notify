@@ -281,32 +281,32 @@ class PrinterManager:
                         door_state = bool((home_flag >> 23) & 1)
 
                         # Check if the door state has changed
-                        if self.printer_status['doorOpen'] != door_state:
-                            self.printer_status['doorOpen'] = door_state
+                        if self.printer_status[device_id]['doorOpen'] != door_state:
+                            self.printer_status[device_id]['doorOpen'] = door_state
 
                             if self.gcode_state in ["FINISH", "IDLE", "FAILED"]:
-                                if self.printer_status['doorOpen']:
-                                    if self.printer_status['doorlight']:
+                                self.printer_status[device_id]['doorOpen']:
+                                    if self.printer_status[device_id]['doorlight']:
                                         if userdata['ledlight']:
                                             wled.set_power(userdata['wled_ip'], True)
                                             wled.set_brightness(userdata['wled_ip'], 255)
                                             wled.set_color(userdata['wled_ip'], (255, 255, 255))
                                             logging.info("Opened")
-                                            self.printer_status['doorlight'] = True  
+                                            self.printer_status[device_id]['doorlight'] = True  
                                         else:
                                             logging.info("Opened No WLED")
-                                            self.printer_status['doorlight'] = True  
+                                            self.printer_status[device_id]['doorlight'] = True  
                                 else:
-                                    if self.printer_status['doorlight']:
+                                    if self.printer_status[device_id]['doorlight']:
                                         if userdata['ledlight']:
                                             wled.set_power(userdata['wled_ip'], False)
                                             logging.info("Closed")
-                                            self.printer_status['doorlight'] = False  
+                                            self.printer_status[device_id]['doorlight'] = False  
                                         else:
                                             logging.info("Closed No WLED")
-                                            self.printer_status['doorlight'] = False  
+                                            self.printer_status[device_id]['doorlight'] = False  
                                             
-                    if self.printer_status['previous_print_error'] == 50348044 and self.print_error == 0:
+                    if self.printer_status[device_id]['previous_print_error'] == 50348044 and self.print_error == 0:
                             chamberlight_off_data = {
                                 "system": {
                                     "sequence_id": "2003",
@@ -340,10 +340,10 @@ class PrinterManager:
                             )
                             message.send()
                             logging.info("Print cancelled on " + userdata['Printer_Title'])
-                            self.printer_status['previous_print_error'] = self.print_error
+                            self.printer_status[device_id]['previous_print_error'] = self.print_error
                             return
                     else:
-                        self.printer_status['previous_print_error'] = self.print_error
+                        self.printer_status[device_id]['previous_print_error'] = self.print_error
                         remaining_time = ""
                     
                     time_left_seconds = int(self.mc_remaining_time) * 60
@@ -359,7 +359,7 @@ class PrinterManager:
                             self.my_finish_datetime = "Done!"
                     if self.gcode_state and (self.gcode_state != prev_state['state'] or prev_state['state'] is None):
                         priority = 0
-                        self.printer_status['errorstate'] = ''
+                        self.printer_status[device_id]['errorstate'] = ''
                         logging.info(self.DASH)
                         logging.info(userdata["Printer_Title"] + " gcode_state has changed to " + self.gcode_state)
                         json_formatted_str = json.dumps(dataDict, indent=2)
@@ -376,7 +376,7 @@ class PrinterManager:
                         msg_text += "<li>Aprox End: " + self.my_finish_datetime + "</li>"
                         fail_reason = ""
                         if( ( 'print_error' in dataDict['print'] and dataDict['print']['print_error'] != 0 ) or self.gcode_state == "FAILED" ):
-                            self.printer_status['errorstate'] = "ERROR"
+                            self.printer_status[device_id]['errorstate'] = "ERROR"
                             msg_text += f"<li>print_error: {self.print_error}</li>"
                             msg_text += f"<li>Description: {found_device_error['intro']}</li>"  
                             if device__HMS_error_code is not None:
@@ -412,8 +412,8 @@ class PrinterManager:
                         'state': self.gcode_state,
                         'project_name': self.subtask_name,
                         'current_stage': self.current_stage,  
-                        'error': self.printer_status['errorstate'],
-                        'error_messages': error_messages if self.printer_status['errorstate'] == "ERROR" else []
+                        'error': self.printer_status[device_id]['errorstate'],
+                        'error_messages': error_messages if self.printer_status[device_id]['errorstate'] == "ERROR" else []
                     })
                     
                 else:
