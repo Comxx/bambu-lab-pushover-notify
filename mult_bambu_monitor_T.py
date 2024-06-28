@@ -279,7 +279,7 @@ class PrinterManager:
                     if "print" in dataDict and "home_flag" in dataDict["print"]:
                         home_flag = dataDict["print"]["home_flag"]
                         door_state = bool((home_flag >> 23) & 1)
-
+                        logging.info("Device" + device_id + "Dooor_state" + door_state)
                         # Check if the door state has changed
                         if self.printer_status[device_id]['doorOpen'] != door_state:
                             self.printer_status[device_id]['doorOpen'] = door_state
