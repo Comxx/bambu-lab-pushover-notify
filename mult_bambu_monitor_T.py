@@ -285,7 +285,7 @@ class PrinterManager:
                             self.printer_status[device_id]['doorOpen'] = door_state
 
                             if self.gcode_state in ["FINISH", "IDLE", "FAILED"]:
-                                self.printer_status[device_id]['doorOpen']:
+                                if self.printer_status[device_id]['doorOpen']:
                                     if self.printer_status[device_id]['doorlight']:
                                         if userdata['ledlight']:
                                             wled.set_power(userdata['wled_ip'], True)
