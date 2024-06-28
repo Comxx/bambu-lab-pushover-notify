@@ -49,7 +49,7 @@ class PrinterManager:
         self.mc_remaining_time:int = None
         self.project_id:str = None
         self.print_error:int = None
-        
+        self.printer_status = {}
         self.brokers = self.load_initial_settings()
         self.setup_logging()
 
@@ -218,12 +218,6 @@ class PrinterManager:
                             'mc_percent': self.mc_percent,
                             'print_error': self.print_error,
                             'mc_remaining_time': self.mc_remaining_time,
-                            'previous_print_error': 0,
-                            'doorlight': False,
-                            'doorOpen': "",
-                            'gcode_state_prev': '',
-                            'errorstate': ''
-                        
                         }
                     
                     # Update printer state with new data
@@ -236,12 +230,6 @@ class PrinterManager:
                     self.mc_percent = dataDict['print'].get("mc_percent", self.printer_states[device_id]['mc_percent'])
                     self.print_error = dataDict['print'].get("print_error", self.printer_states[device_id]['print_error'])
                     self.mc_remaining_time = dataDict['print'].get("mc_remaining_time", self.printer_states[device_id]['mc_remaining_time'])
-                    self.door_open = self.printer_states[device_id]['doorOpen']
-                    self.previous_print_error = self.printer_states[device_id]['previous_print_error']
-                    self.doorlight = self.printer_states[device_id]['doorlight']
-                    self.gcode_state_prev = self.printer_states[device_id]['gcode_state_prev']
-                    self.errorstate = self.printer_states[device_id]['errorstate']
-                    
                     # Update printer state in the dictionary
                     self.printer_states[device_id] = {
                         'stg_cur': self.stg_cur,
@@ -253,12 +241,16 @@ class PrinterManager:
                         'mc_percent': self.mc_percent,
                         'print_error': self.print_error,
                         'mc_remaining_time': self.mc_remaining_time,
+                    }
+                    if device_id not in self.printer_status:
+                        self.printer_status[device_id] = {
                         'previous_print_error': 0,
                         'doorlight': False,
                         'doorOpen': "",
                         'gcode_state_prev': '',
                         'errorstate': ''
                     }
+                        
                     hms_data = dataDict['print'].get('hms', [{'attr': 0, 'code': 0}])
 
                     if hms_data:
@@ -289,32 +281,32 @@ class PrinterManager:
                         door_state = bool((home_flag >> 23) & 1)
 
                         # Check if the door state has changed
-                        if self.printer_states[device_id]['doorOpen'] != door_state:
-                            self.printer_states[device_id]['doorOpen'] = door_state
+                        if self.printer_status['doorOpen'] != door_state:
+                            self.printer_status['doorOpen'] = door_state
 
                             if self.gcode_state in ["FINISH", "IDLE", "FAILED"]:
-                                if self.printer_states[device_id]['doorOpen']:
-                                    if not self.doorlight:
+                                if self.printer_status['doorOpen']:
+                                    if self.printer_status['doorlight']:
                                         if userdata['ledlight']:
                                             wled.set_power(userdata['wled_ip'], True)
                                             wled.set_brightness(userdata['wled_ip'], 255)
                                             wled.set_color(userdata['wled_ip'], (255, 255, 255))
                                             logging.info("Opened")
-                                            self.printer_states[device_id]['doorlight'] = True  
+                                            self.printer_status['doorlight'] = True  
                                         else:
                                             logging.info("Opened No WLED")
-                                            self.printer_states[device_id]['doorlight'] = True  
+                                            self.printer_status['doorlight'] = True  
                                 else:
-                                    if self.printer_states[device_id]['doorlight']:
+                                    if self.printer_status['doorlight']:
                                         if userdata['ledlight']:
                                             wled.set_power(userdata['wled_ip'], False)
                                             logging.info("Closed")
-                                            self.printer_states[device_id]['doorlight'] = False  
+                                            self.printer_status['doorlight'] = False  
                                         else:
                                             logging.info("Closed No WLED")
-                                            self.printer_states[device_id]['doorlight'] = False  
+                                            self.printer_status['doorlight'] = False  
                                             
-                    if self.previous_print_error == 50348044 and self.print_error == 0:
+                    if self.printer_status['previous_print_error'] == 50348044 and self.print_error == 0:
                             chamberlight_off_data = {
                                 "system": {
                                     "sequence_id": "2003",
@@ -348,10 +340,10 @@ class PrinterManager:
                             )
                             message.send()
                             logging.info("Print cancelled on " + userdata['Printer_Title'])
-                            self.previous_print_error = self.print_error
+                            self.printer_status['previous_print_error'] = self.print_error
                             return
                     else:
-                        self.previous_print_error = self.print_error
+                        self.printer_status['previous_print_error'] = self.print_error
                         remaining_time = ""
                     
                     time_left_seconds = int(self.mc_remaining_time) * 60
@@ -367,7 +359,7 @@ class PrinterManager:
                             self.my_finish_datetime = "Done!"
                     if self.gcode_state and (self.gcode_state != prev_state['state'] or prev_state['state'] is None):
                         priority = 0
-                        self.printer_states[device_id]['errorstate'] = ''
+                        self.printer_status['errorstate'] = ''
                         logging.info(self.DASH)
                         logging.info(userdata["Printer_Title"] + " gcode_state has changed to " + self.gcode_state)
                         json_formatted_str = json.dumps(dataDict, indent=2)
@@ -384,7 +376,7 @@ class PrinterManager:
                         msg_text += "<li>Aprox End: " + self.my_finish_datetime + "</li>"
                         fail_reason = ""
                         if( ( 'print_error' in dataDict['print'] and dataDict['print']['print_error'] != 0 ) or self.gcode_state == "FAILED" ):
-                            self.printer_states[device_id]['errorstate'] = "ERROR"
+                            self.printer_status['errorstate'] = "ERROR"
                             msg_text += f"<li>print_error: {self.print_error}</li>"
                             msg_text += f"<li>Description: {found_device_error['intro']}</li>"  
                             if device__HMS_error_code is not None:
@@ -420,8 +412,8 @@ class PrinterManager:
                         'state': self.gcode_state,
                         'project_name': self.subtask_name,
                         'current_stage': self.current_stage,  
-                        'error': self.errorstate,
-                        'error_messages': error_messages if self.errorstate == "ERROR" else []
+                        'error': self.printer_status['errorstate'],
+                        'error_messages': error_messages if self.printer_status['errorstate'] == "ERROR" else []
                     })
                     
                 else:
