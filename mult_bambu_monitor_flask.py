@@ -214,16 +214,66 @@ def on_message(client, userdata, msg):
                         }
                     
                     # Update printer state with new data
-                stg_cur = dataDict['print'].get("stg_cur", printer_status[device_id]['stg_cur'])
-                gcode_state = dataDict['print'].get("gcode_state", printer_status[device_id]['gcode_state'])
-                layer_num = dataDict['print'].get("layer_num", printer_status[device_id]['layer_num'])
-                total_layer_num = dataDict['print'].get("total_layer_num", printer_status[device_id]['total_layer_num'])
-                subtask_name = dataDict['print'].get("subtask_name", printer_status[device_id]['subtask_name'])
-                project_id = dataDict['print'].get("project_id", printer_status[device_id]['project_id'])
-                percent_done = dataDict['print'].get("mc_percent", printer_status[device_id]['percent_done'])
-                print_error = dataDict['print'].get("print_error", printer_status[device_id]['print_error'])
-                mc_remaining_time = dataDict['print'].get("mc_remaining_time", printer_status[device_id]['mc_remaining_time'])
-                mc_print_stage = dataDict['print'].get("mc_print_stage", printer_status[device_id]['mc_print_stage'])
+                # stg_cur = dataDict['print'].get("stg_cur", printer_status[device_id]['stg_cur'])
+                # gcode_state = dataDict['print'].get("gcode_state", printer_status[device_id]['gcode_state'])
+                # layer_num = dataDict['print'].get("layer_num", printer_status[device_id]['layer_num'])
+                # total_layer_num = dataDict['print'].get("total_layer_num", printer_status[device_id]['total_layer_num'])
+                # subtask_name = dataDict['print'].get("subtask_name", printer_status[device_id]['subtask_name'])
+                # project_id = dataDict['print'].get("project_id", printer_status[device_id]['project_id'])
+                # percent_done = dataDict['print'].get("mc_percent", printer_status[device_id]['percent_done'])
+                # print_error = dataDict['print'].get("print_error", printer_status[device_id]['print_error'])
+                # mc_remaining_time = dataDict['print'].get("mc_remaining_time", printer_status[device_id]['mc_remaining_time'])
+                # mc_print_stage = dataDict['print'].get("mc_print_stage", printer_status[device_id]['mc_print_stage'])
+                
+                try:
+                    stg_cur = dataDict['print'].get("stg_cur", printer_status[device_id]['stg_cur'])
+                except KeyError as e:
+                    logging.error(f"KeyError accessing 'stg_cur': {e}")
+
+                try:
+                    gcode_state = dataDict['print'].get("gcode_state", printer_status[device_id]['gcode_state'])
+                except KeyError as e:
+                    logging.error(f"KeyError accessing 'gcode_state': {e}")
+
+                try:
+                    layer_num = dataDict['print'].get("layer_num", printer_status[device_id]['layer_num'])
+                except KeyError as e:
+                    logging.error(f"KeyError accessing 'layer_num': {e}")
+
+                try:
+                    total_layer_num = dataDict['print'].get("total_layer_num", printer_status[device_id]['total_layer_num'])
+                except KeyError as e:
+                    logging.error(f"KeyError accessing 'total_layer_num': {e}")
+
+                try:
+                    subtask_name = dataDict['print'].get("subtask_name", printer_status[device_id]['subtask_name'])
+                except KeyError as e:
+                    logging.error(f"KeyError accessing 'subtask_name': {e}")
+
+                try:
+                    project_id = dataDict['print'].get("project_id", printer_status[device_id]['project_id'])
+                except KeyError as e:
+                    logging.error(f"KeyError accessing 'project_id': {e}")
+
+                try:
+                    percent_done = dataDict['print'].get("mc_percent", printer_status[device_id]['percent_done'])
+                except KeyError as e:
+                    logging.error(f"KeyError accessing 'mc_percent': {e}")
+
+                try:
+                    print_error = dataDict['print'].get("print_error", printer_status[device_id]['print_error'])
+                except KeyError as e:
+                    logging.error(f"KeyError accessing 'print_error': {e}")
+
+                try:
+                    mc_remaining_time = dataDict['print'].get("mc_remaining_time", printer_status[device_id]['mc_remaining_time'])
+                except KeyError as e:
+                    logging.error(f"KeyError accessing 'mc_remaining_time': {e}")
+
+                try:
+                    mc_print_stage = dataDict['print'].get("mc_print_stage", printer_status[device_id]['mc_print_stage'])
+                except KeyError as e:
+                    logging.error(f"KeyError accessing 'mc_print_stage': {e}")
                 current_stage = get_current_stage_name(mc_print_stage) 
                 # Update printer state in the dictionary
                 printer_status[device_id] = {
