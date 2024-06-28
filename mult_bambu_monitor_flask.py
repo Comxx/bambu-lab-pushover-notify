@@ -180,7 +180,9 @@ def on_publish(client, userdata, mid, reason_codes, properties):
     logging.info(f"Message published successfully to {userdata['Printer_Title']}")  
 
 def on_message(client, userdata, msg):
-    global DASH, gcode_state_prev, first_run, percent_notify, previous_print_error, my_finish_datetime, doorlight, doorOpen, previous_gcode_states, printer_states, errorstate, current_stage, stg_cur, gcode_state, layer_num, total_layer_num, subtask_name, percent_done, mc_remaining_time, project_id, print_error, mc_print_stage, printer_status
+    global DASH, gcode_state_prev, first_run, percent_notify, previous_print_error, my_finish_datetime
+    global doorlight, doorOpen, previous_gcode_states, printer_states
+    global errorstate, current_stage, printer_status
     try:    
             po_app = Application(userdata['my_pushover_app'])
             po_user = po_app.get_user(userdata['my_pushover_user'])
@@ -199,16 +201,16 @@ def on_message(client, userdata, msg):
                     return
                 if device_id not in printer_status:
                         printer_status[device_id] = {
-                            'stg_cur': stg_cur,
-                            'gcode_state': gcode_state,
-                            'layer_num': layer_num,
-                            'total_layer_num': total_layer_num,
-                            'subtask_name': subtask_name,
-                            'project_id': project_id,
-                            'print_error': print_error,
-                            'mc_remaining_time': mc_remaining_time,
-                            'percent_done': percent_done,
-                            'mc_print_stage': mc_print_stage
+                            'stg_cur': 0,
+                            'gcode_state': None,
+                            'layer_num': 0,
+                            'total_layer_num': 0,
+                            'subtask_name': 'Unkown',
+                            'project_id': 'Unkown',
+                            'print_error': 0,
+                            'mc_remaining_time': 0,
+                            'percent_done': 0,
+                            'mc_print_stage': 'unknown'
                         }
                     
                     # Update printer state with new data
@@ -404,7 +406,7 @@ def on_message(client, userdata, msg):
                     'approx_end': my_finish_datetime,
                     'state': gcode_state,
                     'project_name': subtask_name,
-                    'current_stage': current_stage,  
+                    'current_stage': get_current_stage_name(mc_print_stage),  
                     'error': error_state,
                     'error_messages': error_messages if error_state == "ERROR" else []
                 })
@@ -412,7 +414,7 @@ def on_message(client, userdata, msg):
             else:
                 first_run = False
     except KeyError as e:
-            logging.error(f"KeyError accessing 'gcode_state': {e}")
+            logging.error(f"KeyError accessing in MsgHandler: {e}")
     except json.JSONDecodeError as e:
             logging.error("Failed to decode JSON from MQTT message: {e}")
     except Exception as e:
