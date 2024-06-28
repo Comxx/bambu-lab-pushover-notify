@@ -180,14 +180,15 @@ class PrinterManager:
         logger.addHandler(rotating_handler)
     def on_connect(self, client, userdata, flags, reason_code, properties):
         client.subscribe("device/" + userdata["device_id"] + "/report", 0)
-        getInfo = {"info": {"sequence_id": "0", "command": "get_version"}}
-        payloadvesion = json.dumps(getInfo)
-        if not client.publish("device/" + userdata["device_id"] + "/request", payloadvesion):
-            raise Exception("Failed to publish get_version")
-        pushAll = { "pushing": { "sequence_id": "1", "command": "pushall" }, "user_id": "1234567890"}
-        payloadpushall = json.dumps(pushAll)
-        if not client.publish("device/" + userdata["device_id"] + "/request", payloadpushall):
-            raise Exception("Failed to publish full sync")
+        if userdata ['printer_type'] == "A1":
+            getInfo = {"info": {"sequence_id": "0", "command": "get_version"}}
+            payloadvesion = json.dumps(getInfo)
+            if not client.publish("device/" + userdata["device_id"] + "/request", payloadvesion):
+                raise Exception("Failed to publish get_version")
+            pushAll = { "pushing": { "sequence_id": "1", "command": "pushall" }, "user_id": "1234567890"}
+            payloadpushall = json.dumps(pushAll)
+            if not client.publish("device/" + userdata["device_id"] + "/request", payloadpushall):
+                raise Exception("Failed to publish full sync")
 
     def on_publish(self, client, userdata, mid, reason_codes, properties):
         logging.info(f"Message published successfully to {userdata['Printer_Title']}")
@@ -246,9 +247,9 @@ class PrinterManager:
                         self.printer_status[device_id] = {
                         'previous_print_error': 0,
                         'doorlight': False,
-                        'doorOpen': "",
-                        'gcode_state_prev': '',
-                        'errorstate': ''
+                        'doorOpen': False,
+                        'gcode_state_prev': None,
+                        'errorstate': None
                     }
                         
                     hms_data = dataDict['print'].get('hms', [{'attr': 0, 'code': 0}])
@@ -279,7 +280,6 @@ class PrinterManager:
                     if "print" in dataDict and "home_flag" in dataDict["print"]:
                         home_flag = dataDict["print"]["home_flag"]
                         door_state = bool((home_flag >> 23) & 1)
-                        logging.info("Device" + device_id + "Dooor_state" + door_state)
                         # Check if the door state has changed
                         if self.printer_status[device_id]['doorOpen'] != door_state:
                             self.printer_status[device_id]['doorOpen'] = door_state
