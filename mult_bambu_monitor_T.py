@@ -280,7 +280,8 @@ class PrinterManager:
                     found_device_error = self.search_error(hex_error_code, device_errors)
                     if found_hms_error is None:
                         found_hms_error = {'intro': 'Unknown error'}
-                        
+                    if found_device_error is None:
+                        found_device_error = {'intro': 'Unknown error'}    
                     self.current_stage = self.get_current_stage_name(dataDict['print'].get('mc_print_stage'))
                     
                     if "print" in dataDict and "home_flag" in dataDict["print"]:
@@ -288,34 +289,29 @@ class PrinterManager:
                         door_state = bool((home_flag >> 23) & 1)
 
                         # Check if the door state has changed
-                        if self.door_open != door_state:
-                            self.door_open = door_state
-                            self.printer_states[device_id]['doorOpen'] = self.door_open 
+                        if self.printer_states[device_id]['doorOpen'] != door_state:
+                            self.printer_states[device_id]['doorOpen'] = door_state
 
                             if self.gcode_state in ["FINISH", "IDLE", "FAILED"]:
-                                if self.door_open:
+                                if self.printer_states[device_id]['doorOpen']:
                                     if not self.doorlight:
                                         if userdata['ledlight']:
                                             wled.set_power(userdata['wled_ip'], True)
                                             wled.set_brightness(userdata['wled_ip'], 255)
                                             wled.set_color(userdata['wled_ip'], (255, 255, 255))
                                             logging.info("Opened")
-                                            self.doorlight = True
                                             self.printer_states[device_id]['doorlight'] = True  
                                         else:
                                             logging.info("Opened No WLED")
-                                            self.doorlight = True
                                             self.printer_states[device_id]['doorlight'] = True  
                                 else:
-                                    if self.doorlight:
+                                    if self.printer_states[device_id]['doorlight']:
                                         if userdata['ledlight']:
                                             wled.set_power(userdata['wled_ip'], False)
                                             logging.info("Closed")
-                                            self.doorlight = False
                                             self.printer_states[device_id]['doorlight'] = False  
                                         else:
                                             logging.info("Closed No WLED")
-                                            self.doorlight = False
                                             self.printer_states[device_id]['doorlight'] = False  
                                             
                     if self.previous_print_error == 50348044 and self.print_error == 0:
