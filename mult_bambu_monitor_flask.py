@@ -486,16 +486,16 @@ def on_disconnect(client, userdata, rc):
     if rc != 0:
         logging.warning(f"Unexpected disconnection. Reconnecting... (rc={rc})")
 def connect_to_broker(broker):
-    Mqttpassworrd = ''
-    Mqttuser = ''
-    bambu_cloud = BambuCloud(region="US", email=broker["user"], username='', auth_token='')
-    if broker["printer_type"] == "A1":
-        bambu_cloud.login(region="US", email=broker["user"], password= broker["password"])
-        Mqttpassworrd = bambu_cloud.auth_token
-        Mqttuser = bambu_cloud.username
-    else:
-        Mqttpassworrd = broker["password"]
-        Mqttuser = broker["user"]    
+    # Mqttpassworrd = ''
+    # Mqttuser = ''
+    # bambu_cloud = BambuCloud(region="US", email=broker["user"], username='', auth_token='')
+    # if broker["printer_type"] == "A1":
+    #     bambu_cloud.login(region="US", email=broker["user"], password= broker["password"])
+    #     Mqttpassworrd = bambu_cloud.auth_token
+    #     Mqttuser = bambu_cloud.username
+    # else:
+    Mqttpassworrd = broker["password"]
+    Mqttuser = broker["user"]    
     client = paho.Client(paho.CallbackAPIVersion.VERSION2)
     client.tls_set(ca_certs=None, certfile=None, keyfile=None, cert_reqs=ssl.CERT_NONE, tls_version=ssl.PROTOCOL_TLS, ciphers=None)
     client.tls_insecure_set(True)
