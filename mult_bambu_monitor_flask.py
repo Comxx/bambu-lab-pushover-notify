@@ -298,9 +298,9 @@ def on_message(client, userdata, msg):
                         'gcode_state_prev': '',
                         'errorstate': ''
                     }
-
+                logging.debug(f"Existing printer_states keys: {printer_status.keys()}")
                 printer_state = printer_states[device_id]
-                
+                logging.debug(f"Existing printer_states: {printer_state}")
                 hms_data = dataDict['print'].get('hms', [{'attr': 0, 'code': 0}])
 
                 if hms_data:
