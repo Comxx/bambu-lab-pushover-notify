@@ -284,7 +284,7 @@ class PrinterManager:
                         if self.printer_status[device_id]['doorOpen'] != door_state:
                             self.printer_status[device_id]['doorOpen'] = door_state
 
-                            if self.gcode_state in ["FINISH", "IDLE", "FAILED"]:
+                            if self.gcode_state == "FINISH" or self.gcode_state == "IDLE" or self.gcode_state == "FAILED": 
                                 if self.printer_status[device_id]['doorOpen']:
                                     if self.printer_status[device_id]['doorlight']:
                                         if userdata['ledlight']:
