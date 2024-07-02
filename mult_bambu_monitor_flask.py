@@ -535,9 +535,26 @@ def search_error(error_code, error_list):
         return None
     except Exception as e:
         logging.error(f"Unexpected error in earch_error: {e}")                  
-def on_disconnect(client, userdata, rc):
-    if rc != 0:
-        logging.warning(f"Unexpected disconnection. Reconnecting... (rc={rc})")
+
+def on_disconnect(client, userdata, reason_code, properties):
+    logging.warning(f"Disconnected with reason code {reason_code}")
+    reconnect_attempts = 0
+    max_attempts = 5
+    
+    while reconnect_attempts < max_attempts:
+        try:
+            client.reconnect()
+            logging.info("Reconnected successfully")
+            break
+        except Exception as e:
+            reconnect_attempts += 1
+            logging.error(f"Reconnection attempt {reconnect_attempts} failed: {e}")
+            if reconnect_attempts < max_attempts:
+                time.sleep(5)
+            else:
+                logging.error("Maximum reconnection attempts reached. Stopping reconnection attempts.")
+                break  # Break the loop if the maximum attempts are reached
+
 def connect_to_broker(broker):
     # Mqttpassworrd = ''
     # Mqttuser = ''
