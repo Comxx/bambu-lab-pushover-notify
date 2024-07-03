@@ -536,7 +536,7 @@ def search_error(error_code, error_list):
     except Exception as e:
         logging.error(f"Unexpected error in earch_error: {e}")                  
 
-def on_disconnect(client, userdata, reason_code, properties):
+def on_disconnect(client, userdata, flags, reason_code, properties):
     logging.warning(f"Disconnected with reason code {reason_code}")
     reconnect_attempts = 0
     max_attempts = 5
