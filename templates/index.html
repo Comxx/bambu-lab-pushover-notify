@@ -246,10 +246,12 @@
     
                 if (data.state === 'FINISH') {
                     approxEndElement.innerText = "Approximate End Time: Done!";
+                } else if (data.state === 'FAILED') {
+                    approxEndElement.innerText = "Approximate End Time: Failed!";
                 } else {
                     approxEndElement.innerText = "Approximate End Time: " + data.approx_end;
                 }
-                linesElement.innerText = "Lines: " + data.lines + "/" + data.lines_total;
+                inesElement.innerText = "Lines: " + data.lines + "/" + data.lines_total;
                 stateElement.innerText = "Status: " + data.state;
                 currentStageElement.innerText = "Current Stage: " + data.current_stage;
                 
