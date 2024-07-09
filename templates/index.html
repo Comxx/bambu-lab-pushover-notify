@@ -99,6 +99,7 @@
                             <span id="{{ printer.printer_id }}_remaining_minutes">Loading...</span>m
                         </p>
                         <p class="card-text" id="{{ printer.printer_id }}_approx_end">Loading...</p>
+                        <p class="card-text" id="{{ printer.printer_id }}_lines">Loading...</p>
                         <p class="card-text" id="{{ printer.printer_id }}_state">Loading...</p>
                         <p class="card-text" id="{{ printer.printer_id }}_current_stage">Loading...</p>
                         <ul class="card-text" id="{{ printer.printer_id }}_errors" style="color: rgb(255, 255, 255); display: none;"></ul> <!-- Error messages element -->
@@ -200,6 +201,8 @@
             const printerId = data.printer_id;
             const projectnameElement = document.getElementById(printerId + '_project_name');
             const remainingPercentElement = document.getElementById(printerId + '_percent');
+            const linesElement = document.getElementById(printerId + '_lines');
+            const totalLinesElement = document.getElementById(printerId + '_lines_total');
             const remainingDaysElement = document.getElementById(printerId + '_remaining_days');
             const remainingHoursElement = document.getElementById(printerId + '_remaining_hours');
             const remainingMinutesElement = document.getElementById(printerId + '_remaining_minutes');
@@ -246,6 +249,7 @@
                 } else {
                     approxEndElement.innerText = "Approximate End Time: " + data.approx_end;
                 }
+                linesElement.innerText = "Lines: " + data.lines + "/" + data.lines_total;
                 stateElement.innerText = "Status: " + data.state;
                 currentStageElement.innerText = "Current Stage: " + data.current_stage;
                 
