@@ -416,9 +416,9 @@ def on_message(client, userdata, msg):
                         #printer_state[errorstate] = "ERROR"
                         if 'print_error' in dataDict['print'] and print_error is not None:
                             msg_text += f"<li>print_error: {print_error}</li>"
-                        if device__HMS_error_code is "":   
+                        if device__HMS_error_code == "":
                             msg_text += f"<li>Description: {found_device_error['intro']}</li>"
-                        if device__HMS_error_code is not "":
+                        elif device__HMS_error_code != "":
                             msg_text += f"<li>HMS code: {device__HMS_error_code}</li>"
                             msg_text += f"<li>Description: {found_hms_error['intro']}</li>"
                         priority = 1
