@@ -433,6 +433,7 @@ def on_message(client, userdata, msg):
                             priority=priority
                         )
                         message.send()
+                        message.url = ""
                         device__HMS_error_code = ""
                 error_messages = []
 
