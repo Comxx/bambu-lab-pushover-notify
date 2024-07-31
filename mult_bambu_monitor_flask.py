@@ -17,7 +17,7 @@ from flask_socketio import SocketIO, emit
 import socket
 from bambu_cloud import BambuCloud
 import traceback
-
+from constants import CURRENT_STAGE_IDS
 DASH = '\n-------------------------------------------\n'
 # Global state
 first_run = False
@@ -44,49 +44,7 @@ printer_status = {}
 app = Flask(__name__)
 socketio = SocketIO(app)
 
-CURRENT_STAGE_IDS = {
-    "default": "unknown",
-    0: "printing",
-    1: "auto_bed_leveling",
-    2: "heatbed_preheating",
-    3: "sweeping_xy_mech_mode",
-    4: "changing_filament",
-    5: "m400_pause",
-    6: "paused_filament_runout",
-    7: "heating_hotend",
-    8: "calibrating_extrusion",
-    9: "scanning_bed_surface",
-    10: "inspecting_first_layer",
-    11: "identifying_build_plate_type",
-    12: "calibrating_micro_lidar",  # DUPLICATED?
-    13: "homing_toolhead",
-    14: "cleaning_nozzle_tip",
-    15: "checking_extruder_temperature",
-    16: "paused_user",
-    17: "paused_front_cover_falling",
-    18: "calibrating_micro_lidar",  # DUPLICATED?
-    19: "calibrating_extrusion_flow",
-    20: "paused_nozzle_temperature_malfunction",
-    21: "paused_heat_bed_temperature_malfunction",
-    22: "filament_unloading",
-    23: "paused_skipped_step",
-    24: "filament_loading",
-    25: "calibrating_motor_noise",
-    26: "paused_ams_lost",
-    27: "paused_low_fan_speed_heat_break",
-    28: "paused_chamber_temperature_control_error",
-    29: "cooling_chamber",
-    30: "paused_user_gcode",
-    31: "motor_noise_showoff",
-    32: "paused_nozzle_filament_covered_detected",
-    33: "paused_cutter_error",
-    34: "paused_first_layer_error",
-    35: "paused_nozzle_clog",
-    # X1 returns -1 for idle
-    -1: "idle",  # DUPLICATED
-    # P1 returns 255 for idle
-    255: "idle",  # DUPLICATED
-}
+
 def get_current_stage_name(stage_id):
     if stage_id is None:
         return "unknown"
@@ -207,18 +165,6 @@ def on_message(client, userdata, msg):
                             'percent_done': 0,
                             'mc_print_stage': 'unknown'
                         }
-                    
-                    # Update printer state with new data
-                # stg_cur = dataDict['print'].get("stg_cur", printer_status[device_id]['stg_cur'])
-                # gcode_state = dataDict['print'].get("gcode_state", printer_status[device_id]['gcode_state'])
-                # layer_num = dataDict['print'].get("layer_num", printer_status[device_id]['layer_num'])
-                # total_layer_num = dataDict['print'].get("total_layer_num", printer_status[device_id]['total_layer_num'])
-                # subtask_name = dataDict['print'].get("subtask_name", printer_status[device_id]['subtask_name'])
-                # project_id = dataDict['print'].get("project_id", printer_status[device_id]['project_id'])
-                # percent_done = dataDict['print'].get("mc_percent", printer_status[device_id]['percent_done'])
-                # print_error = dataDict['print'].get("print_error", printer_status[device_id]['print_error'])
-                # mc_remaining_time = dataDict['print'].get("mc_remaining_time", printer_status[device_id]['mc_remaining_time'])
-                # mc_print_stage = dataDict['print'].get("mc_print_stage", printer_status[device_id]['mc_print_stage'])
                 
                 try:
                     stg_cur = dataDict['print'].get("stg_cur", printer_status[device_id]['stg_cur'])
