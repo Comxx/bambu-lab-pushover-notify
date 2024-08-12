@@ -458,7 +458,8 @@ def connect_to_broker(broker):
     Mqttuser = ''
     bambu_cloud = BambuCloud(region="US", email=broker["user"], username='', auth_token='')
     if broker["printer_type"] in ["A1", "P1S"]:
-        bambu_cloud.login(region="US", email=broker["user"], password= broker["password"])
+        if not bambu_cloud.auth_token or not bambu_cloud.username:
+            bambu_cloud.login(region="US", email=broker["user"], password= broker["password"])
         Mqttpassworrd = bambu_cloud.auth_token
         Mqttuser = bambu_cloud.username
     else:
