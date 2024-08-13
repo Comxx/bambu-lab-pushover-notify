@@ -12,12 +12,12 @@ import json
 import requests
 import time
 import wled
+from flask import Flask, request, render_template, jsonify
+from flask_socketio import SocketIO, emit
 import socket
 from bambu_cloud import BambuCloud
 import traceback
 from constants import CURRENT_STAGE_IDS
-from web_interface import emit_printer_update, start_web_server
-import threading
 DASH = '\n-------------------------------------------\n'
 # Global state
 first_run = False
@@ -41,6 +41,9 @@ print_error:int = 0
 mc_print_stage:str = None
 printer_status = {}
 # Initialize Flask app and SocketIO
+app = Flask(__name__)
+socketio = SocketIO(app)
+
 
 def get_current_stage_name(stage_id):
     if stage_id is None:
@@ -52,6 +55,54 @@ try:
         brokers = json.load(f)
 except FileNotFoundError:
     brokers = []
+
+@app.route('/')
+def home():
+    printers = [
+    {
+        "printer_id": broker["device_id"],
+        "host": broker["host"],
+        "port": broker["port"],
+        "user": broker["user"],
+        "password": broker["password"],
+        "printer_title": broker["Printer_Title"],
+        "po_sound": broker["PO_SOUND"],
+        "my_pushover_user": broker["my_pushover_user"],
+        "my_pushover_app": broker["my_pushover_app"],
+        "ledlight": broker["ledlight"],
+        "wled_ip": broker["wled_ip"],
+        "printer_color": broker["color"]
+    } 
+    for broker in brokers
+]
+    return render_template('index.html', printers=printers)
+@app.route('/delete_printer', methods=['POST'])
+def delete_printer():
+    try:
+        printer_id = request.json.get('printer_id')
+        if not printer_id:
+            return jsonify({'status': 'error', 'message': 'Printer ID not provided'})
+
+        with open('settings.json', 'r') as file:
+            settings = json.load(file)
+
+        # Remove the printer with the specified ID
+        settings = [printer for printer in settings if printer['device_id'] != printer_id]
+
+        # Save the updated settings back to the file
+        with open('settings.json', 'w') as file:
+            json.dump(settings, file, indent=4)
+
+        return jsonify({'status': 'success'})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)})
+@app.route('/save_printer_settings', methods=['POST'])
+def save_printer_settings():
+    global brokers
+    brokers = request.json
+    with open('settings.json', 'w') as f:
+        f.write(json.dumps(brokers, indent=4))
+    return jsonify({"status": "success"})
 def setup_logging():
     local_timezone = tzlocal.get_localzone()
     current_datetime = datetime.now(local_timezone)
@@ -338,7 +389,7 @@ def on_message(client, userdata, msg):
                     error_messages.append(f"HMS code: {device__HMS_error_code}")
                     error_messages.append(f"Description: {found_hms_error['intro']}") 
                 # error_state = printer_states[errorstate]
-                emit_printer_update('printer_update', {
+                socketio.emit('printer_update', {
                     'printer_id': userdata["device_id"],
                     'printer': userdata['Printer_Title'],
                     'percent': percent_done,
@@ -488,10 +539,9 @@ def main(argv):
             for broker_config in brokers:
                 client = connect_to_broker(broker_config)
                 mqtt_clients.append(client)
-            #info("Flask server started successfully")
-                    # Start the web server in a separate thread
-            web_thread = threading.Thread(target=start_web_server, daemon=True)
-            web_thread.start()
+            logging.info("Flask server starting...")
+            socketio.run(app, host='0.0.0.0', port=5000)
+            logging.info("Flask server started successfully")
             # Keep the main thread alive
             while True:
             # Fetch and process data for each printer
