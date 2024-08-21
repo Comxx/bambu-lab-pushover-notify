@@ -143,7 +143,7 @@ def on_message(client, userdata, msg):
             prev_state = previous_gcode_states.get(server_identifier, {'state': None})
             
             if msg.payload is None:
-                logging.info("No message received from Printer")
+                logging.error("No message received from Printer")
                 return
             msgData = msg.payload.decode('utf-8')
             dataDict = json.loads(msgData)
@@ -277,19 +277,19 @@ def on_message(client, userdata, msg):
                                                 wled.set_power(userdata['wled_ip'], True)
                                                 wled.set_brightness(userdata['wled_ip'], 255)
                                                 wled.set_color(userdata['wled_ip'], (255, 255, 255))
-                                                logging.info("Opened")
+                                                logging.debug("Opened")
                                                 printer_state['doorlight'] = True
                                             else:
-                                                logging.info("Opened No WLED")
+                                                logging.debug("Opened No WLED")
                                                 printer_state['doorlight'] = True 
                                     else:
                                         if printer_state['doorlight']: 
                                             if userdata['ledlight']:
                                                 wled.set_power(userdata['wled_ip'], False)
-                                                logging.info("Closed")
+                                                logging.debug("Closed")
                                                 printer_state['doorlight'] = False
                                             else:
-                                                logging.info("Closed No WLED")
+                                                logging.debug("Closed No WLED")
                                                 printer_state['doorlight'] = False
                 if printer_state['previous_print_error'] == 50348044 and print_error == 0:
                         chamberlight_off_data = {
@@ -324,7 +324,7 @@ def on_message(client, userdata, msg):
                             priority=1
                         )
                         message.send()
-                        logging.info("Print cancelled on " + userdata['Printer_Title'])
+                        logging.debug("Print cancelled on " + userdata['Printer_Title'])
                         printer_state['previous_print_error'] = print_error
                         return
                 else:
@@ -493,7 +493,7 @@ def on_disconnect(client, userdata, flags, reason_code, properties):
     while reconnect_attempts < max_attempts:
         try:
             client.reconnect()
-            logging.info("Reconnected successfully")
+            logging.warning("Reconnected successfully")
             break
         except Exception as e:
             reconnect_attempts += 1
