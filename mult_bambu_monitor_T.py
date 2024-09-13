@@ -130,7 +130,7 @@ async def on_connect(client):
     except Exception as e:
         logging.error(f"Error in on_connect: {e}")
 
-async def on_message(client, userdata, msg):
+async def on_message(client, message):
     global DASH, first_run, percent_notify, my_finish_datetime
     global previous_gcode_states, printer_states
     global current_stage, printer_status
