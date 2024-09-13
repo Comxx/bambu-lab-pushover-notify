@@ -12,7 +12,7 @@ import aiohttp
 import time
 import wled
 from quart import Quart, request, render_template, jsonify
-from quart_socketio import SocketIO
+import socketio
 import socket
 from bambu_cloud import BambuCloud
 import traceback
@@ -35,7 +35,8 @@ printer_status = {}
 
 # Initialize Quart app and SocketIO
 app = Quart(__name__)
-socketio = SocketIO(app)
+sio = socketio.AsyncServer(async_mode='asgi')
+app = socketio.ASGIApp(sio, app)
 
 def get_current_stage_name(stage_id):
     if stage_id is None:
@@ -325,7 +326,7 @@ async def on_message(client, userdata, msg):
                 error_messages.append(f"Description: {found_hms_error['intro']}")
 
             # Emit printer update
-            await socketio.emit('printer_update', {
+            await sio.emit('printer_update', {
                 'printer_id': userdata["device_id"],
                 'printer': userdata['Printer_Title'],
                 'percent': printer_status[device_id]['percent_done'],
@@ -475,8 +476,8 @@ async def main():
         # Start MQTT client loops
         mqtt_tasks = [asyncio.create_task(mqtt_client_loop(client)) for client in mqtt_clients]
 
-        # Start the Quart app
-        logging.info("Quart server starting...")
+        # Start the Quart app with SocketIO
+        logging.info("Quart server with SocketIO starting...")
         web_task = asyncio.create_task(app.run_task(host='0.0.0.0', port=5000))
 
         # Wait for all tasks to complete (which they never should)
