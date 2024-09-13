@@ -17,7 +17,9 @@ import socket
 from bambu_cloud import BambuCloud
 import traceback
 from constants import CURRENT_STAGE_IDS
-from asyncio_mqtt import Client, MqttError
+from aiomqtt import Client as MQTTClient
+from hypercorn.asyncio import serve
+from hypercorn.config import Config
 
 DASH = '\n-------------------------------------------\n'
 
@@ -36,7 +38,7 @@ printer_status = {}
 # Initialize Quart app and SocketIO
 app = Quart(__name__)
 sio = socketio.AsyncServer(async_mode='asgi')
-app = socketio.ASGIApp(sio, app)
+sio.attach(app)
 
 def get_current_stage_name(stage_id):
     if stage_id is None:
@@ -116,29 +118,30 @@ def setup_logging():
     logger.setLevel(logging.INFO)
     logger.addHandler(rotating_handler)
 
-async def on_connect(client, userdata):
-    await client.subscribe(f"device/{userdata['device_id']}/report")
+async def on_connect(client):
+    await client.subscribe(f"device/{client.userdata['device_id']}/report")
     getInfo = {"info": {"sequence_id": "0", "command": "get_version"}}
     payloadvesion = json.dumps(getInfo)
-    await client.publish(f"device/{userdata['device_id']}/request", payloadvesion)
+    await client.publish(f"device/{client.userdata['device_id']}/request", payloadvesion)
     pushAll = {"pushing": {"sequence_id": "1", "command": "pushall"}, "user_id": "1234567890"}
     payloadpushall = json.dumps(pushAll)
-    await client.publish(f"device/{userdata['device_id']}/request", payloadpushall)
+    await client.publish(f"device/{client.userdata['device_id']}/request", payloadpushall)
 
 async def on_message(client, userdata, msg):
     global DASH, first_run, percent_notify, my_finish_datetime
     global previous_gcode_states, printer_states
     global current_stage, printer_status
     try:    
+        userdata = client.userdata
         po_app = Application(userdata['my_pushover_app'])
         po_user = po_app.get_user(userdata['my_pushover_user'])
         server_identifier = (userdata['password'], userdata['device_id'])
         prev_state = previous_gcode_states.get(server_identifier, {'state': None})
         
-        if msg.payload is None:
+        if message.payload is None:
             logging.error("No message received from Printer")
             return
-        msgData = msg.payload.decode('utf-8')
+        msgData = message.payload.decode('utf-8')
         dataDict = json.loads(msgData)
         if 'print' in dataDict:
             device_id = userdata['device_id']
@@ -327,25 +330,19 @@ async def on_message(client, userdata, msg):
 
             # Emit printer update
             await sio.emit('printer_update', {
-                'printer_id': userdata["device_id"],
-                'printer': userdata['Printer_Title'],
-                'percent': printer_status[device_id]['percent_done'],
-                'lines': printer_status[device_id]['layer_num'],
-                'lines_total': printer_status[device_id]['total_layer_num'],
-                'remaining_time': remaining_time,
-                'approx_end': my_finish_datetime,
-                'state': printer_status[device_id]['gcode_state'],
-                'project_name': printer_status[device_id]['subtask_name'],
-                'current_stage': current_stage,  
-                'error': "",
-                'error_messages': error_messages
-            })
-        else:
-            first_run = False
-    except KeyError as e:
-        logging.error(f"KeyError accessing in MsgHandler: {e}")
-    except json.JSONDecodeError as e:
-        logging.error(f"Failed to decode JSON from MQTT message: {e}")
+            'printer_id': userdata["device_id"],
+            'printer': userdata['Printer_Title'],
+            'percent': printer_status[device_id]['percent_done'],
+            'lines': printer_status[device_id]['layer_num'],
+            'lines_total': printer_status[device_id]['total_layer_num'],
+            'remaining_time': remaining_time,
+            'approx_end': my_finish_datetime,
+            'state': printer_status[device_id]['gcode_state'],
+            'project_name': printer_status[device_id]['subtask_name'],
+            'current_stage': current_stage,  
+            'error': "",
+            'error_messages': error_messages
+        })
     except Exception as e:
         logging.error(f"Unexpected error in on_message: {e}")
         logging.error(traceback.format_exc())
@@ -444,24 +441,32 @@ async def connect_to_broker(broker):
         Mqttpassword = broker["password"]
         Mqttuser = broker["user"]
     
-    client = Client(broker["host"], port=broker["port"], username=Mqttuser, password=Mqttpassword)
-    client.tls_set(ca_certs=None, certfile=None, keyfile=None, cert_reqs=ssl.CERT_NONE, tls_version=ssl.PROTOCOL_TLS, ciphers=None)
-    client.tls_insecure_set(True)
-    client.user_data_set(broker)
+    client = MQTTClient(
+        hostname=broker["host"],
+        port=broker["port"],
+        username=Mqttuser,
+        password=Mqttpassword,
+        tls_params=dict(cert_reqs=ssl.CERT_NONE),
+        tls_insecure=True
+    )
+    client.userdata = broker
     
     return client
 
 async def mqtt_client_loop(client):
     try:
         async with client:
-            await on_connect(client, client._userdata)
-            async with client.unfiltered_messages() as messages:
-                async for message in messages:
-                    await on_message(client, client._userdata, message)
-    except MqttError as error:
+            await on_connect(client)
+            async for message in client.messages:
+                await on_message(client, message)
+    except client.MqttError as error:
         logging.error(f'Error "{error}". Reconnecting in 5 seconds.')
         await asyncio.sleep(5)
 
+async def start_server():
+    config = Config()
+    config.bind = ["0.0.0.0:5000"]
+    await serve(app, config)
 async def main():
     try:
         setup_logging()
@@ -478,7 +483,7 @@ async def main():
 
         # Start the Quart app with SocketIO
         logging.info("Quart server with SocketIO starting...")
-        web_task = asyncio.create_task(app.run_task(host='0.0.0.0', port=5000))
+        web_task = asyncio.create_task(start_server())
 
         # Wait for all tasks to complete (which they never should)
         await asyncio.gather(*mqtt_tasks, web_task)
