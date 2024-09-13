@@ -17,7 +17,7 @@ import socket
 from bambu_cloud import BambuCloud
 import traceback
 from constants import CURRENT_STAGE_IDS
-from aiomqtt import Client as MQTTClient, TLSParameters
+from aiomqtt import Client as MQTTClient, TLSParameters, MqttError
 from hypercorn.asyncio import serve
 from hypercorn.config import Config
 
@@ -119,13 +119,16 @@ def setup_logging():
     logger.addHandler(rotating_handler)
 
 async def on_connect(client):
-    await client.subscribe(f"device/{client.userdata['device_id']}/report")
-    getInfo = {"info": {"sequence_id": "0", "command": "get_version"}}
-    payloadvesion = json.dumps(getInfo)
-    await client.publish(f"device/{client.userdata['device_id']}/request", payloadvesion)
-    pushAll = {"pushing": {"sequence_id": "1", "command": "pushall"}, "user_id": "1234567890"}
-    payloadpushall = json.dumps(pushAll)
-    await client.publish(f"device/{client.userdata['device_id']}/request", payloadpushall)
+    try:
+        await client.subscribe(f"device/{client.userdata['device_id']}/report")
+        getInfo = {"info": {"sequence_id": "0", "command": "get_version"}}
+        payloadvesion = json.dumps(getInfo)
+        await client.publish(f"device/{client.userdata['device_id']}/request", payloadvesion)
+        pushAll = {"pushing": {"sequence_id": "1", "command": "pushall"}, "user_id": "1234567890"}
+        payloadpushall = json.dumps(pushAll)
+        await client.publish(f"device/{client.userdata['device_id']}/request", payloadpushall)
+    except Exception as e:
+        logging.error(f"Error in on_connect: {e}")
 
 async def on_message(client, userdata, msg):
     global DASH, first_run, percent_notify, my_finish_datetime
@@ -468,15 +471,29 @@ async def mqtt_client_loop(client):
             await on_connect(client)
             async for message in client.messages:
                 await on_message(client, message)
-    except client.MqttError as error:
+    except MqttError as error:
         logging.error(f'Error "{error}". Reconnecting in 5 seconds.')
         await asyncio.sleep(5)
+    except Exception as e:
+        logging.error(f"Unexpected error in mqtt_client_loop: {e}")
 
 async def start_server():
     config = Config()
     config.bind = ["0.0.0.0:5000"]
     await serve(asgi_app, config)
     
+async def mqtt_client_loop(client):
+    try:
+        async with client:
+            await on_connect(client)
+            async for message in client.messages:
+                await on_message(client, message)
+    except MqttError as error:
+        logging.error(f'Error "{error}". Reconnecting in 5 seconds.')
+        await asyncio.sleep(5)
+    except Exception as e:
+        logging.error(f"Unexpected error in mqtt_client_loop: {e}")
+
 async def main():
     try:
         setup_logging()
