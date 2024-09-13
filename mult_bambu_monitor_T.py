@@ -14,7 +14,7 @@ import wled
 from quart import Quart, request, render_template, jsonify
 import socketio
 import socket
-from bambu_cloud import BambuCloud
+from bambu_cloud_t import BambuCloud
 import traceback
 from constants import CURRENT_STAGE_IDS
 from aiomqtt import Client as MQTTClient, TLSParameters, MqttError
