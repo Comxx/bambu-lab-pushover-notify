@@ -34,7 +34,7 @@ previous_gcode_states = {}
 printer_states = {}
 current_stage = 'unknown'
 printer_status = {}
-
+cached_device_error_data = None
 # Initialize Quart app and SocketIO
 app = Quart(__name__)
 sio = socketio.AsyncServer(async_mode='asgi')
@@ -444,22 +444,16 @@ async def connect_to_broker(broker):
         Mqttpassword = broker["password"]
         Mqttuser = broker["user"]
     
-    tls_params = TLSParameters(
-        ca_certs=None,
-        certfile=None,
-        keyfile=None,
-        cert_reqs=ssl.CERT_NONE,
-        tls_version=ssl.PROTOCOL_TLS,
-        ciphers=None
-    )
-    
+    ssl_context = ssl.create_default_context()
+    ssl_context.check_hostname = False
+    ssl_context.verify_mode = ssl.CERT_NONE
+
     client = MQTTClient(
         hostname=broker["host"],
         port=broker["port"],
         username=Mqttuser,
         password=Mqttpassword,
-        tls_params=tls_params,
-        tls_insecure=True
+        tls_context=ssl_context
     )
     client.userdata = broker
     
