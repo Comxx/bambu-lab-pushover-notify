@@ -38,7 +38,7 @@ printer_status = {}
 # Initialize Quart app and SocketIO
 app = Quart(__name__)
 sio = socketio.AsyncServer(async_mode='asgi')
-sio.attach(app)
+asgi_app = socketio.ASGIApp(sio, app)
 
 def get_current_stage_name(stage_id):
     if stage_id is None:
@@ -466,7 +466,8 @@ async def mqtt_client_loop(client):
 async def start_server():
     config = Config()
     config.bind = ["0.0.0.0:5000"]
-    await serve(app, config)
+    await serve(asgi_app, config)
+    
 async def main():
     try:
         setup_logging()
