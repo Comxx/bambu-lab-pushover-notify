@@ -17,7 +17,7 @@ import socket
 from bambu_cloud import BambuCloud
 import traceback
 from constants import CURRENT_STAGE_IDS
-from aiomqtt import Client as MQTTClient
+from aiomqtt import Client as MQTTClient, TLSParameters
 from hypercorn.asyncio import serve
 from hypercorn.config import Config
 
@@ -441,12 +441,21 @@ async def connect_to_broker(broker):
         Mqttpassword = broker["password"]
         Mqttuser = broker["user"]
     
+    tls_params = TLSParameters(
+        ca_certs=None,
+        certfile=None,
+        keyfile=None,
+        cert_reqs=ssl.CERT_NONE,
+        tls_version=ssl.PROTOCOL_TLS,
+        ciphers=None
+    )
+    
     client = MQTTClient(
         hostname=broker["host"],
         port=broker["port"],
         username=Mqttuser,
         password=Mqttpassword,
-        tls_params=dict(cert_reqs=ssl.CERT_NONE),
+        tls_params=tls_params,
         tls_insecure=True
     )
     client.userdata = broker
