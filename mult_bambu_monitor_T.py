@@ -485,11 +485,17 @@ async def main():
         # Connect to each broker
         mqtt_clients = []
         for broker_config in brokers:
-            client = await connect_to_broker(broker_config)
-            mqtt_clients.append(client)
+            try:
+                client = await connect_to_broker(broker_config)
+                if client:
+                    mqtt_clients.append(client)
+                else:
+                    logging.error(f"Failed to connect to broker: {broker_config['host']}")
+            except Exception as e:
+                logging.error(f"Error connecting to broker {broker_config['host']}: {e}")
 
         # Start MQTT client loops
-        mqtt_tasks = [asyncio.create_task(mqtt_client_loop(client)) for client in mqtt_clients]
+        mqtt_tasks = [asyncio.create_task(mqtt_client_loop(client)) for client in mqtt_clients if client]
 
         # Start the Quart app with SocketIO
         logging.info("Quart server with SocketIO starting...")
@@ -508,3 +514,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+Last edited just now
