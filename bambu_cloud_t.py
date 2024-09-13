@@ -80,7 +80,7 @@ class BambuCloud:
     #     ]
     # }
 
-     async def test_authentication(self, region: str, email: str, username: str, auth_token: str) -> bool:
+    async def test_authentication(self, region: str, email: str, username: str, auth_token: str) -> bool:
         self._region = region
         self._email = email
         self._username = username
