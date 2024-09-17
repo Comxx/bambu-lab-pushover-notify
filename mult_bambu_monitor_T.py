@@ -319,7 +319,7 @@ async def on_message(client, message):
                         sound=userdata['PO_SOUND'],
                         priority=priority
                     )
-                    await message.send()
+                    asyncio.create_task(asyncio.to_thread(message.send))
                     message.url = ""
                     device__HMS_error_code = ""
 
@@ -443,17 +443,20 @@ async def connect_to_broker(broker):
     else:
         Mqttpassword = broker["password"]
         Mqttuser = broker["user"]
-    
-    ssl_context = ssl.create_default_context()
-    ssl_context.check_hostname = False
-    ssl_context.verify_mode = ssl.CERT_NONE
 
     client = MQTTClient(
         hostname=broker["host"],
         port=broker["port"],
         username=Mqttuser,
         password=Mqttpassword,
-        tls_context=ssl_context
+        tls_params=TLSParameters(
+            ca_certs=None,
+            certfile=None,
+            keyfile=None,
+            cert_reqs=ssl.CERT_NONE,
+            tls_version=ssl.PROTOCOL_TLS,
+            ciphers=None
+        )
     )
     client.userdata = broker
     
