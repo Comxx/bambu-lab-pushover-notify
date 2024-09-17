@@ -20,7 +20,7 @@ from constants import CURRENT_STAGE_IDS
 from aiomqtt import Client as MQTTClient, TLSParameters, MqttError
 from hypercorn.asyncio import serve
 from hypercorn.config import Config
-
+import signal
 DASH = '\n-------------------------------------------\n'
 
 # Global state
@@ -493,10 +493,29 @@ async def mqtt_client_loop(client):
     except Exception as e:
         logging.error(f"Unexpected error in mqtt_client_loop: {e}")
 
+async def shutdown(signal, loop, mqtt_clients):
+    """Cleanup tasks tied to the service's shutdown."""
+    logging.info(f"Received exit signal {signal.name}...")
+    
+    logging.info("Closing MQTT clients...")
+    for client in mqtt_clients:
+        await client.disconnect()
+    
+    tasks = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
+    [task.cancel() for task in tasks]
+    
+    logging.info(f"Cancelling {len(tasks)} outstanding tasks")
+    await asyncio.gather(*tasks, return_exceptions=True)
+    
+    logging.info("Shutting down asyncio loop")
+    loop.stop()
+
 async def main():
     try:
         setup_logging()
         logging.info("Starting")
+
+        loop = asyncio.get_running_loop()
 
         # Connect to each broker
         mqtt_clients = []
@@ -517,16 +536,25 @@ async def main():
         logging.info("Quart server with SocketIO starting...")
         web_task = asyncio.create_task(start_server())
 
-        # Wait for all tasks to complete (which they never should)
-        await asyncio.gather(*mqtt_tasks, web_task)
+        # Setup signal handlers
+        signals = (signal.SIGHUP, signal.SIGTERM, signal.SIGINT)
+        for s in signals:
+            loop.add_signal_handler(
+                s, lambda s=s: asyncio.create_task(shutdown(s, loop, mqtt_clients))
+            )
+
+        try:
+            # Wait for all tasks to complete (which they never should)
+            await asyncio.gather(*mqtt_tasks, web_task)
+        except asyncio.CancelledError:
+            logging.info("Tasks have been cancelled")
+        finally:
+            loop.close()
+            logging.info("Successfully shutdown the application.")
 
     except Exception as e:
         logging.error(f"Fatal error in main: {e}")
         print("Fatal error. Please read Logs")
-
-    local_ip = socket.gethostbyname(socket.gethostname())
-    port = 5000  # Quart default port
-    print(f'Web interface is available at http://{local_ip}:{port}')
 
 if __name__ == "__main__":
     asyncio.run(main())
