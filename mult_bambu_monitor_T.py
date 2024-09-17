@@ -10,7 +10,7 @@ from chump import Application
 import json
 import aiohttp
 import time
-import wled
+import wled_t
 from quart import Quart, request, render_template, jsonify
 import socketio
 import socket
@@ -219,13 +219,13 @@ async def on_message(client, message):
                     gcode_state = printer_status[device_id]['gcode_state']
                     if gcode_state in ["FINISH", "IDLE", "FAILED"]:
                         if door_state and not printer_state['doorlight'] and userdata['ledlight']:
-                            await wled.set_power(userdata['wled_ip'], True)
-                            await wled.set_brightness(userdata['wled_ip'], 255)
-                            await wled.set_color(userdata['wled_ip'], (255, 255, 255))
+                            await wled_t.set_power(userdata['wled_ip'], True)
+                            await wled_t.set_brightness(userdata['wled_ip'], 255)
+                            await wled_t.set_color(userdata['wled_ip'], (255, 255, 255))
                             logging.debug("Opened")
                             printer_state['doorlight'] = True
                         elif not door_state and printer_state['doorlight'] and userdata['ledlight']:
-                            await wled.set_power(userdata['wled_ip'], False)
+                            await wled_t.set_power(userdata['wled_ip'], False)
                             logging.debug("Closed")
                             printer_state['doorlight'] = False
 
