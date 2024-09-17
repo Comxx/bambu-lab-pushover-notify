@@ -115,7 +115,7 @@ def setup_logging():
     rotating_handler.setFormatter(log_formatter)
     
     logger = logging.getLogger()
-    logger.setLevel(logging.DEBUG)
+    logger.setLevel(logging.INFO)
     logger.addHandler(rotating_handler)
 
 async def on_connect(client):
