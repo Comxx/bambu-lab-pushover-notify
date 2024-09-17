@@ -1,5 +1,5 @@
 from __future__ import annotations
-
+import ssl
 import base64
 import json
 import aiohttp
@@ -24,14 +24,17 @@ class BambuCloud:
             url = 'https://api.bambulab.com/v1/user-service/user/login'
         data = {'account': self._email, 'password': self._password}
         logging.debug(f"Data = {data}")
+
+        # Create an SSL context
+        ssl_context = ssl.create_default_context(cafile=certifi.where())
+
         async with aiohttp.ClientSession() as session:
-            async with session.post(url, json=data, ssl=certifi.where()) as response:
+            async with session.post(url, json=data, ssl=ssl_context) as response:
                 if response.status != 200:
                     logging.debug(f"Received error: {response.status}")
                     raise ValueError(response.status)
                 json_response = await response.json()
                 return json_response['accessToken']
-
     def _get_username_from_authentication_token(self) -> str:
         # User name is in 2nd portion of the auth token (delimited with periods)
         b64_string = self._auth_token.split(".")[1]
