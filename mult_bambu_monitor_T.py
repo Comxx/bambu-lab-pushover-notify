@@ -115,7 +115,7 @@ def setup_logging():
     rotating_handler.setFormatter(log_formatter)
     
     logger = logging.getLogger()
-    logger.setLevel(logging.INFO)
+    logger.setLevel(logging.DEBUG)
     logger.addHandler(rotating_handler)
 
 async def on_connect(client):
@@ -440,6 +440,8 @@ async def connect_to_broker(broker):
             await bambu_cloud.login(region="US", email=broker["user"], password=broker["password"])
         Mqttpassword = bambu_cloud.auth_token
         Mqttuser = bambu_cloud.username
+        logging.info(f"Logged in to bambu cloud as {Mqttuser}")
+        logging.info(f"Auth token: {Mqttpassword}")
     else:
         Mqttpassword = broker["password"]
         Mqttuser = broker["user"]
