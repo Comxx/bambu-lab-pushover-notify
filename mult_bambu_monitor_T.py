@@ -265,7 +265,7 @@ async def on_message(client, message):
                     sound=userdata['PO_SOUND'],
                     priority=1
                 )
-                await message.send()
+                asyncio.create_task(asyncio.to_thread(message.send))
                 logging.debug(f"Print cancelled on {userdata['Printer_Title']}")
                 printer_state['previous_print_error'] = printer_status[device_id]['print_error']
                 return
