@@ -555,8 +555,7 @@ async def shutdown(signal, loop):
     logging.info(f"Cancelling {len(tasks)} outstanding tasks")
     await asyncio.gather(*tasks, return_exceptions=True)
     
-    logging.info("Shutting down asyncio loop")
-    loop.stop()
+    logging.info("Shutdown complete")
 
 async def main():
     try:
@@ -585,17 +584,24 @@ async def main():
             await web_task
         except asyncio.CancelledError:
             logging.info("Web task has been cancelled")
-        finally:
-            loop.close()
-            logging.info("Successfully shutdown the application.")
 
     except Exception as e:
         logging.error(f"Fatal error in main: {e}")
         print("Fatal error. Please read Logs")
-
-    local_ip = socket.gethostbyname(socket.gethostname())
-    port = 5000  # Quart default port
-    print(f'Web interface is available at http://{local_ip}:{port}')
+    finally:
+        # Ensure all tasks are cancelled
+        tasks = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
+        for task in tasks:
+            task.cancel()
+        
+        # Wait for all tasks to complete with a timeout
+        await asyncio.wait(tasks, timeout=10)
+        
+        # Close the event loop
+        loop = asyncio.get_event_loop()
+        loop.stop()
+        loop.close()
+        logging.info("Successfully shutdown the application.")
 
 if __name__ == "__main__":
     asyncio.run(main())
