@@ -46,9 +46,8 @@ asgi_app = socketio.ASGIApp(sio, app)
 
 def get_current_stage_name(stage_id):
     if stage_id is None:
-        return "unknown"
-    return CURRENT_STAGE_IDS.get(int(stage_id), "unknown")
-
+        return CURRENT_STAGE_IDS.get(int(stage_id), "unknown")
+    return "unknown"
 # Load initial printer settings from a file
 try:
     with open('settings.json', 'r') as f:
@@ -444,8 +443,6 @@ async def connect_to_broker(broker):
             await bambu_cloud.login(region="US", email=broker["user"], password=broker["password"])
         Mqttpassword = bambu_cloud.auth_token
         Mqttuser = bambu_cloud.username
-        logging.info(f"Logged in to bambu cloud as {Mqttuser}")
-        logging.info(f"Auth token: {Mqttpassword}")
     else:
         Mqttpassword = broker["password"]
         Mqttuser = broker["user"]
