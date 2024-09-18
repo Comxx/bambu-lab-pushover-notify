@@ -21,6 +21,8 @@ from aiomqtt import Client as MQTTClient, TLSParameters, MqttError
 from hypercorn.asyncio import serve
 from hypercorn.config import Config
 import signal
+from collections import defaultdict
+
 DASH = '\n-------------------------------------------\n'
 
 # Global state
@@ -35,6 +37,8 @@ printer_states = {}
 current_stage = 'unknown'
 printer_status = {}
 cached_device_error_data = None
+printer_tasks = {}
+
 # Initialize Quart app and SocketIO
 app = Quart(__name__)
 sio = socketio.AsyncServer(async_mode='asgi')
@@ -464,42 +468,89 @@ async def connect_to_broker(broker):
     
     return client
 
-async def mqtt_client_loop(client):
-    try:
-        async with client:
-            await on_connect(client)
-            async for message in client.messages:
-                await on_message(client, message)
-    except MqttError as error:
-        logging.error(f'Error "{error}". Reconnecting in 5 seconds.')
-        await asyncio.sleep(5)
-    except Exception as e:
-        logging.error(f"Unexpected error in mqtt_client_loop: {e}")
-
 async def start_server():
     config = Config()
     config.bind = ["0.0.0.0:5000"]
     await serve(asgi_app, config)
     
-async def mqtt_client_loop(client):
-    try:
-        async with client:
-            await on_connect(client)
-            async for message in client.messages:
-                await on_message(client, message)
-    except MqttError as error:
-        logging.error(f'Error "{error}". Reconnecting in 5 seconds.')
-        await asyncio.sleep(5)
-    except Exception as e:
-        logging.error(f"Unexpected error in mqtt_client_loop: {e}")
+async def reconnect_mqtt(client, max_retries=5, retry_interval=5):
+    retries = 0
+    while retries < max_retries:
+        try:
+            logging.info(f"Attempting to reconnect to MQTT broker for {client.userdata['Printer_Title']}...")
+            await client.connect()
+            logging.info(f"Successfully reconnected to MQTT broker for {client.userdata['Printer_Title']}")
+            return True
+        except MqttError as error:
+            logging.error(f"Failed to reconnect to MQTT broker for {client.userdata['Printer_Title']}: {error}")
+            retries += 1
+            if retries < max_retries:
+                logging.info(f"Retrying in {retry_interval} seconds... (Attempt {retries}/{max_retries})")
+                await asyncio.sleep(retry_interval)
+            else:
+                logging.error(f"Max retries reached for {client.userdata['Printer_Title']}. Unable to reconnect.")
+                return False
 
-async def shutdown(signal, loop, mqtt_clients):
+async def printer_loop(client):
+    while True:
+        try:
+            async with client:
+                await on_connect(client)
+                async for message in client.messages:
+                    await on_message(client, message)
+        except MqttError as error:
+            if error.rc == 141:  # Keepalive timeout
+                logging.error(f"Keepalive timeout for {client.userdata['Printer_Title']}. Attempting to reconnect...")
+                if await reconnect_mqtt(client):
+                    logging.info(f"Reconnected successfully for {client.userdata['Printer_Title']}. Resuming operations.")
+                    continue
+                else:
+                    logging.error(f"Failed to reconnect for {client.userdata['Printer_Title']}. Exiting printer loop.")
+                    break
+            else:
+                logging.error(f'Error "{error}" for {client.userdata["Printer_Title"]}. Reconnecting in 5 seconds.')
+                await asyncio.sleep(5)
+        except Exception as e:
+            logging.error(f"Unexpected error in printer_loop for {client.userdata['Printer_Title']}: {e}")
+            await asyncio.sleep(5)
+    
+    # Remove the task from printer_tasks when it's done
+    device_id = client.userdata['device_id']
+    if device_id in printer_tasks:
+        del printer_tasks[device_id]
+
+async def start_or_restart_printer(broker_config):
+    device_id = broker_config['device_id']
+    
+    # Cancel existing task if it exists
+    if device_id in printer_tasks:
+        printer_tasks[device_id].cancel()
+        try:
+            await printer_tasks[device_id]
+        except asyncio.CancelledError:
+            pass
+    
+    # Create new client and task
+    try:
+        client = await connect_to_broker(broker_config)
+        if client:
+            task = asyncio.create_task(printer_loop(client))
+            printer_tasks[device_id] = task
+            logging.info(f"Started task for printer {device_id}")
+        else:
+            logging.error(f"Failed to connect to broker for printer {device_id}")
+    except Exception as e:
+        logging.error(f"Error connecting to broker for printer {device_id}: {e}")
+
+async def shutdown(signal, loop):
     """Cleanup tasks tied to the service's shutdown."""
     logging.info(f"Received exit signal {signal.name}...")
     
-    logging.info("Closing MQTT clients...")
-    for client in mqtt_clients:
-        await client.disconnect()
+    logging.info("Closing printer tasks...")
+    for task in printer_tasks.values():
+        task.cancel()
+    
+    await asyncio.gather(*printer_tasks.values(), return_exceptions=True)
     
     tasks = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
     [task.cancel() for task in tasks]
@@ -517,20 +568,9 @@ async def main():
 
         loop = asyncio.get_running_loop()
 
-        # Connect to each broker
-        mqtt_clients = []
+        # Start a task for each printer
         for broker_config in brokers:
-            try:
-                client = await connect_to_broker(broker_config)
-                if client:
-                    mqtt_clients.append(client)
-                else:
-                    logging.error(f"Failed to connect to broker: {broker_config['host']}")
-            except Exception as e:
-                logging.error(f"Error connecting to broker {broker_config['host']}: {e}")
-
-        # Start MQTT client loops
-        mqtt_tasks = [asyncio.create_task(mqtt_client_loop(client)) for client in mqtt_clients if client]
+            await start_or_restart_printer(broker_config)
 
         # Start the Quart app with SocketIO
         logging.info("Quart server with SocketIO starting...")
@@ -540,14 +580,14 @@ async def main():
         signals = (signal.SIGHUP, signal.SIGTERM, signal.SIGINT)
         for s in signals:
             loop.add_signal_handler(
-                s, lambda s=s: asyncio.create_task(shutdown(s, loop, mqtt_clients))
+                s, lambda s=s: asyncio.create_task(shutdown(s, loop))
             )
 
         try:
-            # Wait for all tasks to complete (which they never should)
-            await asyncio.gather(*mqtt_tasks, web_task)
+            # Wait for the web task to complete (which it never should)
+            await web_task
         except asyncio.CancelledError:
-            logging.info("Tasks have been cancelled")
+            logging.info("Web task has been cancelled")
         finally:
             loop.close()
             logging.info("Successfully shutdown the application.")
@@ -555,6 +595,10 @@ async def main():
     except Exception as e:
         logging.error(f"Fatal error in main: {e}")
         print("Fatal error. Please read Logs")
+
+    local_ip = socket.gethostbyname(socket.gethostname())
+    port = 5000  # Quart default port
+    print(f'Web interface is available at http://{local_ip}:{port}')
 
 if __name__ == "__main__":
     asyncio.run(main())
