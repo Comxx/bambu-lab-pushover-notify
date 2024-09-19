@@ -291,7 +291,7 @@ async def on_message(client, message):
                 logging.info(DASH)
                 logging.info(f"{userdata['Printer_Title']} gcode_state has changed to {printer_status[device_id]['gcode_state']}")
                 json_formatted_str = json.dumps(dataDict, indent=2)
-                logging.info(DASH + json_formatted_str + DASH)
+                logging.debug(DASH + json_formatted_str + DASH)
                 previous_gcode_states[server_identifier] = {'state': printer_status[device_id]['gcode_state']}
 
                 msg_text = "<ul>"
@@ -435,35 +435,41 @@ async def search_error(error_code, error_list):
         return None
         
 async def connect_to_broker(broker):
-    Mqttpassword = ''
-    Mqttuser = ''
-    bambu_cloud = BambuCloud(region="US", email=broker["user"], username='', auth_token='')
-    if broker["printer_type"] in ["A1", "P1S"]:
-        if not bambu_cloud.auth_token or not bambu_cloud.username:
-            await bambu_cloud.login(region="US", email=broker["user"], password=broker["password"])
-        Mqttpassword = bambu_cloud.auth_token
-        Mqttuser = bambu_cloud.username
-    else:
-        Mqttpassword = broker["password"]
-        Mqttuser = broker["user"]
+    try:
+        Mqttpassword = ''
+        Mqttuser = ''
+        bambu_cloud = BambuCloud(region="US", email=broker["user"], username='', auth_token='')
+        if broker["printer_type"] in ["A1", "P1S"]:
+            if not bambu_cloud.auth_token or not bambu_cloud.username:
+                logging.info(f"Logging in to Bambu Cloud for {broker['Printer_Title']}...")
+                await bambu_cloud.login(region="US", email=broker["user"], password=broker["password"])
+            Mqttpassword = bambu_cloud.auth_token
+            Mqttuser = bambu_cloud.username
+        else:
+            Mqttpassword = broker["password"]
+            Mqttuser = broker["user"]
 
-    client = MQTTClient(
-        hostname=broker["host"],
-        port=broker["port"],
-        username=Mqttuser,
-        password=Mqttpassword,
-        tls_params=TLSParameters(
-            ca_certs=None,
-            certfile=None,
-            keyfile=None,
-            cert_reqs=ssl.CERT_NONE,
-            tls_version=ssl.PROTOCOL_TLS,
-            ciphers=None
+        logging.info(f"Connecting to MQTT broker for {broker['Printer_Title']}...")
+        client = MQTTClient(
+            hostname=broker["host"],
+            port=broker["port"],
+            username=Mqttuser,
+            password=Mqttpassword,
+            tls_params=TLSParameters(
+                ca_certs=None,
+                certfile=None,
+                keyfile=None,
+                cert_reqs=ssl.CERT_NONE,
+                tls_version=ssl.PROTOCOL_TLS,
+                ciphers=None
+            )
         )
-    )
-    client.userdata = broker
-    
-    return client
+        client.userdata = broker
+        logging.info(f"Successfully created MQTT client for {broker['Printer_Title']}")
+        return client
+    except Exception as e:
+        logging.error(f"Error in connect_to_broker for {broker['Printer_Title']}: {e}")
+        return None
 
 async def start_server():
     config = Config()
@@ -474,7 +480,7 @@ async def reconnect_mqtt(client, max_retries=5, retry_interval=5):
     retries = 0
     while retries < max_retries:
         try:
-            logging.info(f"Attempting to reconnect to MQTT broker for {client.userdata['Printer_Title']}...")
+            logging.info(f"Attempting to reconnect to MQTT broker for {client.userdata['Printer_Title']} (Attempt {retries + 1}/{max_retries})...")
             await client.connect()
             logging.info(f"Successfully reconnected to MQTT broker for {client.userdata['Printer_Title']}")
             return True
@@ -482,11 +488,21 @@ async def reconnect_mqtt(client, max_retries=5, retry_interval=5):
             logging.error(f"Failed to reconnect to MQTT broker for {client.userdata['Printer_Title']}: {error}")
             retries += 1
             if retries < max_retries:
-                logging.info(f"Retrying in {retry_interval} seconds... (Attempt {retries}/{max_retries})")
+                logging.info(f"Retrying in {retry_interval} seconds...")
                 await asyncio.sleep(retry_interval)
             else:
                 logging.error(f"Max retries reached for {client.userdata['Printer_Title']}. Unable to reconnect.")
                 return False
+        except Exception as e:
+            logging.error(f"Unexpected error during reconnection for {client.userdata['Printer_Title']}: {e}")
+            retries += 1
+            if retries < max_retries:
+                logging.info(f"Retrying in {retry_interval} seconds...")
+                await asyncio.sleep(retry_interval)
+            else:
+                logging.error(f"Max retries reached for {client.userdata['Printer_Title']}. Unable to reconnect.")
+                return False
+    return False
 
 async def printer_loop(client):
     while True:
@@ -505,11 +521,23 @@ async def printer_loop(client):
                     logging.error(f"Failed to reconnect for {client.userdata['Printer_Title']}. Exiting printer loop.")
                     break
             else:
-                logging.error(f'Error "{error}" for {client.userdata["Printer_Title"]}. Reconnecting in 5 seconds.')
-                await asyncio.sleep(5)
+                logging.error(f'Error "{error}" for {client.userdata["Printer_Title"]}. Attempting to reconnect...')
+                if await reconnect_mqtt(client):
+                    logging.info(f"Reconnected successfully for {client.userdata['Printer_Title']}. Resuming operations.")
+                    continue
+                else:
+                    logging.error(f"Failed to reconnect for {client.userdata['Printer_Title']}. Exiting printer loop.")
+                    break
         except Exception as e:
             logging.error(f"Unexpected error in printer_loop for {client.userdata['Printer_Title']}: {e}")
-            await asyncio.sleep(5)
+            logging.error(f"Attempting to reconnect...")
+            if await reconnect_mqtt(client):
+                logging.info(f"Reconnected successfully for {client.userdata['Printer_Title']}. Resuming operations.")
+                continue
+            else:
+                logging.error(f"Failed to reconnect for {client.userdata['Printer_Title']}. Exiting printer loop.")
+                break
+        await asyncio.sleep(5)
     
     # Remove the task from printer_tasks when it's done
     device_id = client.userdata['device_id']
