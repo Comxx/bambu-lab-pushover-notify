@@ -456,7 +456,6 @@ async def connect_to_broker(broker):
             username=Mqttuser,
             password=Mqttpassword,
             keepalive=90,  # Adjust as needed
-            client_id=f"client_{broker['device_id']}",  # Unique client ID
             tls_params=TLSParameters(
                 ca_certs=None,
                 certfile=None,
