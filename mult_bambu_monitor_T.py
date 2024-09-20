@@ -455,6 +455,8 @@ async def connect_to_broker(broker):
             port=broker["port"],
             username=Mqttuser,
             password=Mqttpassword,
+            keepalive=90,  # Adjust as needed
+            client_id=f"client_{broker['device_id']}",  # Unique client ID
             tls_params=TLSParameters(
                 ca_certs=None,
                 certfile=None,
@@ -475,34 +477,6 @@ async def start_server():
     config = Config()
     config.bind = ["0.0.0.0:5000"]
     await serve(asgi_app, config)
-    
-async def reconnect_mqtt(client, max_retries=5, retry_interval=5):
-    retries = 0
-    while retries < max_retries:
-        try:
-            logging.info(f"Attempting to reconnect to MQTT broker for {client.userdata['Printer_Title']} (Attempt {retries + 1}/{max_retries})...")
-            await client.connect()
-            logging.info(f"Successfully reconnected to MQTT broker for {client.userdata['Printer_Title']}")
-            return True
-        except MqttError as error:
-            logging.error(f"Failed to reconnect to MQTT broker for {client.userdata['Printer_Title']}: {error}")
-            retries += 1
-            if retries < max_retries:
-                logging.info(f"Retrying in {retry_interval} seconds...")
-                await asyncio.sleep(retry_interval)
-            else:
-                logging.error(f"Max retries reached for {client.userdata['Printer_Title']}. Unable to reconnect.")
-                return False
-        except Exception as e:
-            logging.error(f"Unexpected error during reconnection for {client.userdata['Printer_Title']}: {e}")
-            retries += 1
-            if retries < max_retries:
-                logging.info(f"Retrying in {retry_interval} seconds...")
-                await asyncio.sleep(retry_interval)
-            else:
-                logging.error(f"Max retries reached for {client.userdata['Printer_Title']}. Unable to reconnect.")
-                return False
-    return False
 
 async def printer_loop(client):
     while True:
@@ -513,33 +487,17 @@ async def printer_loop(client):
                     await on_message(client, message)
         except MqttError as error:
             if error.rc == 141:  # Keepalive timeout
-                logging.error(f"Keepalive timeout for {client.userdata['Printer_Title']}. Attempting to reconnect...")
-                if await reconnect_mqtt(client):
-                    logging.info(f"Reconnected successfully for {client.userdata['Printer_Title']}. Resuming operations.")
-                    continue
-                else:
-                    logging.error(f"Failed to reconnect for {client.userdata['Printer_Title']}. Exiting printer loop.")
-                    break
+                logging.error(f"Keepalive timeout for {client.userdata['Printer_Title']}. aiomqtt will attempt to reconnect.")
             else:
-                logging.error(f'Error "{error}" for {client.userdata["Printer_Title"]}. Attempting to reconnect...')
-                if await reconnect_mqtt(client):
-                    logging.info(f"Reconnected successfully for {client.userdata['Printer_Title']}. Resuming operations.")
-                    continue
-                else:
-                    logging.error(f"Failed to reconnect for {client.userdata['Printer_Title']}. Exiting printer loop.")
-                    break
+                logging.error(f'MQTT Error for {client.userdata["Printer_Title"]}: {error}')
+            logging.info(f'aiomqtt will attempt to reconnect automatically for {client.userdata["Printer_Title"]}')
         except Exception as e:
             logging.error(f"Unexpected error in printer_loop for {client.userdata['Printer_Title']}: {e}")
-            logging.error(f"Attempting to reconnect...")
-            if await reconnect_mqtt(client):
-                logging.info(f"Reconnected successfully for {client.userdata['Printer_Title']}. Resuming operations.")
-                continue
-            else:
-                logging.error(f"Failed to reconnect for {client.userdata['Printer_Title']}. Exiting printer loop.")
-                break
+        
+        # Add a small delay before the next iteration
         await asyncio.sleep(5)
     
-    # Remove the task from printer_tasks when it's done
+    # This part will only be reached if the while loop is explicitly broken
     device_id = client.userdata['device_id']
     if device_id in printer_tasks:
         del printer_tasks[device_id]
