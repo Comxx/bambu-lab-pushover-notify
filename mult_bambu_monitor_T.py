@@ -2,7 +2,6 @@
 import asyncio
 import logging
 import ssl
-import sys
 import tzlocal
 from datetime import datetime, timedelta
 from logging.handlers import RotatingFileHandler
@@ -13,7 +12,6 @@ import time
 import wled_t
 from quart import Quart, request, render_template, jsonify
 import socketio
-import socket
 from bambu_cloud_t import BambuCloud
 import traceback
 from constants import CURRENT_STAGE_IDS
@@ -209,6 +207,7 @@ async def on_message(client, message):
             found_hms_error = await search_error(error_code_to_hms_cleaned, english_errors)
             hex_error_code = decimal_to_hex(printer_status[device_id]['print_error'])
             device_errors = await fetch_device_errors() or []
+            log_cached_data()
             found_device_error = await search_error(hex_error_code, device_errors)
             found_hms_error = found_hms_error or {'intro': 'Unknown error'}
             found_device_error = found_device_error or {'intro': 'Unknown error'}
@@ -403,7 +402,27 @@ async def fetch_device_errors():
                     if response.status == 200:
                         data = await response.json()
                         last_fetch_time = datetime.now()
-                        cached_device_error_data = data.get("data", {}).get("device_error", {}).get("en", [])
+                        
+                        # Log the structure of the received data
+                        logging.debug(f"Received data structure: {json.dumps(data, indent=2)}")
+                        
+                        if "data" not in data:
+                            logging.error("No 'data' key in the response")
+                            return None
+                        
+                        if "device_error" not in data["data"]:
+                            logging.error("No 'device_error' key in data")
+                            return None
+                        
+                        if "en" not in data["data"]["device_error"]:
+                            logging.error("No 'en' key in device_error")
+                            return None
+                        
+                        cached_device_error_data = data["data"]["device_error"]["en"]
+                        
+                        # Log the cached data
+                        logging.debug(f"Cached device error data: {json.dumps(cached_device_error_data, indent=2)}")
+                        log_cached_data()
                         return cached_device_error_data
                     else:
                         logging.error(f"Failed to fetch data, status code: {response.status}")
@@ -414,11 +433,22 @@ async def fetch_device_errors():
         except aiohttp.ContentTypeError:
             logging.error("Failed to decode JSON from response")
             return None
+        except json.JSONDecodeError as e:
+            logging.error(f"JSON decode error: {e}")
+            return None
         except Exception as e:
             logging.error(f"Unexpected error in fetch_device_errors: {e}")
+            logging.error(traceback.format_exc())
             return None
     else:
+        logging.debug("Using cached device error data")
+        log_cached_data()
         return cached_device_error_data
+
+# Add this function to check the cached data
+def log_cached_data():
+    global cached_device_error_data
+    logging.debug(f"Current cached device error data: {json.dumps(cached_device_error_data, indent=2)}")
 
 def decimal_to_hex(decimal_error_code):
     hex_error_code = hex(decimal_error_code)[2:]
