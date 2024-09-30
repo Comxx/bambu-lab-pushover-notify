@@ -576,6 +576,9 @@ async def main():
     try:
         setup_logging()
         logging.info("Starting")
+        
+        # Log the initial state of the cached data
+        log_cached_data()
 
         loop = asyncio.get_running_loop()
 
