@@ -371,7 +371,7 @@ async def fetch_english_errors():
         url = "https://e.bambulab.com/query.php?lang=en"
         try:
             async with aiohttp.ClientSession() as session:
-                async with session.get(url, timeout=60) as response:
+                async with session.get(url, timeout=120) as response:
                     if response.status == 200:
                         data = await response.json()
                         last_fetch_time = datetime.now()
@@ -398,7 +398,7 @@ async def fetch_device_errors():
         url = "https://e.bambulab.com/query.php?lang=en"
         try:
             async with aiohttp.ClientSession() as session:
-                async with session.get(url, timeout=60) as response:
+                async with session.get(url, timeout=120) as response:
                     if response.status == 200:
                         data = await response.json()
                         last_fetch_time = datetime.now()
