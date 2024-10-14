@@ -104,6 +104,26 @@ async def save_printer_settings():
         f.write(json.dumps(brokers, indent=4))
     return jsonify({"status": "success"})
 
+@app.route('/reconnect_printer', methods=['POST'])
+async def reconnect_printer():
+    try:
+        data = await request.get_json()
+        printer_id = data.get('printer_id')
+        if not printer_id:
+            return jsonify({'status': 'error', 'message': 'Printer ID not provided'})
+
+        # Find the broker configuration for the given printer_id
+        broker_config = next((broker for broker in brokers if broker['device_id'] == printer_id), None)
+        if not broker_config:
+            return jsonify({'status': 'error', 'message': 'Printer configuration not found'})
+
+        # Initiate reconnection
+        await start_or_restart_printer(broker_config)
+
+        return jsonify({'status': 'success'})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)})
+
 def setup_logging():
     local_timezone = tzlocal.get_localzone()
     current_datetime = datetime.now(local_timezone)
@@ -548,7 +568,7 @@ async def start_or_restart_printer(broker_config):
         if client:
             task = asyncio.create_task(printer_loop(client))
             printer_tasks[device_id] = task
-            logging.info(f"Started task for printer {device_id}")
+            logging.info(f"Started/Restarted task for printer {device_id}")
         else:
             logging.error(f"Failed to connect to broker for printer {device_id}")
     except Exception as e:
