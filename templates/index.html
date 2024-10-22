@@ -291,7 +291,7 @@
                     var confirmation = confirm("Are you sure you want to delete this printer?");
     
                     if (confirmation) {
-                        fetch('/delete_printer', {<!
+                        fetch('/delete_printer', {
                                 method: 'POST',
                                 headers: {
                                     'Content-Type': 'application/json'
