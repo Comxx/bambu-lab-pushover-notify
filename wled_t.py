@@ -6,28 +6,26 @@ import asyncio
 import aiohttp
 from aiohttp import ClientError
 
-async def wled_request(ip_address, payload, max_retries=3, retry_delay=1):
+async def wled_request(ip_address, payload, max_retries=10, retry_delay=60):
     url = f"http://{ip_address}/json"
-    
-    for attempt in range(max_retries):
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.post(url, json=payload, timeout=5) as response:
-                    if response.status == 200:
-                        return True
-                    else:
-                        logging.warning(f"Failed request. Status: {response.status}")
-        except asyncio.TimeoutError:
-            logging.warning(f"Timeout occurred. Attempt {attempt + 1} of {max_retries}")
-        except ClientError as e:
-            logging.error(f"Network error occurred: {str(e)}. Attempt {attempt + 1} of {max_retries}")
-        except Exception as e:
-            logging.error(f"Unexpected error occurred: {str(e)}. Attempt {attempt + 1} of {max_retries}")
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url, json=payload, timeout=5) as response:
+                if response.status == 200:
+                    return True
+                else:
+                    logging.warning(f"Failed request. Status: {response.status}")
+    except asyncio.TimeoutError:
+        logging.warning(f"Timeout occurred. Attempt {attempt + 1} of {max_retries}")
+    except ClientError as e:
+        logging.error(f"Network error occurred: {str(e)}. Attempt {attempt + 1} of {max_retries}")
+    except Exception as e:
+        logging.error(f"Unexpected error occurred: {str(e)}. Attempt {attempt + 1} of {max_retries}")
         
-        if attempt < max_retries - 1:
-            await asyncio.sleep(retry_delay)
+    if attempt < max_retries - 1:
+        await asyncio.sleep(retry_delay)
     
-    logging.error(f"Failed request after {max_retries} attempts.")
+    
     return False
 
 async def set_power(ip_address, state):
