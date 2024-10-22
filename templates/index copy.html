@@ -1,0 +1,321 @@
+<<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panda Creations Bambu Printers</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <style>
+        body {
+            background: rgb(0, 0, 0);
+            color: rgb(255, 255, 255); /* Set all text to white */
+        }
+        .card {
+            background: rgba(0, 0, 0, 0.8); /* Dark semi-transparent background for cards */
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        .card-title, .card-text {
+            color: white; /* Ensure text inside cards is white */
+        }
+        @media (max-width: 576px) {
+            .card-title, .card-text {
+                font-size: 1rem; /* Adjust font size for smaller screens */
+            }
+            .container {
+                padding: 10px; /* Reduce padding on smaller screens */
+            }
+        }
+        .group-border-blue {
+            border: 2px solid blue;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        .group-border-red {
+            border: 2px solid red;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        .group-header {
+            background-color: blue;
+            color: white;
+            padding: 5px 10px;
+            border-top-left-radius: 5px;
+            border-top-right-radius: 5px;
+            margin-top: -10px; /* Align the header with the border */
+            margin-left: -10px; /* Align the header with the border */
+            margin-right: -10px; /* Align the header with the border */
+            margin-bottom: 10px; /* Space between header and form elements */
+        }
+        .progress-bar {
+            font-size: 18px; /* Adjust the font size as needed */
+            font-weight: bold;
+        }
+        .progress {
+            background-color: gray; /* Set the background color of the progress bar to gray */
+        }
+
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#">Panda Creations</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav">
+                    <li class="nav-item">
+                        <a class="nav-link active" aria-current="page" href="#">Home</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" data-bs-toggle="modal" data-bs-target="#configModal" onclick="addNewPrinter()">Add Printer</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <h1 class="mt-5 mb-4 text-center">Panda Creations Bambu Printers</h1>
+        <div class="row" id="printerCards">
+            {% for printer in printers %}
+            <div class="col-12 col-md-6 mb-4">
+                <div id="{{ printer.printer_id }}_card" class="card" style="border: 2px solid {{ printer.printer_color }};">
+                    <div class="card-body">
+                        <h2 class="card-title" style="color: {{ printer.printer_color }};">{{ printer.printer_title }}</h2>
+                        <p id="{{ printer.printer_id }}_state">Loading...</p>
+                        <div class="progress" style="height: 30px;">
+                            <div id="{{ printer.printer_id }}_percent" class="progress-bar progress-bar-striped" role="progressbar" style="width: 0%; background-color: {{ printer.printer_color }}" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">0%</div>
+                        </div>
+                        <p>Remaining Time: <span id="{{ printer.printer_id }}_remaining_days">Loading...</span>d <span id="{{ printer.printer_id }}_remaining_hours">Loading...</span>h <span id="{{ printer.printer_id }}_remaining_minutes">Loading...</span>m</p>
+                        <p id="{{ printer.printer_id }}_lines">Loading...</p>
+                        <p id="{{ printer.printer_id }}_project">Loading...</p>
+                        <p id="{{ printer.printer_id }}_stage">Loading...</p>
+                        <p id="{{ printer.printer_id }}_error" style="color: red;"></p>
+                        <button class="btn btn-danger btn-sm" onclick="deletePrinter('{{ printer.printer_id }}')">Delete</button>
+                        <button class="btn btn-primary btn-sm" onclick="editPrinter('{{ printer.printer_id }}')">Edit Printer</button>
+                        <button class="btn btn-warning btn-sm" onclick="reconnectPrinter('{{ printer.printer_id }}')">Reconnect</button>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Config Modal -->
+    <div class="modal fade" id="configModal" tabindex="-1" aria-labelledby="configModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content" style="background-color: black; color: white;">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="configModalLabel">Add/Edit Printer</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="modal-content" style="background-color: black; color: white;">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="configModalLabel">Add/Edit Printer</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <form id="addPrinterForm" method="post" action="/save_printer">
+                                <input type="hidden" id="editing_printer_id" name="editing_printer_id">
+                                <div class="group-border">
+                                    <div class="group-header">Bambu Printer Info:</div>
+                                    <div class="form-group mb-3">
+                                        <label for="host">Host:</label>
+                                        <input type="text" id="host" name="host" class="form-control" required>
+                                    </div>
+                                    <div class="form-group mb-3">
+                                        <label for="port">Port:</label>
+                                        <input type="number" id="port" name="port" class="form-control" value="8883" required>
+                                    </div>
+                                    <div class="form-group mb-3">
+                                        <label for="user">User:</label>
+                                        <input type="text" id="user" name="user" class="form-control" value="bblp" required>
+                                    </div>
+                                    <div class="form-group mb-3">
+                                        <label for="password">Password:</label>
+                                        <input type="password" id="password" name="password" class="form-control" required>
+                                    </div>
+                                    <div class="form-group mb-3">
+                                        <label for="device_id">Device ID:</label>
+                                        <input type="text" id="device_id" name="device_id" class="form-control" required>
+                                    </div>
+                                    <div class="form-group mb-3">
+                                        <label for="printer_title">Printer Title:</label>
+                                        <input type="text" id="printer_title" name="printer_title" class="form-control" required>
+                                    </div>
+                                </div>
+                                <div class="group-border">
+                                    <div class="group-header">Pushover Info:</div>   
+                                    <div class="form-group mb-3">
+                                        <label for="po_sound">Sound:</label>
+                                        <input type="text" id="po_sound" name="po_sound" class="form-control">
+                                    </div>
+                                    <div class="form-group mb-3">
+                                        <label for="my_pushover_user">User Key:</label>
+                                        <input type="text" id="my_pushover_user" name="my_pushover_user" class="form-control">
+                                    </div>
+                                    <div class="form-group mb-3">
+                                        <label for="my_pushover_app">App Key:</label>
+                                        <input type="text" id="my_pushover_app" name="my_pushover_app" class="form-control">
+                                    </div>
+                                </div>
+                                <div class="group-border">
+                                    <div class="group-header">Additional Features:</div>
+                                    <div class="form-group mb-3">
+                                        <label for="ledlight">LED Light Control:</label>
+                                        <input type="text" id="ledlight" name="ledlight" class="form-control">
+                                    </div>
+                                    <div class="form-group mb-3">
+                                        <label for="wled_ip">WLED IP:</label>
+                                        <input type="text" id="wled_ip" name="wled_ip" class="form-control">
+                                    </div>
+                                </div>
+                                <div class="group-border">
+                                    <div class="group-header">Appearance:</div>
+                                    <div class="form-group mb-3">
+                                        <label for="printer_color">Printer Color:</label>
+                                        <input type="color" id="printer_color" name="printer_color" class="form-control" required>
+                                    </div>
+                                </div>
+                                <button type="submit" class="btn btn-primary">Save</button>
+                            </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-primary" onclick="savePrinter()">Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const socket = io();
+
+        socket.on('printer_update', function(data) {
+            updatePrinterCard(data);
+        });
+
+        function updatePrinterCard(data) {
+            const printerId = data.printer_id;
+            document.getElementById(`${printerId}_state`).textContent = data.state;
+            document.getElementById(`${printerId}_percent`).style.width = `${data.percent}%`;
+            document.getElementById(`${printerId}_percent`).textContent = `${data.percent}%`;
+            document.getElementById(`${printerId}_percent`).setAttribute('aria-valuenow', data.percent);
+            
+            const remainingTime = parseRemainingTime(data.remaining_time);
+            document.getElementById(`${printerId}_remaining_days`).textContent = remainingTime.days;
+            document.getElementById(`${printerId}_remaining_hours`).textContent = remainingTime.hours;
+            document.getElementById(`${printerId}_remaining_minutes`).textContent = remainingTime.minutes;
+            
+            document.getElementById(`${printerId}_lines`).textContent = `Lines: ${data.lines}/${data.lines_total}`;
+            document.getElementById(`${printerId}_project`).textContent = `Project: ${data.project_name}`;
+            document.getElementById(`${printerId}_stage`).textContent = `Stage: ${data.current_stage}`;
+            document.getElementById(`${printerId}_error`).textContent = data.error_messages.join(', ');
+        }
+
+        function parseRemainingTime(timeString) {
+            const parts = timeString.split(':');
+            return {
+                days: Math.floor(parts[0] / 24),
+                hours: parts[0] % 24,
+                minutes: parts[1]
+            };
+        }
+
+        function reconnectPrinter(printerId) {
+            fetch('/reconnect_printer', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ printer_id: printerId }),
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    alert('Reconnection initiated for printer ' + printerId);
+                } else {
+                    alert('Failed to initiate reconnection: ' + data.message);
+                }
+            })
+            .catch((error) => {
+                console.error('Error:', error);
+                alert('An error occurred while trying to reconnect');
+            });
+        }
+
+        function addNewPrinter() {
+            // Reset form fields
+            document.getElementById('printerId').value = '';
+            document.getElementById('printerTitle').value = '';
+            // ... (reset other form fields)
+        }
+
+        function editPrinter(printerId) {
+            // Fetch printer details and populate form
+            fetch(`/get_printer/${printerId}`)
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('printerId').value = data.device_id;
+                    document.getElementById('printerTitle').value = data.Printer_Title;
+                    // ... (populate other form fields)
+                    $('#configModal').modal('show');
+                });
+        }
+
+        function savePrinter() {
+            // Collect form data
+            const printerData = {
+                device_id: document.getElementById('printerId').value,
+                Printer_Title: document.getElementById('printerTitle').value,
+                // ... (collect other form fields)
+            };
+
+            // Send data to server
+            fetch('/save_printer_settings', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(printerData),
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    alert('Printer settings saved successfully');
+                    location.reload();
+                } else {
+                    alert('Failed to save printer settings');
+                }
+            });
+        }
+
+        function deletePrinter(printerId) {
+            if (confirm('Are you sure you want to delete this printer?')) {
+                fetch('/delete_printer', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ printer_id: printerId }),
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        alert('Printer deleted successfully');
+                        location.reload();
+                    } else {
+                        alert('Failed to delete printer');
+                    }
+                });
+            }
+        }
+    </script>
+</body>
+</html>
