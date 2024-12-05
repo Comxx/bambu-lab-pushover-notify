@@ -11,7 +11,7 @@ import json
 import aiohttp
 import time
 import wled_t
-from quart import Quart, request, render_template, jsonify, send_file
+from quart import Quart, request, render_template, jsonify, send_file, send_from_directory
 import socketio
 from bambu_cloud_t import BambuCloud, CloudflareError, EmailCodeRequiredError, TfaCodeRequiredError, EmailCodeExpiredError, EmailCodeIncorrectError
 import traceback
@@ -58,11 +58,23 @@ except FileNotFoundError:
     brokers = []
 
 @app.route('/')
-
-@app.route('/')
 async def home():
     """Serve the main HTML page"""
     return await render_template('index.html')
+
+@app.route('/printerFunctions.js')
+async def printer_functions():
+    return await send_file('printerFunctions.js')
+
+# Route for static files
+@app.route('/static/<path:filename>')
+async def static_files(filename):
+    return await send_from_directory('static', filename)
+
+# Route for modals.html
+@app.route('/modals.html')
+async def modals():
+    return await send_from_directory('static', 'modals.html')
 
 @app.route('/api/printers')
 async def get_printers():
@@ -91,10 +103,6 @@ async def get_printers():
     except Exception as e:
         logging.error(f"Error getting printers: {e}")
         return jsonify({"error": "Failed to get printers"}), 500
-
-@app.route('/modals.html')
-async def modals():
-    return await send_file('modals.html')
 
 @app.errorhandler(404)
 async def not_found(e):
