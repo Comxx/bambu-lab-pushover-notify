@@ -1,0 +1,92 @@
+/* General Styles */
+.bg-light {
+    background-color: #f8f9fa;
+}
+
+/* Printer Card Styles */
+.printer-card {
+    transition: all 0.3s ease;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.printer-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+}
+
+.printer-title {
+    font-weight: 600;
+    color: #333;
+}
+
+.status-badge {
+    font-size: 0.9em;
+    font-weight: 500;
+}
+
+/* Progress Bar Styles */
+.progress {
+    height: 20px;
+    background-color: #e9ecef;
+    border-radius: 10px;
+}
+
+.progress-bar {
+    transition: width 0.3s ease;
+}
+
+/* Form Styles */
+.form-control:focus {
+    border-color: #80bdff;
+    box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25);
+}
+
+.form-control-color {
+    min-height: 38px;
+}
+
+/* Modal Styles */
+.modal-content {
+    border-radius: 8px;
+    border: none;
+}
+
+.modal-header {
+    border-bottom: 1px solid #dee2e6;
+    background-color: #f8f9fa;
+}
+
+.modal-footer {
+    border-top: 1px solid #dee2e6;
+    background-color: #f8f9fa;
+}
+
+/* Toast Styles */
+.toast {
+    background-color: #fff;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+/* Loading Spinner */
+.spinner-border {
+    width: 3rem;
+    height: 3rem;
+}
+
+/* Connection Status */
+.badge {
+    padding: 0.5em 1em;
+}
+
+/* Responsive Adjustments */
+@media (max-width: 768px) {
+    .printer-card {
+        margin-bottom: 1rem;
+    }
+    
+    .modal-dialog {
+        margin: 0.5rem;
+    }
+}
