@@ -48,7 +48,7 @@ function updateConnectionStatus(connected) {
 // Fetch printers from the server
 async function fetchPrinters() {
     try {
-        const response = await fetch('/get_printers');
+        const response = await fetch('/api/printers');
         const data = await response.json();
         
         if (data.printers) {
@@ -56,6 +56,7 @@ async function fetchPrinters() {
         }
     } catch (error) {
         showToast('Error fetching printers', 'error');
+        console.error('Error:', error);
     }
 }
 

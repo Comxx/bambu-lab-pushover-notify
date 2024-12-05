@@ -59,8 +59,14 @@ except FileNotFoundError:
 
 @app.route('/')
 
+@app.route('/')
+async def home():
+    """Serve the main HTML page"""
+    return await render_template('index.html')
+
+@app.route('/api/printers')
 async def get_printers():
-# async def home():
+    """API endpoint for getting printer data"""
     try:
         printers = [
             {
@@ -85,6 +91,7 @@ async def get_printers():
     except Exception as e:
         logging.error(f"Error getting printers: {e}")
         return jsonify({"error": "Failed to get printers"}), 500
+
 @app.errorhandler(404)
 async def not_found(e):
     return jsonify({"error": "Not found"}), 404
