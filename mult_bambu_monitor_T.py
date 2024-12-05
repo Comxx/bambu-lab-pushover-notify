@@ -15,10 +15,7 @@ import socketio
 from bambu_cloud_t import BambuCloud, CloudflareError, EmailCodeRequiredError, TfaCodeRequiredError, EmailCodeExpiredError, EmailCodeIncorrectError
 import traceback
 from constants import CURRENT_STAGE_IDS
-from aiomqtt import Client as MQTTClient, TLSParameters, MqttError, EmailCodeExpiredError, EmailCodeIncorrectError
-from hypercorn.asyncio import serve
-from hypercorn.config import Config
-import signal
+from aiomqtt import Client as MQTTClient, TLSParameters, MqttError
 from collections import defaultdict
 from quart_cors import cors
 from typing import Dict, Any, Optional
