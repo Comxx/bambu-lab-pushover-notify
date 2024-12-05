@@ -39,7 +39,7 @@ printer_status = {}
 cached_device_error_data = None
 printer_tasks = {}
 auth_states = {}  # Track authentication states for printers
-
+cloud_mqtt_client = None
 
 # Initialize Quart app and SocketIO
 app = Quart(__name__)
@@ -574,29 +574,32 @@ async def search_error(error_code, error_list):
         
 async def connect_to_broker(broker):
     try:
-        Mqttpassword = ''
-        Mqttuser = ''
+        global cloud_mqtt_client
         device_id = broker["device_id"]
         
-        # Initialize BambuCloud instance
-        bambu_cloud = BambuCloud(region="US", email=broker["user"], username='', auth_token='')
-        
         if broker["printer_type"] in ["A1", "P1S"]:
+            # Check if we already have a cloud connection
+            if cloud_mqtt_client is not None:
+                # Reuse existing connection
+                logging.info(f"Reusing existing cloud connection for {broker['Printer_Title']}")
+                cloud_mqtt_client.userdata = broker  # Update userdata for this specific printer
+                return cloud_mqtt_client
+            
+            # Initialize BambuCloud instance
+            bambu_cloud = BambuCloud(region="US", email=broker["user"], username='', auth_token='')
+            
             if not bambu_cloud.bambu_connected:
                 logging.info(f"Logging in to Bambu Cloud for {broker['Printer_Title']}...")
                 try:
-                    # First try to use email authentication if available
                     if "email_auth_code" in broker:
                         logging.info(f"Using stored email authentication code for {broker['Printer_Title']}")
                         try:
                             await bambu_cloud.login_with_verification_code(broker["email_auth_code"])
                             auth_states[device_id] = {"status": "connected"}
                         except (EmailCodeExpiredError, EmailCodeIncorrectError):
-                            # If stored code fails, fall back to password login
                             logging.info(f"Stored email code invalid for {broker['Printer_Title']}, falling back to password")
                             await bambu_cloud.login(region="US", email=broker["user"], password=broker["password"])
                     else:
-                        # No stored email code, proceed with normal password login
                         await bambu_cloud.login(region="US", email=broker["user"], password=broker["password"])
                         auth_states[device_id] = {"status": "connected"}
                     
@@ -604,7 +607,6 @@ async def connect_to_broker(broker):
                     logging.error(f"Cloudflare protection blocked connection for {broker['Printer_Title']}")
                     auth_states[device_id] = {"status": "cloudflare_blocked"}
                     return None
-                    
                 except EmailCodeRequiredError:
                     logging.info(f"Email verification required for {broker['Printer_Title']}")
                     auth_states[device_id] = {"status": "email_verification_required"}
@@ -613,7 +615,6 @@ async def connect_to_broker(broker):
                         'status': 'email_verification_required'
                     })
                     return None
-                    
                 except TfaCodeRequiredError:
                     logging.info(f"2FA required for {broker['Printer_Title']}")
                     auth_states[device_id] = {"status": "2fa_required"}
@@ -622,42 +623,56 @@ async def connect_to_broker(broker):
                         'status': '2fa_required'
                     })
                     return None
-                
                 except Exception as e:
                     logging.error(f"Login failed for {broker['Printer_Title']}: {str(e)}")
                     auth_states[device_id] = {"status": "error", "message": str(e)}
                     return None
             
-            Mqttpassword = bambu_cloud.auth_token
-            Mqttuser = bambu_cloud.username
-        else:
-            Mqttpassword = broker["password"]
-            Mqttuser = broker["user"]
-
-        logging.info(f"Connecting to MQTT broker for {broker['Printer_Title']}...")
-        client = MQTTClient(
-            hostname=broker["host"],
-            port=broker["port"],
-            username=Mqttuser,
-            password=Mqttpassword,
-            keepalive=90,
-            tls_params=TLSParameters(
-                ca_certs=None,
-                certfile=None,
-                keyfile=None,
-                cert_reqs=ssl.CERT_NONE,
-                tls_version=ssl.PROTOCOL_TLS,
-                ciphers=None
+            # Create new cloud client
+            cloud_mqtt_client = MQTTClient(
+                hostname="us.mqtt.bambulab.com",
+                port=8883,
+                username=bambu_cloud.username,
+                password=bambu_cloud.auth_token,
+                keepalive=90,
+                tls_params=TLSParameters(
+                    ca_certs=None,
+                    certfile=None,
+                    keyfile=None,
+                    cert_reqs=ssl.CERT_NONE,
+                    tls_version=ssl.PROTOCOL_TLS,
+                    ciphers=None
+                )
             )
-        )
-        client.userdata = broker
-        logging.info(f"Successfully created MQTT client for {broker['Printer_Title']}")
-        return client
+            cloud_mqtt_client.userdata = broker
+            logging.info(f"Created new cloud MQTT client for {broker['Printer_Title']}")
+            return cloud_mqtt_client
+            
+        else:
+            # For X1C printers, create individual local connections
+            client = MQTTClient(
+                hostname=broker["host"],
+                port=broker["port"],
+                username=broker["user"],
+                password=broker["password"],
+                keepalive=90,
+                tls_params=TLSParameters(
+                    ca_certs=None,
+                    certfile=None,
+                    keyfile=None,
+                    cert_reqs=ssl.CERT_NONE,
+                    tls_version=ssl.PROTOCOL_TLS,
+                    ciphers=None
+                )
+            )
+            client.userdata = broker
+            logging.info(f"Created new local MQTT client for {broker['Printer_Title']}")
+            return client
+        
     except Exception as e:
         logging.error(f"Error in connect_to_broker for {broker['Printer_Title']}: {e}")
         logging.error(traceback.format_exc())
         return None
-
 @app.route('/auth_status/<printer_id>', methods=['GET'])
 async def get_auth_status(printer_id):
     status = auth_states.get(printer_id, {"status": "unknown"})
