@@ -11,7 +11,7 @@ import json
 import aiohttp
 import time
 import wled_t
-from quart import Quart, request, render_template, jsonify, make_response
+from quart import Quart, request, render_template, jsonify, send_file
 import socketio
 from bambu_cloud_t import BambuCloud, CloudflareError, EmailCodeRequiredError, TfaCodeRequiredError, EmailCodeExpiredError, EmailCodeIncorrectError
 import traceback
@@ -91,6 +91,10 @@ async def get_printers():
     except Exception as e:
         logging.error(f"Error getting printers: {e}")
         return jsonify({"error": "Failed to get printers"}), 500
+
+@app.route('/modals.html')
+async def modals():
+    return await send_file('modals.html')
 
 @app.errorhandler(404)
 async def not_found(e):
