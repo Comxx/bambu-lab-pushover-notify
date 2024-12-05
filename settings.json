@@ -25,6 +25,7 @@
         "ledlight":   true,
         "wled_ip": "192.168.1.101",
         "color": "#3338FF",
-        "printer_type": "A1"
+        "printer_type": "A1",
+        "email_auth_code": "123456"
         }
         ]

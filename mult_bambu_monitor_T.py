@@ -585,8 +585,20 @@ async def connect_to_broker(broker):
             if not bambu_cloud.bambu_connected:
                 logging.info(f"Logging in to Bambu Cloud for {broker['Printer_Title']}...")
                 try:
-                    await bambu_cloud.login(region="US", email=broker["user"], password=broker["password"])
-                    auth_states[device_id] = {"status": "connected"}
+                    # First try to use email authentication if available
+                    if "email_auth_code" in broker:
+                        logging.info(f"Using stored email authentication code for {broker['Printer_Title']}")
+                        try:
+                            await bambu_cloud.login_with_verification_code(broker["email_auth_code"])
+                            auth_states[device_id] = {"status": "connected"}
+                        except (EmailCodeExpiredError, EmailCodeIncorrectError):
+                            # If stored code fails, fall back to password login
+                            logging.info(f"Stored email code invalid for {broker['Printer_Title']}, falling back to password")
+                            await bambu_cloud.login(region="US", email=broker["user"], password=broker["password"])
+                    else:
+                        # No stored email code, proceed with normal password login
+                        await bambu_cloud.login(region="US", email=broker["user"], password=broker["password"])
+                        auth_states[device_id] = {"status": "connected"}
                     
                 except CloudflareError:
                     logging.error(f"Cloudflare protection blocked connection for {broker['Printer_Title']}")
