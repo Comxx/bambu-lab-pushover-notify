@@ -590,58 +590,74 @@ async def connect_to_broker(broker):
             if not bambu_cloud.bambu_connected:
                 logging.info(f"Logging in to Bambu Cloud for {broker['Printer_Title']}...")
                 try:
-                    # Only try to use email auth code if it exists in settings
+                    # Try email auth code first if it exists
                     if "email_auth_code" in broker:
-                        logging.info(f"Using email auth code from settings for {broker['Printer_Title']}")
-                        await bambu_cloud.login_with_verification_code(broker["email_auth_code"])
-                        auth_states[device_id] = {"status": "connected"}
+                        try:
+                            logging.info(f"Using email auth code from settings for {broker['Printer_Title']}")
+                            await bambu_cloud.login_with_verification_code(broker["email_auth_code"])
+                            auth_states[device_id] = {"status": "connected"}
+                        except (EmailCodeExpiredError, EmailCodeIncorrectError) as e:
+                            logging.error(f"Email auth failed for {broker['Printer_Title']}, requesting new verification: {str(e)}")
+                            auth_states[device_id] = {"status": "email_verification_required"}
+                            await sio.emit('auth_status', {
+                                'printer_id': device_id,
+                                'status': 'email_verification_required'
+                            })
+                            # Trigger email code sending
+                            await bambu_cloud._get_email_verification_code()
+                            return None
                     else:
-                        await bambu_cloud.login(region="US", email=broker["user"], password=broker["password"])
-                        auth_states[device_id] = {"status": "connected"}
+                        # If no auth code exists, try to get one
+                        logging.info(f"No email auth code found for {broker['Printer_Title']}, requesting verification")
+                        auth_states[device_id] = {"status": "email_verification_required"}
+                        await sio.emit('auth_status', {
+                            'printer_id': device_id,
+                            'status': 'email_verification_required'
+                        })
+                        # Trigger email code sending
+                        await bambu_cloud._get_email_verification_code()
+                        return None
                     
-                except EmailCodeExpiredError:
-                    logging.error(f"Email code expired for {broker['Printer_Title']}")
-                    auth_states[device_id] = {"status": "email_verification_required"}
-                    await sio.emit('auth_status', {
-                        'printer_id': device_id,
-                        'status': 'email_verification_required'
-                    })
-                    return None
-                except EmailCodeIncorrectError:
-                    logging.error(f"Email code incorrect for {broker['Printer_Title']}")
-                    auth_states[device_id] = {"status": "email_verification_required"}
-                    await sio.emit('auth_status', {
-                        'printer_id': device_id,
-                        'status': 'email_verification_required'
-                    })
-                    return None
                 except Exception as e:
                     logging.error(f"Login failed for {broker['Printer_Title']}: {str(e)}")
                     auth_states[device_id] = {"status": "error", "message": str(e)}
                     return None
 
             # Create new cloud client
-            cloud_mqtt_client = MQTTClient(
-                hostname="us.mqtt.bambulab.com",
-                port=8883,
-                username=bambu_cloud.username,
-                password=bambu_cloud.auth_token,
-                keepalive=90,
-                tls_params=TLSParameters(
-                    ca_certs=None,
-                    certfile=None,
-                    keyfile=None,
-                    cert_reqs=ssl.CERT_NONE,
-                    tls_version=ssl.PROTOCOL_TLS,
-                    ciphers=None
+            try:
+                cloud_mqtt_client = MQTTClient(
+                    hostname="us.mqtt.bambulab.com",
+                    port=8883,
+                    username=bambu_cloud.username,
+                    password=bambu_cloud.auth_token,
+                    keepalive=90,
+                    tls_params=TLSParameters(
+                        ca_certs=None,
+                        certfile=None,
+                        keyfile=None,
+                        cert_reqs=ssl.CERT_NONE,
+                        tls_version=ssl.PROTOCOL_TLS,
+                        ciphers=None
+                    )
                 )
-            )
-            cloud_mqtt_client.userdata = broker
-            logging.info(f"Created new cloud MQTT client for {broker['Printer_Title']}")
-            return cloud_mqtt_client
+                cloud_mqtt_client.userdata = broker
+                logging.info(f"Created new cloud MQTT client for {broker['Printer_Title']}")
+                return cloud_mqtt_client
+            except MqttError as mqtt_error:
+                if mqtt_error.rc == 135:  # Not authorized
+                    logging.error(f"MQTT authorization failed for {broker['Printer_Title']}, requesting new verification")
+                    auth_states[device_id] = {"status": "email_verification_required"}
+                    await sio.emit('auth_status', {
+                        'printer_id': device_id,
+                        'status': 'email_verification_required'
+                    })
+                    # Trigger email code sending
+                    await bambu_cloud._get_email_verification_code()
+                    return None
+                raise mqtt_error
             
         else:
-            # X1C printer handling
+            # X1C printer handling remains the same
             client = MQTTClient(
                 hostname=broker["host"],
                 port=broker["port"],
