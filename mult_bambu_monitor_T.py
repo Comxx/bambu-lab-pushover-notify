@@ -3,6 +3,7 @@ import asyncio
 import logging
 import ssl
 import tzlocal
+import signal
 from datetime import datetime, timedelta
 from logging.handlers import RotatingFileHandler
 from chump import Application
