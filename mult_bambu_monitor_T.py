@@ -67,11 +67,6 @@ async def home():
 async def static_files(filename):
     return await send_from_directory('static', filename)
 
-# Route for modals.html
-@app.route('/modals.html')
-async def modals():
-    return await send_from_directory('static', 'modals.html')
-
 @app.route('/api/printers')
 async def get_printers():
     """API endpoint for getting printer data"""
