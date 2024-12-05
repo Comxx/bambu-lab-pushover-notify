@@ -8,6 +8,67 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.11.1/font/bootstrap-icons.min.css" rel="stylesheet">
     <style>
+        /* Dark Mode Styles */
+        [data-bs-theme="dark"] {
+            --bs-body-bg: #121212;
+            --bs-body-color: #e0e0e0;
+            --bs-card-bg: #1e1e1e;
+            --bs-card-border-color: #2d2d2d;
+            --bs-navbar-bg: #1e1e1e;
+        }
+    
+        [data-bs-theme="dark"] .navbar {
+            background-color: #1e1e1e !important;
+        }
+    
+        [data-bs-theme="dark"] .card {
+            background-color: #1e1e1e;
+            border-color: #2d2d2d;
+        }
+    
+        [data-bs-theme="dark"] .modal-content {
+            background-color: #1e1e1e;
+            border-color: #2d2d2d;
+        }
+    
+        [data-bs-theme="dark"] .modal-header,
+        [data-bs-theme="dark"] .modal-footer {
+            border-color: #2d2d2d;
+        }
+    
+        [data-bs-theme="dark"] .form-control,
+        [data-bs-theme="dark"] .form-select {
+            background-color: #2d2d2d;
+            border-color: #404040;
+            color: #e0e0e0;
+        }
+    
+        [data-bs-theme="dark"] .form-control:focus,
+        [data-bs-theme="dark"] .form-select:focus {
+            background-color: #2d2d2d;
+            border-color: #404040;
+            color: #e0e0e0;
+        }
+    
+        [data-bs-theme="dark"] .printer-title {
+            color: #e0e0e0;
+        }
+    
+        /* Theme Toggle Button Styles */
+        .theme-toggle {
+            border: none;
+            padding: 5px 10px;
+            border-radius: 20px;
+            margin-right: 10px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+    
+        .theme-toggle i {
+            font-size: 1.2rem;
+        }
         /* Core Styles */
         .printer-card {
             transition: all 0.3s ease;
@@ -66,6 +127,9 @@
                 <span id="globalConnectionStatus" class="badge bg-warning me-3 d-none">Connecting...</span>
                 <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#configModal">
                     Add Printer
+                </button>
+                <button class="btn btn-outline-secondary theme-toggle" id="themeToggle">
+                    <i class="bi bi-sun-fill" id="themeIcon"></i>
                 </button>
             </div>
         </div>
@@ -505,13 +569,42 @@
         );
     }
 
-    // Initialize application
-    document.addEventListener('DOMContentLoaded', () => {
-        notificationManager = new NotificationManager();
-        modalHandler = new ModalHandler();
-        initializeSocket();
-        fetchPrinters();
-    });
+ // Theme management
+function initTheme() {
+    const savedTheme = localStorage.getItem('theme') || 'light';
+    document.documentElement.setAttribute('data-bs-theme', savedTheme);
+    updateThemeIcon(savedTheme);
+}
+
+function toggleTheme() {
+    const currentTheme = document.documentElement.getAttribute('data-bs-theme');
+    const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+    
+    document.documentElement.setAttribute('data-bs-theme', newTheme);
+    localStorage.setItem('theme', newTheme);
+    updateThemeIcon(newTheme);
+}
+
+function updateThemeIcon(theme) {
+    const icon = document.getElementById('themeIcon');
+    if (icon) {
+        icon.className = theme === 'dark' ? 'bi bi-moon-fill' : 'bi bi-sun-fill';
+    }
+}
+
+// Add this to your existing DOMContentLoaded event listener
+document.addEventListener('DOMContentLoaded', () => {
+    notificationManager = new NotificationManager();
+    modalHandler = new ModalHandler();
+    initializeSocket();
+    fetchPrinters();
+    
+    // Initialize theme
+    initTheme();
+    
+    // Add theme toggle event listener
+    document.getElementById('themeToggle').addEventListener('click', toggleTheme);
+
 </script>
 </body>
 </html>
