@@ -11,7 +11,7 @@ import json
 import aiohttp
 import time
 import wled_t
-from quart import Quart, request, render_template, jsonify
+from quart import Quart, request, render_template, jsonify, make_response
 import socketio
 from bambu_cloud_t import BambuCloud, CloudflareError, EmailCodeRequiredError, TfaCodeRequiredError, EmailCodeExpiredError, EmailCodeIncorrectError
 import traceback
@@ -58,25 +58,40 @@ except FileNotFoundError:
     brokers = []
 
 @app.route('/')
-async def home():
-    printers = [
-        {
-            "printer_id": broker["device_id"],
-            "host": broker["host"],
-            "port": broker["port"],
-            "user": broker["user"],
-            "password": broker["password"],
-            "printer_title": broker["Printer_Title"],
-            "po_sound": broker["PO_SOUND"],
-            "my_pushover_user": broker["my_pushover_user"],
-            "my_pushover_app": broker["my_pushover_app"],
-            "ledlight": broker["ledlight"],
-            "wled_ip": broker["wled_ip"],
-            "printer_color": broker["color"]
-        } 
-        for broker in brokers
-    ]
-    return await render_template('index.html', printers=printers)
+
+async def get_printers():
+# async def home():
+    try:
+        printers = [
+            {
+                "printer_id": broker["device_id"],
+                "host": broker["host"],
+                "port": broker["port"],
+                "user": broker["user"],
+                "password": broker["password"],
+                "printer_title": broker["Printer_Title"],
+                "po_sound": broker["PO_SOUND"],
+                "my_pushover_user": broker["my_pushover_user"],
+                "my_pushover_app": broker["my_pushover_app"],
+                "ledlight": broker["ledlight"],
+                "wled_ip": broker["wled_ip"],
+                "printer_color": broker["color"],
+                "printer_type": broker.get("printer_type", "unknown"),
+                "status": printer_status.get(broker["device_id"], {})
+            } 
+            for broker in brokers
+        ]
+        return jsonify({"printers": printers})
+    except Exception as e:
+        logging.error(f"Error getting printers: {e}")
+        return jsonify({"error": "Failed to get printers"}), 500
+@app.errorhandler(404)
+async def not_found(e):
+    return jsonify({"error": "Not found"}), 404
+
+@app.errorhandler(500)
+async def server_error(e):
+    return jsonify({"error": "Internal server error"}), 500
 
 @app.route('/delete_printer', methods=['POST'])
 async def delete_printer():
