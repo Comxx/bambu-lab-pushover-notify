@@ -17,6 +17,8 @@ from bambu_cloud_t import BambuCloud, CloudflareError, EmailCodeRequiredError, T
 import traceback
 from constants import CURRENT_STAGE_IDS
 from aiomqtt import Client as MQTTClient, TLSParameters, MqttError
+from hypercorn.asyncio import serve
+from hypercorn.config import Config as HyperConfig
 from collections import defaultdict
 from quart_cors import cors
 from typing import Dict, Any, Optional
@@ -624,7 +626,7 @@ async def get_auth_status(printer_id):
     status = auth_states.get(printer_id, {"status": "unknown"})
     return jsonify(status)
 async def start_server():
-    config = Config()
+    config = HyperConfig()
     config.bind = ["0.0.0.0:5000"]
     await serve(asgi_app, config)
 
