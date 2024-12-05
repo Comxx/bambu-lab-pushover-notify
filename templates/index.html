@@ -1,26 +1,24 @@
-<!DOCTYPE html>
+<<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Bambu Lab Printer Monitor</title>
     
-    <!-- Stylesheets -->
+    <!-- Bootstrap CSS -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css" rel="stylesheet">
-    <link href="{{ url_for('static', filename='styles.css') }}" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.11.1/font/bootstrap-icons.min.css" rel="stylesheet">
+    <!-- Custom CSS -->
+    <link href="{{ url_for('static', filename='css/styles.css') }}" rel="stylesheet">
 </head>
 <body>
-    <!-- Navigation -->
+    <!-- Navbar -->
     <nav class="navbar navbar-expand-lg navbar-light bg-light">
         <div class="container">
-            <a class="navbar-brand" href="{{ url_for('home') }}">
-                Bambu Lab Printer Monitor
-            </a>
+            <a class="navbar-brand" href="{{ url_for('home') }}">Bambu Lab Printer Monitor</a>
             <div class="d-flex align-items-center">
-                <span id="globalConnectionStatus" class="badge bg-warning me-3 d-none">
-                    Connecting...
-                </span>
+                <span id="globalConnectionStatus" class="badge bg-warning me-3 d-none">Connecting...</span>
                 <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#configModal">
                     Add Printer
                 </button>
@@ -47,7 +45,7 @@
         </div>
     </div>
 
-    <!-- Modal Container -->
+    <!-- Modals Container -->
     <div id="modalsContainer"></div>
 
     <!-- Toast Container -->
@@ -56,6 +54,111 @@
     </div>
 
     <!-- Scripts -->
-    <script src="{{ url_for('static', filename='app.js') }}"></script>
+    <!-- Socket.IO -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.5.4/socket.io.min.js"></script>
+    <!-- Bootstrap Bundle with Popper -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+    <!-- Custom Scripts -->
+    <script src="{{ url_for('static', filename='js/notifications.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/printerFunctions.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/modals.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+    <div class="modal fade" id="configModal" tabindex="-1" aria-labelledby="configModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="configModalLabel">Printer Configuration</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="printerForm" class="needs-validation" novalidate>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label for="host" class="form-label">Host</label>
+                                <input type="text" class="form-control" id="host" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="port" class="form-label">Port</label>
+                                <input type="number" class="form-control" id="port" value="8883" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="user" class="form-label">Username</label>
+                                <input type="text" class="form-control" id="user" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="password" class="form-label">Password</label>
+                                <input type="password" class="form-control" id="password" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="deviceId" class="form-label">Device ID</label>
+                                <input type="text" class="form-control" id="deviceId" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="printerTitle" class="form-label">Printer Title</label>
+                                <input type="text" class="form-control" id="printerTitle" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="printerType" class="form-label">Printer Type</label>
+                                <select class="form-select" id="printerType" required>
+                                    <option value="X1C">X1 Carbon</option>
+                                    <option value="P1S">P1S</option>
+                                    <option value="A1">A1</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="pushoverSound" class="form-label">Pushover Sound</label>
+                                <input type="text" class="form-control" id="pushoverSound" value="classical">
+                            </div>
+                            <div class="col-md-6">
+                                <label for="pushoverUserKey" class="form-label">Pushover User Key</label>
+                                <input type="text" class="form-control" id="pushoverUserKey">
+                            </div>
+                            <div class="col-md-6">
+                                <label for="pushoverAppKey" class="form-label">Pushover App Key</label>
+                                <input type="text" class="form-control" id="pushoverAppKey">
+                            </div>
+                            <div class="col-12">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="ledControl">
+                                    <label class="form-check-label" for="ledControl">LED Control</label>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="wledIp" class="form-label">WLED IP</label>
+                                <input type="text" class="form-control" id="wledIp">
+                            </div>
+                            <div class="col-md-6">
+                                <label for="printerColor" class="form-label">Printer Color</label>
+                                <input type="color" class="form-control form-control-color" id="printerColor" value="#000000">
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-primary" id="savePrinter">Save Printer</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Confirmation Modal -->
+    <div class="modal fade" id="confirmDialog" tabindex="-1" aria-labelledby="confirmDialogLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="confirmDialogLabel">Confirm Action</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p id="confirmMessage"></p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="confirmAction">Confirm</button>
+                </div>
+            </div>
+        </div>
+    </div>
 </body>
 </html>

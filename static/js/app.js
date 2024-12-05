@@ -1,9 +1,10 @@
 // Wait for all required scripts to load
+a// Wait for all required scripts to load
 async function loadDependencies() {
     const scripts = [
         'https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js',
-        'https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.5.4/socket.io.min.js',
-        '/printerFunctions.js'
+        'https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.5.4/socket.io.min.js'
+        // Remove the printerFunctions.js from here as it's now loaded in the HTML
     ];
 
     for (const src of scripts) {
@@ -17,66 +18,11 @@ async function loadDependencies() {
     }
 }
 
-// Initialize modals and Bootstrap components
-window.initializeModals = function() {
-    // Initialize tooltips
-    const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
-    tooltipTriggerList.map(function (tooltipTriggerEl) {
-        return new bootstrap.Tooltip(tooltipTriggerEl);
-    });
-
-    // Initialize popovers
-    const popoverTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="popover"]'));
-    popoverTriggerList.map(function (popoverTriggerEl) {
-        return new bootstrap.Popover(popoverTriggerEl);
-    });
-};
-
-// Update connection status UI
-window.updateConnectionStatus = function(connected) {
-    const statusBadge = document.getElementById('globalConnectionStatus');
-    const connectionBanner = document.getElementById('connectionBanner');
-    const connectionMessage = document.getElementById('connectionMessage');
-    
-    if (connected) {
-        statusBadge.classList.add('d-none');
-        connectionBanner.classList.add('d-none');
-    } else {
-        statusBadge.classList.remove('d-none');
-        connectionBanner.classList.remove('d-none');
-        connectionMessage.textContent = 'Connection lost. Reconnecting...';
-    }
-};
-
-// Fetch and render printers
-window.fetchPrinters = async function() {
-    try {
-        const response = await fetch('/api/printers');
-        const data = await response.json();
-        
-        if (data.printers) {
-            const grid = document.getElementById('printerGrid');
-            const loadingPlaceholder = document.getElementById('loadingPlaceholder');
-            
-            loadingPlaceholder.classList.add('d-none');
-            grid.innerHTML = data.printers.map(printer => window.createPrinterCard(printer)).join('');
-        }
-    } catch (error) {
-        window.showToast('Error fetching printers', 'error');
-        console.error('Error:', error);
-    }
-};
-
 // Initialize application
 async function initializeApp() {
     try {
         // First load all dependencies
         await loadDependencies();
-        
-        // Then load modals
-        const modalResponse = await fetch('/modals.html');
-        const modalHtml = await modalResponse.text();
-        document.getElementById('modalsContainer').innerHTML = modalHtml;
         
         // Initialize modals after HTML is loaded
         window.initializeModals();
@@ -99,6 +45,7 @@ async function initializeApp() {
                 console.error('updatePrinterCard function not found');
             }
         });
+        
         // Fetch initial printer data
         await window.fetchPrinters();
         

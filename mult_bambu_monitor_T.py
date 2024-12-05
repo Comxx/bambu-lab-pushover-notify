@@ -62,10 +62,6 @@ async def home():
     """Serve the main HTML page"""
     return await render_template('index.html')
 
-@app.route('/printerFunctions.js')
-async def printer_functions():
-    return await send_file('printerFunctions.js')
-
 # Route for static files
 @app.route('/static/<path:filename>')
 async def static_files(filename):
