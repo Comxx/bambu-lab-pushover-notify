@@ -93,9 +93,12 @@ async function initializeApp() {
         });
         
         socket.on('printer_update', (data) => {
-            window.updatePrinterCard(data);
+            if (window.updatePrinterCard) {
+                window.updatePrinterCard(data);
+            } else {
+                console.error('updatePrinterCard function not found');
+            }
         });
-        
         // Fetch initial printer data
         await window.fetchPrinters();
         
