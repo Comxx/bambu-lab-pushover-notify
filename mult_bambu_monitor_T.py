@@ -691,6 +691,7 @@ async def shutdown(signal, loop):
     await asyncio.gather(*tasks, return_exceptions=True)
     
     logging.info("Shutdown complete")
+    loop.stop()
 
 async def main():
     try:
@@ -733,13 +734,10 @@ async def main():
             task.cancel()
         
         # Wait for all tasks to complete with a timeout
-        await asyncio.wait(tasks, timeout=10)
-        
-        # Close the event loop
-        loop = asyncio.get_event_loop()
-        loop.stop()
-        loop.close()
-        logging.info("Successfully shutdown the application.")
+        try:
+            await asyncio.wait(tasks, timeout=10)
+        except Exception as e:
+            logging.error(f"Error during task cleanup: {e}")
 
 if __name__ == "__main__":
     asyncio.run(main())
