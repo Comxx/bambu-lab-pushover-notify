@@ -5,163 +5,63 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Bambu Lab Printer Monitor</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
     <style>
-        :root {
-            --dark-bg: #161618;
-            --darker-bg: #1a1a1c;
-            --card-bg: #242528;
-            --border-color: #2f3133;
-            --text-primary: #e9ecef;
-            --text-secondary: #adb5bd;
+        body { background-color: #1a1a1a; color: #e0e0e0; }
+        .printer-card { background-color: #2a2a2a; border: 1px solid #404040; }
+        .printer-card.error { border-color: #dc3545; }
+        .status-badge { font-size: 0.9em; }
+        .progress { background-color: #404040; }
+        .progress-bar { background-color: #0d6efd; }
+        .modal-content { background-color: #2a2a2a; }
+        .form-control, .form-select { 
+            background-color: #333;
+            border-color: #404040;
+            color: #e0e0e0;
         }
-
-        body {
-            background-color: var(--dark-bg);
-            color: var(--text-primary);
-        }
-
-        .navbar {
-            background-color: var(--darker-bg) !important;
-            border-bottom: 1px solid var(--border-color);
-        }
-
-        .card {
-            background-color: var(--card-bg);
-            border: 1px solid var(--border-color);
-        }
-
-        .printer-card {
-            transition: all 0.3s ease;
-        }
-
-        .printer-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-        }
-
-        .card-footer {
-            background-color: var(--card-bg) !important;
-            border-top: 1px solid var(--border-color);
-        }
-
-        .status-badge {
-            font-size: 0.9rem;
-        }
-
-        .progress {
-            height: 20px;
-            background-color: var(--darker-bg);
-        }
-
-        #toastContainer {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            z-index: 1050;
-        }
-
-        .modal-content {
-            background-color: var(--card-bg);
-            border: 1px solid var(--border-color);
-        }
-
-        .modal-header {
-            border-bottom: 1px solid var(--border-color);
-        }
-
-        .modal-footer {
-            border-top: 1px solid var(--border-color);
-        }
-
-        .form-control, .form-select {
-            background-color: var(--darker-bg);
-            border: 1px solid var(--border-color);
-            color: var(--text-primary);
-        }
-
         .form-control:focus, .form-select:focus {
-            background-color: var(--darker-bg);
+            background-color: #404040;
             border-color: #0d6efd;
-            color: var(--text-primary);
-            box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+            color: #e0e0e0;
         }
-
-        .text-muted {
-            color: var(--text-secondary) !important;
+        .navbar { background-color: #2a2a2a !important; }
+        .error-box {
+            background-color: #350c0c;
+            border: 1px solid #dc3545;
+            border-radius: 4px;
+            padding: 10px;
+            margin-top: 10px;
         }
-
-        .btn-close {
-            filter: invert(1) grayscale(100%) brightness(200%);
-        }
-
-        .alert {
-            background-color: var(--darker-bg);
-            border: 1px solid var(--border-color);
-        }
-
-        /* Fix for color input */
-        input[type="color"] {
-            height: 38px;
-            padding: 2px;
-        }
-
-        /* Darker scrollbar */
-        ::-webkit-scrollbar {
-            width: 12px;
-        }
-
-        ::-webkit-scrollbar-track {
-            background: var(--darker-bg);
-        }
-
-        ::-webkit-scrollbar-thumb {
-            background-color: var(--border-color);
-            border-radius: 6px;
-            border: 3px solid var(--darker-bg);
-        }
-
-        ::-webkit-scrollbar-thumb:hover {
-            background-color: #4a4d52;
-        }
-
-        /* Toast customization */
-        .toast {
-            background-color: var(--card-bg);
-            border: 1px solid var(--border-color);
-        }
+        .card-header { background-color: #2c2c2c; }
+        .btn-close { filter: invert(1) grayscale(100%) brightness(200%); }
     </style>
 </head>
 <body>
-    <!-- Navbar -->
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
         <div class="container">
             <a class="navbar-brand" href="#">Bambu Lab Printer Monitor</a>
             <div class="d-flex align-items-center">
                 <span id="globalConnectionStatus" class="badge bg-warning me-3 d-none">Connecting...</span>
-                <button class="btn btn-primary" onclick="openConfigModal()">Add Printer</button>
+                <button class="btn btn-primary" onclick="openAddPrinterModal()">Add Printer</button>
             </div>
         </div>
     </nav>
 
-    <!-- Main Container -->
     <div class="container mb-5">
-        <!-- Connection Banner -->
         <div id="connectionBanner" class="alert alert-warning mb-4 d-none">
             <span id="connectionMessage">Connecting to server...</span>
         </div>
 
-        <!-- Printer Grid -->
         <div id="printerGrid" class="row g-4">
             <div id="loadingPlaceholder" class="col-12 text-center py-5">
                 <div class="spinner-border text-primary" role="status">
                     <span class="visually-hidden">Loading...</span>
                 </div>
-                <p class="mt-2">Loading printers...</p>
+                <div class="mt-2">Loading printers...</div>
             </div>
         </div>
     </div>
-
-    <!-- Configuration Modal -->
+    <!-- Printer Configuration Modal -->
     <div class="modal fade" id="configModal" tabindex="-1">
         <div class="modal-dialog">
             <div class="modal-content">
@@ -171,34 +71,34 @@
                 </div>
                 <div class="modal-body">
                     <form id="printerConfigForm">
-                        <input type="hidden" id="printerId">
+                        <input type="hidden" id="printerIdInput">
                         <div class="mb-3">
                             <label class="form-label">Printer Title</label>
-                            <input type="text" class="form-control" id="printerTitle" required>
+                            <input type="text" class="form-control" id="printerTitleInput" required>
                         </div>
                         <div class="mb-3">
                             <label class="form-label">Host</label>
-                            <input type="text" class="form-control" id="host" required>
+                            <input type="text" class="form-control" id="hostInput" required>
                         </div>
                         <div class="mb-3">
                             <label class="form-label">Port</label>
-                            <input type="number" class="form-control" id="port" required>
+                            <input type="number" class="form-control" id="portInput" required>
                         </div>
                         <div class="mb-3">
                             <label class="form-label">Username</label>
-                            <input type="text" class="form-control" id="username" required>
+                            <input type="text" class="form-control" id="usernameInput" required>
                         </div>
                         <div class="mb-3">
                             <label class="form-label">Password</label>
-                            <input type="password" class="form-control" id="password" required>
+                            <input type="password" class="form-control" id="passwordInput" required>
                         </div>
                         <div class="mb-3">
                             <label class="form-label">Device ID</label>
-                            <input type="text" class="form-control" id="deviceId" required>
+                            <input type="text" class="form-control" id="deviceIdInput" required>
                         </div>
                         <div class="mb-3">
                             <label class="form-label">Printer Type</label>
-                            <select class="form-select" id="printerType" required>
+                            <select class="form-select" id="printerTypeInput" required>
                                 <option value="X1C">X1 Carbon</option>
                                 <option value="A1">A1</option>
                                 <option value="P1S">P1S</option>
@@ -206,32 +106,32 @@
                         </div>
                         <div class="mb-3">
                             <label class="form-label">Pushover Sound</label>
-                            <select class="form-select" id="pushoverSound">
+                            <select class="form-select" id="pushoverSoundInput">
                                 <option value="classical">Classical</option>
                                 <option value="pushover">Default</option>
                             </select>
                         </div>
                         <div class="mb-3">
                             <label class="form-label">Pushover User Key</label>
-                            <input type="text" class="form-control" id="pushoverUser">
+                            <input type="text" class="form-control" id="pushoverUserInput">
                         </div>
                         <div class="mb-3">
                             <label class="form-label">Pushover App Key</label>
-                            <input type="text" class="form-control" id="pushoverApp">
+                            <input type="text" class="form-control" id="pushoverAppInput">
                         </div>
                         <div class="mb-3">
                             <div class="form-check">
-                                <input type="checkbox" class="form-check-input" id="ledControl">
+                                <input type="checkbox" class="form-check-input" id="ledControlInput">
                                 <label class="form-check-label">LED Control</label>
                             </div>
                         </div>
                         <div class="mb-3">
                             <label class="form-label">WLED IP</label>
-                            <input type="text" class="form-control" id="wledIp">
+                            <input type="text" class="form-control" id="wledIpInput">
                         </div>
                         <div class="mb-3">
                             <label class="form-label">Printer Color</label>
-                            <input type="color" class="form-control" id="printerColor">
+                            <input type="color" class="form-control" id="printerColorInput">
                         </div>
                     </form>
                 </div>
@@ -262,275 +162,193 @@
         </div>
     </div>
 
-    <!-- Toast Container -->
-    <div id="toastContainer"></div>
+    <div id="toastContainer" class="position-fixed bottom-0 end-0 p-3"></div>
 
     <!-- Scripts -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
     <script>
+        // Global variables
         let socket;
-        let printers = [];
-        const configModal = new bootstrap.Modal(document.getElementById('configModal'));
-        const confirmDialog = new bootstrap.Modal(document.getElementById('confirmDialog'));
-
+        let printers = new Map();
+        let configModal;
+        let confirmDialog;
+        let currentPrinterId = null;
+        
         // Initialize when document is ready
         document.addEventListener('DOMContentLoaded', () => {
-            connectSocket();
+            configModal = new bootstrap.Modal(document.getElementById('configModal'));
+            confirmDialog = new bootstrap.Modal(document.getElementById('confirmDialog'));
+            initializeWebSocket();
+            loadPrinters();
         });
-
-        // Connect to Socket.IO server
-        function connectSocket() {
-            socket = io();
+        
+        // WebSocket Management
+        function initializeWebSocket() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}`;
             
+            socket = io(wsUrl, {
+                reconnectionDelayMax: 10000,
+                reconnection: true
+            });
+        
             socket.on('connect', () => {
                 document.getElementById('globalConnectionStatus').classList.add('d-none');
                 document.getElementById('connectionBanner').classList.add('d-none');
-                loadPrinters();
+                showToast('Connected to server', 'success');
             });
-
+        
             socket.on('disconnect', () => {
                 document.getElementById('globalConnectionStatus').classList.remove('d-none');
                 document.getElementById('connectionBanner').classList.remove('d-none');
+                document.getElementById('connectionMessage').textContent = 'Lost connection to server. Reconnecting...';
             });
-
-            socket.on('printer_update', updatePrinterCard);
+        
+            socket.on('printer_update', (data) => {
+                if (data && data.printer_id) {
+                    printers.set(data.printer_id, { 
+                        ...printers.get(data.printer_id), 
+                        ...data 
+                    });
+                    updatePrinterCard(printers.get(data.printer_id));
+                }
+            });
+        
             socket.on('auth_status', handleAuthStatus);
         }
-
-        // Load printers from API
+        
+        // Printer data management
         async function loadPrinters() {
             try {
                 const response = await fetch('/api/printers');
                 const data = await response.json();
-                printers = data.printers;
-                renderPrinterGrid();
+                
+                if (data.printers) {
+                    document.getElementById('loadingPlaceholder').classList.add('d-none');
+                    data.printers.forEach(printer => {
+                        printers.set(printer.printer_id, printer);
+                        updatePrinterCard(printer);
+                    });
+                }
             } catch (error) {
-                showToast('Error loading printers', 'danger');
+                showToast('Error loading printers', 'error');
+                console.error('Error loading printers:', error);
             }
         }
-
-        // Show toast notification
-        function showToast(message, type = 'info') {
-            const toast = document.createElement('div');
-            toast.className = `toast show bg-${type} text-white`;
-            toast.setAttribute('role', 'alert');
-            toast.innerHTML = `
-                <div class="toast-body d-flex justify-content-between align-items-center">
-                    ${message}
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast"></button>
-                </div>
-            `;
-            document.getElementById('toastContainer').appendChild(toast);
-            setTimeout(() => toast.remove(), 3000);
-        }
-
-        // Render printer grid
-        function renderPrinterGrid() {
-            const grid = document.getElementById('printerGrid');
-            grid.innerHTML = printers.map(printer => createPrinterCard(printer)).join('');
-            document.getElementById('loadingPlaceholder').classList.add('d-none');
-        }
-
-        // Create printer card HTML
+        
         function createPrinterCard(printer) {
-            const status = printer.status || {};
-            return `
-                <div class="col-md-6 col-lg-4" id="printer-${printer.printer_id}">
-                    <div class="card printer-card h-100" style="border-top: 5px solid ${printer.printer_color || '#000'}">
-                        <div class="card-body">
-                            <div class="d-flex justify-content-between align-items-start mb-3">
-                                <h5 class="card-title mb-0">${printer.printer_title}</h5>
-                                <span class="badge ${getStatusBadgeClass(status.state)}">${status.state || 'Unknown'}</span>
-                            </div>
-                            <div class="progress mb-3">
-                                <div class="progress-bar" role="progressbar" style="width: ${status.percent || 0}%">
-                                    ${status.percent || 0}%
-                                </div>
-                            </div>
-                            <p class="card-text">
-                                <small class="text-muted">
-                                    Project: ${status.project_name || 'None'}<br>
-                                    Layer: ${status.lines || 0}/${status.lines_total || 0}<br>
-                                    Time Remaining: ${status.remaining_time || 'N/A'}<br>
-                                    Estimated End: ${status.approx_end || 'N/A'}
-                                </small>
-                            </p>
-                            ${status.error_messages ? `
-                                <div class="alert alert-danger mb-0">
-                                    ${status.error_messages.join('<br>')}
-                                </div>
-                            ` : ''}
+            const hasError = printer.print_error && printer.print_error !== 0;
+            const card = document.createElement('div');
+            card.className = 'col-md-6 col-lg-4';
+            card.id = `printer-${printer.printer_id}`;
+            
+            let errorHtml = '';
+            if (hasError && printer.error_messages && printer.error_messages.length > 0) {
+                errorHtml = `
+                    <div class="error-box mt-2">
+                        <h6 class="text-danger mb-2">Error Details:</h6>
+                        ${printer.error_messages.map(msg => `<div>${msg}</div>`).join('')}
+                    </div>
+                `;
+            }
+        
+            card.innerHTML = `
+                <div class="card printer-card ${hasError ? 'error' : ''}">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">${printer.printer_title || printer.Printer_Title}</h5>
+                        <div class="btn-group">
+                            <button class="btn btn-sm btn-outline-primary" onclick="reconnectPrinter('${printer.printer_id}')">
+                                <i class="bi bi-arrow-clockwise"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-primary" onclick="editPrinter('${printer.printer_id}')">
+                                <i class="bi bi-gear"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger" onclick="deletePrinter('${printer.printer_id}')">
+                                <i class="bi bi-trash"></i>
+                            </button>
                         </div>
-                        <div class="card-footer bg-transparent">
-                            <div class="btn-group w-100">
-                                <button class="btn btn-outline-primary" onclick="editPrinter('${printer.printer_id}')">
-                                    Edit
-                                </button>
-                                <button class="btn btn-outline-secondary" onclick="reconnectPrinter('${printer.printer_id}')">
-                                    Reconnect
-                                </button>
-                                <button class="btn btn-outline-danger" onclick="deletePrinter('${printer.printer_id}')">
-                                    Delete
-                                </button>
+                    </div>
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between mb-2">
+                            <span class="status-badge badge ${getStatusBadgeClass(printer.state)}">${printer.state || 'Unknown'}</span>
+                            <span class="text-muted">${printer.current_stage || ''}</span>
+                        </div>
+                        
+                        <div class="progress mb-2" style="height: 20px;">
+                            <div class="progress-bar" role="progressbar" 
+                                 style="width: ${printer.percent || 0}%"
+                                 aria-valuenow="${printer.percent || 0}" 
+                                 aria-valuemin="0" 
+                                 aria-valuemax="100">
+                                ${printer.percent || 0}%
                             </div>
                         </div>
+        
+                        <div class="printer-details">
+                            ${printer.project_name ? `<div class="mb-1">Project: ${printer.project_name}</div>` : ''}
+                            ${printer.lines ? `<div class="mb-1">Layer: ${printer.lines}/${printer.lines_total}</div>` : ''}
+                            ${printer.remaining_time ? `<div class="mb-1">Time Left: ${printer.remaining_time}</div>` : ''}
+                            ${printer.approx_end ? `<div class="mb-1">Est. Completion: ${printer.approx_end}</div>` : ''}
+                        </div>
+                        ${errorHtml}
                     </div>
                 </div>
             `;
+            
+            return card;
         }
-
-        // Get appropriate badge class based on printer state
+        
+        function updatePrinterCard(printer) {
+            const container = document.getElementById('printerGrid');
+            const existingCard = document.getElementById(`printer-${printer.printer_id}`);
+            
+            if (existingCard) {
+                existingCard.replaceWith(createPrinterCard(printer));
+            } else {
+                container.appendChild(createPrinterCard(printer));
+            }
+        }
+        
         function getStatusBadgeClass(state) {
             switch (state?.toLowerCase()) {
                 case 'printing':
                     return 'bg-primary';
                 case 'finish':
-                case 'completed':
                     return 'bg-success';
+                case 'idle':
+                    return 'bg-secondary';
                 case 'failed':
                     return 'bg-danger';
-                case 'paused':
-                    return 'bg-warning';
                 default:
-                    return 'bg-secondary';
+                    return 'bg-warning';
             }
         }
-
-        // Update printer card with new data
-        function updatePrinterCard(data) {
-            const card = document.getElementById(`printer-${data.printer_id}`);
-            if (card) {
-                const printer = printers.find(p => p.printer_id === data.printer_id);
-                if (printer) {
-                    printer.status = {...printer.status, ...data};
-                    card.outerHTML = createPrinterCard(printer);
-                }
-            }
-        }
-
-        // Save printer configuration
-        async function savePrinterConfig() {
-            const formData = {
-                device_id: document.getElementById('deviceId').value,
-                Printer_Title: document.getElementById('printerTitle').value,
-                host: document.getElementById('host').value,
-                port: parseInt(document.getElementById('port').value),
-                user: document.getElementById('username').value,
-                password: document.getElementById('password').value,
-                printer_type: document.getElementById('printerType').value,
-                PO_SOUND: document.getElementById('pushoverSound').value,
-                my_pushover_user: document.getElementById('pushoverUser').value,
-                my_pushover_app: document.getElementById('pushoverApp').value,
-                ledlight: document.getElementById('ledControl').checked,
-                wled_ip: document.getElementById('wledIp').value,
-                color: document.getElementById('printerColor').value
-            };
-
-            const isEdit = document.getElementById('printerId').value !== '';
-            const existingIndex = printers.findIndex(p => p.printer_id === formData.device_id);
-
-            try {
-                if (isEdit && existingIndex === -1) {
-                    throw new Error('Printer not found');
-                }
-
-                if (!isEdit && existingIndex !== -1) {
-                    throw new Error('Printer ID already exists');
-                }
-
-                const response = await fetch('/save_printer_settings', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(isEdit ? 
-                        printers.map(p => p.printer_id === formData.device_id ? formData : p) :
-                        [...printers, formData]
-                    )
-                });
-
-                if (!response.ok) throw new Error('Failed to save printer settings');
-
-                const result = await response.json();
-                if (result.status === 'success') {
-                    showToast(`Printer ${isEdit ? 'updated' : 'added'} successfully`, 'success');
-                    configModal.hide();
-                    loadPrinters();
-                } else {
-                    throw new Error(result.message || 'Failed to save printer settings');
-                }
-            } catch (error) {
-                showToast(error.message, 'danger');
-            }
-        }
-
-        // Edit printer
-        function editPrinter(printerId) {
-            openConfigModal(printerId);
-        }
-
-        // Delete printer
-        function deletePrinter(printerId) {
-            document.getElementById('confirmButton').onclick = async () => {
-                try {
-                    const response = await fetch('/delete_printer', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ printer_id: printerId })
-                    });
-
-                    const result = await response.json();
-                    if (result.status === 'success') {
-                        showToast('Printer deleted successfully', 'success');
-                        loadPrinters();
-                    } else {
-                        throw new Error(result.message || 'Failed to delete printer');
-                    }
-                } catch (error) {
-                    showToast(error.message, 'danger');
-                } finally {
-                    confirmDialog.hide();
-                }
-            };
-            confirmDialog.show();
-        }
-
-        // Reconnect printer
-        async function reconnectPrinter(printerId) {
-            try {
-                const response = await fetch('/reconnect_printer', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ printer_id: printerId })
-                });
-
-                const result = await response.json();
-                if (result.status === 'success') {
-                    showToast('Reconnection initiated', 'success');
-                } else {
-                    throw new Error(result.message || 'Failed to reconnect printer');
-                }
-            } catch (error) {
-                showToast(error.message, 'danger');
-            }
-        }
-
-        // Handle authentication status updates
-        function handleAuthStatus(data) {
+        
+        // Authentication Handling
+        async function handleAuthStatus(data) {
             const { printer_id, status } = data;
+            
             if (status === 'email_verification_required') {
-                const code = prompt('Please enter the email verification code:');
+                const code = await promptForVerificationCode('Please enter the email verification code:');
                 if (code) {
-                    verifyEmail(printer_id, code);
+                    await verifyEmail(printer_id, code);
                 }
             } else if (status === '2fa_required') {
-                const code = prompt('Please enter the 2FA code:');
+                const code = await promptForVerificationCode('Please enter the 2FA code:');
                 if (code) {
-                    verify2FA(printer_id, code);
+                    await verify2FA(printer_id, code);
                 }
             }
         }
-
-        // Verify email code
+        
+        function promptForVerificationCode(message) {
+            return new Promise((resolve) => {
+                const code = prompt(message);
+                resolve(code);
+            });
+        }
+        
         async function verifyEmail(printerId, code) {
             try {
                 const response = await fetch('/verify_email', {
@@ -538,18 +356,20 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ printer_id: printerId, code })
                 });
+        
                 const data = await response.json();
-                showToast(data.status === 'success' ? 
-                    'Email verified successfully' : 
-                    data.message || 'Verification failed',
-                    data.status === 'success' ? 'success' : 'danger'
-                );
+                
+                if (data.status === 'success') {
+                    showToast('Email verification successful', 'success');
+                } else {
+                    showToast(data.message || 'Email verification failed', 'error');
+                }
             } catch (error) {
-                showToast('Error verifying email', 'danger');
+                showToast('Error during email verification', 'error');
+                console.error('Email verification error:', error);
             }
         }
-
-        // Verify 2FA code
+        
         async function verify2FA(printerId, code) {
             try {
                 const response = await fetch('/verify_2fa', {
@@ -557,16 +377,174 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ printer_id: printerId, code })
                 });
+        
                 const data = await response.json();
-                showToast(data.status === 'success' ? 
-                    '2FA verified successfully' : 
-                    data.message || 'Verification failed',
-                    data.status === 'success' ? 'success' : 'danger'
-                );
+                
+                if (data.status === 'success') {
+                    showToast('2FA verification successful', 'success');
+                } else {
+                    showToast(data.message || '2FA verification failed', 'error');
+                }
             } catch (error) {
-                showToast('Error verifying 2FA', 'danger');
+                showToast('Error during 2FA verification', 'error');
+                console.error('2FA verification error:', error);
             }
         }
-    </script>
-</body>
-</html>
+        
+        // Printer Configuration Modal Handlers
+        function openAddPrinterModal() {
+            currentPrinterId = null;
+            document.getElementById('printerConfigForm').reset();
+            document.getElementById('printerIdInput').value = '';
+            configModal.show();
+        }
+        
+        function editPrinter(printerId) {
+            const printer = printers.get(printerId);
+            if (!printer) return;
+        
+            currentPrinterId = printerId;
+            document.getElementById('printerIdInput').value = printerId;
+            document.getElementById('printerTitleInput').value = printer.printer_title || printer.Printer_Title;
+            document.getElementById('hostInput').value = printer.host;
+            document.getElementById('portInput').value = printer.port;
+            document.getElementById('usernameInput').value = printer.user;
+            document.getElementById('deviceIdInput').value = printer.printer_id;
+            document.getElementById('printerTypeInput').value = printer.printer_type;
+            document.getElementById('pushoverSoundInput').value = printer.po_sound || printer.PO_SOUND;
+            document.getElementById('pushoverUserInput').value = printer.my_pushover_user;
+            document.getElementById('pushoverAppInput').value = printer.my_pushover_app;
+            document.getElementById('ledControlInput').checked = printer.ledlight;
+            document.getElementById('wledIpInput').value = printer.wled_ip;
+            document.getElementById('printerColorInput').value = printer.printer_color || printer.color;
+            
+            configModal.show();
+        }
+        
+        async function savePrinterConfig() {
+            const formData = {
+                device_id: document.getElementById('deviceIdInput').value,
+                Printer_Title: document.getElementById('printerTitleInput').value,
+                host: document.getElementById('hostInput').value,
+                port: parseInt(document.getElementById('portInput').value),
+                user: document.getElementById('usernameInput').value,
+                password: document.getElementById('passwordInput').value,
+                printer_type: document.getElementById('printerTypeInput').value,
+                PO_SOUND: document.getElementById('pushoverSoundInput').value,
+                my_pushover_user: document.getElementById('pushoverUserInput').value,
+                my_pushover_app: document.getElementById('pushoverAppInput').value,
+                ledlight: document.getElementById('ledControlInput').checked,
+                wled_ip: document.getElementById('wledIpInput').value,
+                color: document.getElementById('printerColorInput').value
+            };
+        
+            try {
+                let printersList = Array.from(printers.values());
+                if (currentPrinterId) {
+                    printersList = printersList.map(p => 
+                        p.printer_id === currentPrinterId ? { ...p, ...formData } : p
+                    );
+                } else {
+                    printersList.push(formData);
+                }
+        
+                const response = await fetch('/save_printer_settings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(printersList)
+                });
+        
+                if (response.ok) {
+                    showToast('Printer configuration saved successfully', 'success');
+                    configModal.hide();
+                    loadPrinters();
+                } else {
+                    throw new Error('Failed to save printer configuration');
+                }
+            } catch (error) {
+                showToast('Error saving printer configuration', 'error');
+                console.error('Error saving printer config:', error);
+            }
+        }
+        
+        async function reconnectPrinter(printerId) {
+            try {
+                const response = await fetch('/reconnect_printer', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ printer_id: printerId })
+                });
+        
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    showToast('Reconnection initiated', 'success');
+                } else {
+                    showToast(data.message || 'Reconnection failed', 'error');
+                }
+            } catch (error) {
+                showToast('Error initiating reconnection', 'error');
+                console.error('Reconnection error:', error);
+            }
+        }
+        
+        async function deletePrinter(printerId) {
+            const confirmButton = document.getElementById('confirmButton');
+            
+            const handleConfirm = async () => {
+                try {
+                    const response = await fetch('/delete_printer', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ printer_id: printerId })
+                    });
+        
+                    const data = await response.json();
+                    
+                    if (data.status === 'success') {
+                        printers.delete(printerId);
+                        document.getElementById(`printer-${printerId}`)?.remove();
+                        showToast('Printer deleted successfully', 'success');
+                    } else {
+                        throw new Error(data.message || 'Failed to delete printer');
+                    }
+                } catch (error) {
+                    showToast('Error deleting printer', 'error');
+                    console.error('Delete printer error:', error);
+                } finally {
+                    confirmDialog.hide();
+                    confirmButton.onclick = null;
+                }
+            };
+        
+            confirmButton.onclick = handleConfirm;
+            confirmDialog.show();
+        }
+        
+        // Utility Functions
+        function showToast(message, type = 'info') {
+            const toastContainer = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            toast.className = `toast align-items-center text-white bg-${type === 'error' ? 'danger' : 'success'} border-0`;
+            toast.setAttribute('role', 'alert');
+            toast.setAttribute('aria-live', 'assertive');
+            toast.setAttribute('aria-atomic', 'true');
+        
+            toast.innerHTML = `
+                <div class="d-flex">
+                    <div class="toast-body">${message}</div>
+                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+                </div>
+            `;
+        
+            toastContainer.appendChild(toast);
+            const bsToast = new bootstrap.Toast(toast);
+            bsToast.show();
+        
+            toast.addEventListener('hidden.bs.toast', () => {
+                toast.remove();
+            });
+        }
+        </script>
+        </body>
+        </html>
