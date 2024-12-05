@@ -12,14 +12,16 @@ import time
 import wled_t
 from quart import Quart, request, render_template, jsonify
 import socketio
-from bambu_cloud_t import BambuCloud
+from bambu_cloud_t import BambuCloud, CloudflareError, EmailCodeRequiredError, TfaCodeRequiredError, EmailCodeExpiredError, EmailCodeIncorrectError
 import traceback
 from constants import CURRENT_STAGE_IDS
-from aiomqtt import Client as MQTTClient, TLSParameters, MqttError
+from aiomqtt import Client as MQTTClient, TLSParameters, MqttError, EmailCodeExpiredError, EmailCodeIncorrectError
 from hypercorn.asyncio import serve
 from hypercorn.config import Config
 import signal
 from collections import defaultdict
+from quart_cors import cors
+from typing import Dict, Any, Optional
 
 DASH = '\n-------------------------------------------\n'
 
@@ -36,6 +38,8 @@ current_stage = 'unknown'
 printer_status = {}
 cached_device_error_data = None
 printer_tasks = {}
+auth_states = {}  # Track authentication states for printers
+
 
 # Initialize Quart app and SocketIO
 app = Quart(__name__)
@@ -123,6 +127,65 @@ async def reconnect_printer():
         return jsonify({'status': 'success'})
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)})
+# Add new routes for authentication handling
+@app.route('/verify_email', methods=['POST'])
+async def verify_email():
+    try:
+        data = await request.get_json()
+        printer_id = data.get('printer_id')
+        code = data.get('code')
+        
+        broker = next((b for b in brokers if b["device_id"] == printer_id), None)
+        if not broker:
+            return jsonify({'status': 'error', 'message': 'Printer not found'})
+        
+        bambu_cloud = BambuCloud(region="US", email=broker["user"], username='', auth_token='')
+        
+        try:
+            await bambu_cloud.login_with_verification_code(code)
+            auth_states[printer_id] = {"status": "connected"}
+            
+            # Attempt to reconnect the printer
+            await start_or_restart_printer(broker)
+            
+            return jsonify({'status': 'success'})
+            
+        except EmailCodeExpiredError:
+            return jsonify({'status': 'error', 'message': 'Verification code expired'})
+        except EmailCodeIncorrectError:
+            return jsonify({'status': 'error', 'message': 'Incorrect verification code'})
+        except Exception as e:
+            return jsonify({'status': 'error', 'message': str(e)})
+            
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)})
+
+@app.route('/verify_2fa', methods=['POST'])
+async def verify_2fa():
+    try:
+        data = await request.get_json()
+        printer_id = data.get('printer_id')
+        code = data.get('code')
+        
+        broker = next((b for b in brokers if b["device_id"] == printer_id), None)
+        if not broker:
+            return jsonify({'status': 'error', 'message': 'Printer not found'})
+        
+        bambu_cloud = BambuCloud(region="US", email=broker["user"], username='', auth_token='')
+        
+        try:
+            await bambu_cloud.login_with_2fa_code(code)
+            auth_states[printer_id] = {"status": "connected"}
+            
+            # Attempt to reconnect the printer
+            await start_or_restart_printer(broker)
+            
+            return jsonify({'status': 'success'})
+        except Exception as e:
+            return jsonify({'status': 'error', 'message': str(e)})
+            
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)})
 
 def setup_logging():
     local_timezone = tzlocal.get_localzone()
@@ -200,7 +263,7 @@ async def on_message(client, message):
                 'mc_remaining_time': print_data.get("mc_remaining_time", printer_status[device_id]['mc_remaining_time']),
                 'mc_print_stage': print_data.get("mc_print_stage", printer_status[device_id]['mc_print_stage'])
             })
-            
+            print_data = dataDict['print']
             current_stage = get_current_stage_name(printer_status[device_id]['mc_print_stage'])
             
             # Initialize state for new printer
@@ -488,11 +551,46 @@ async def connect_to_broker(broker):
     try:
         Mqttpassword = ''
         Mqttuser = ''
+        device_id = broker["device_id"]
+        
+        # Initialize BambuCloud instance
         bambu_cloud = BambuCloud(region="US", email=broker["user"], username='', auth_token='')
+        
         if broker["printer_type"] in ["A1", "P1S"]:
-            if not bambu_cloud.auth_token or not bambu_cloud.username:
+            if not bambu_cloud.bambu_connected:
                 logging.info(f"Logging in to Bambu Cloud for {broker['Printer_Title']}...")
-                await bambu_cloud.login(region="US", email=broker["user"], password=broker["password"])
+                try:
+                    await bambu_cloud.login(region="US", email=broker["user"], password=broker["password"])
+                    auth_states[device_id] = {"status": "connected"}
+                    
+                except CloudflareError:
+                    logging.error(f"Cloudflare protection blocked connection for {broker['Printer_Title']}")
+                    auth_states[device_id] = {"status": "cloudflare_blocked"}
+                    return None
+                    
+                except EmailCodeRequiredError:
+                    logging.info(f"Email verification required for {broker['Printer_Title']}")
+                    auth_states[device_id] = {"status": "email_verification_required"}
+                    await sio.emit('auth_status', {
+                        'printer_id': device_id,
+                        'status': 'email_verification_required'
+                    })
+                    return None
+                    
+                except TfaCodeRequiredError:
+                    logging.info(f"2FA required for {broker['Printer_Title']}")
+                    auth_states[device_id] = {"status": "2fa_required"}
+                    await sio.emit('auth_status', {
+                        'printer_id': device_id,
+                        'status': '2fa_required'
+                    })
+                    return None
+                
+                except Exception as e:
+                    logging.error(f"Login failed for {broker['Printer_Title']}: {str(e)}")
+                    auth_states[device_id] = {"status": "error", "message": str(e)}
+                    return None
+            
             Mqttpassword = bambu_cloud.auth_token
             Mqttuser = bambu_cloud.username
         else:
@@ -505,7 +603,7 @@ async def connect_to_broker(broker):
             port=broker["port"],
             username=Mqttuser,
             password=Mqttpassword,
-            keepalive=90,  # Adjust as needed
+            keepalive=90,
             tls_params=TLSParameters(
                 ca_certs=None,
                 certfile=None,
@@ -520,8 +618,13 @@ async def connect_to_broker(broker):
         return client
     except Exception as e:
         logging.error(f"Error in connect_to_broker for {broker['Printer_Title']}: {e}")
+        logging.error(traceback.format_exc())
         return None
 
+@app.route('/auth_status/<printer_id>', methods=['GET'])
+async def get_auth_status(printer_id):
+    status = auth_states.get(printer_id, {"status": "unknown"})
+    return jsonify(status)
 async def start_server():
     config = Config()
     config.bind = ["0.0.0.0:5000"]

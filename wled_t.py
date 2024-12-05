@@ -6,27 +6,38 @@ import asyncio
 import aiohttp
 from aiohttp import ClientError
 
-async def wled_request(ip_address, payload, max_retries=10, retry_delay=60):
-    url = f"http://{ip_address}/json"
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.post(url, json=payload, timeout=5) as response:
-                if response.status == 200:
-                    return True
-                else:
-                    logging.warning(f"Failed request. Status: {response.status}")
-    except asyncio.TimeoutError:
-        logging.warning(f"Timeout occurred. Attempt {attempt + 1} of {max_retries}")
-    except ClientError as e:
-        logging.error(f"Network error occurred: {str(e)}. Attempt {attempt + 1} of {max_retries}")
-    except Exception as e:
-        logging.error(f"Unexpected error occurred: {str(e)}. Attempt {attempt + 1} of {max_retries}")
+async def wled_request(ip_address, payload):
+    """
+    Send a request to WLED device with infinite retry logic.
+    Will keep trying every 10 seconds until successful.
+    
+    Args:
+        ip_address (str): IP address of the WLED device
+        payload (dict): JSON payload to send
         
-    if attempt < max_retries - 1:
-        await asyncio.sleep(retry_delay)
+    Returns:
+        bool: True once request succeeds
+    """
+    url = f"http://{ip_address}/json"
+    attempt = 1
     
-    
-    return False
+    while True:
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(url, json=payload, timeout=5) as response:
+                    if response.status == 200:
+                        return True
+                    else:
+                        logging.warning(f"Failed request. Status: {response.status}. Attempt {attempt}")
+        except asyncio.TimeoutError:
+            logging.warning(f"Timeout occurred. Attempt {attempt}")
+        except ClientError as e:
+            logging.error(f"Network error occurred: {str(e)}. Attempt {attempt}")
+        except Exception as e:
+            logging.error(f"Unexpected error occurred: {str(e)}. Attempt {attempt}")
+        
+        attempt += 1
+        await asyncio.sleep(10)
 
 async def set_power(ip_address, state):
     payload = {"on": state}
