@@ -160,30 +160,54 @@ async def verify_email():
         printer_id = data.get('printer_id')
         code = data.get('code')
         
-        broker = next((b for b in brokers if b["device_id"] == printer_id), None)
-        if not broker:
-            return jsonify({'status': 'error', 'message': 'Printer not found'})
+        if not printer_id or not code:
+            return jsonify({'status': 'error', 'message': 'Missing printer_id or code'})
         
-        bambu_cloud = BambuCloud(region="US", email=broker["user"], username='', auth_token='')
+        auth_state = auth_states.get(printer_id)
+        if not auth_state:
+            return jsonify({'status': 'error', 'message': 'No pending authentication for this printer'})
+            
+        bambu_cloud = auth_state.get('bambu_cloud')
+        if not bambu_cloud:
+            return jsonify({'status': 'error', 'message': 'Invalid authentication state'})
         
         try:
             await bambu_cloud.login_with_verification_code(code)
             auth_states[printer_id] = {"status": "connected"}
             
+            # Get the broker configuration for this printer
+            broker = next((b for b in brokers if b["device_id"] == printer_id), None)
+            if not broker:
+                return jsonify({'status': 'error', 'message': 'Printer configuration not found'})
+                
             # Attempt to reconnect the printer
             await start_or_restart_printer(broker)
             
-            return jsonify({'status': 'success'})
+            return jsonify({'status': 'success', 'message': 'Email verification successful'})
             
         except EmailCodeExpiredError:
-            return jsonify({'status': 'error', 'message': 'Verification code expired'})
+            # Request a new code automatically
+            await bambu_cloud._get_email_verification_code()
+            return jsonify({
+                'status': 'error', 
+                'message': 'Verification code expired. A new code has been sent to your email.'
+            })
         except EmailCodeIncorrectError:
-            return jsonify({'status': 'error', 'message': 'Incorrect verification code'})
+            return jsonify({
+                'status': 'error', 
+                'message': 'Incorrect verification code. Please try again.'
+            })
         except Exception as e:
-            return jsonify({'status': 'error', 'message': str(e)})
+            logging.error(f"Email verification failed: {str(e)}")
+            return jsonify({
+                'status': 'error', 
+                'message': f'Verification failed: {str(e)}'
+            })
             
     except Exception as e:
+        logging.error(f"Error in verify_email: {str(e)}")
         return jsonify({'status': 'error', 'message': str(e)})
+
 
 @app.route('/verify_2fa', methods=['POST'])
 async def verify_2fa():
@@ -574,109 +598,89 @@ async def search_error(error_code, error_list):
         
 async def connect_to_broker(broker):
     try:
-        global cloud_mqtt_client
+        Mqttpassword = ''
+        Mqttuser = ''
         device_id = broker["device_id"]
         
+        # Initialize BambuCloud instance
+        bambu_cloud = BambuCloud(region="US", email=broker["user"], username='', auth_token='')
+        
         if broker["printer_type"] in ["A1", "P1S"]:
-            # Check if we already have a cloud connection
-            if cloud_mqtt_client is not None:
-                logging.info(f"Reusing existing cloud connection for {broker['Printer_Title']}")
-                cloud_mqtt_client.userdata = broker
-                return cloud_mqtt_client
-            
-            # Initialize BambuCloud instance
-            bambu_cloud = BambuCloud(region="US", email=broker["user"], username='', auth_token='')
-            
             if not bambu_cloud.bambu_connected:
                 logging.info(f"Logging in to Bambu Cloud for {broker['Printer_Title']}...")
                 try:
-                    # Try email auth code first if it exists
-                    if "email_auth_code" in broker:
-                        try:
-                            logging.info(f"Using email auth code from settings for {broker['Printer_Title']}")
-                            await bambu_cloud.login_with_verification_code(broker["email_auth_code"])
-                            auth_states[device_id] = {"status": "connected"}
-                        except (EmailCodeExpiredError, EmailCodeIncorrectError) as e:
-                            logging.error(f"Email auth failed for {broker['Printer_Title']}, requesting new verification: {str(e)}")
-                            auth_states[device_id] = {"status": "email_verification_required"}
-                            await sio.emit('auth_status', {
-                                'printer_id': device_id,
-                                'status': 'email_verification_required'
-                            })
-                            # Trigger email code sending
-                            await bambu_cloud._get_email_verification_code()
-                            return None
-                    else:
-                        # If no auth code exists, try to get one
-                        logging.info(f"No email auth code found for {broker['Printer_Title']}, requesting verification")
-                        auth_states[device_id] = {"status": "email_verification_required"}
-                        await sio.emit('auth_status', {
-                            'printer_id': device_id,
-                            'status': 'email_verification_required'
-                        })
-                        # Trigger email code sending
-                        await bambu_cloud._get_email_verification_code()
-                        return None
+                    await bambu_cloud.login(region="US", email=broker["user"], password=broker["password"])
+                    auth_states[device_id] = {"status": "connected"}
                     
-                except Exception as e:
-                    logging.error(f"Login failed for {broker['Printer_Title']}: {str(e)}")
-                    auth_states[device_id] = {"status": "error", "message": str(e)}
+                except CloudflareError:
+                    logging.error(f"Cloudflare protection blocked connection for {broker['Printer_Title']}")
+                    auth_states[device_id] = {"status": "cloudflare_blocked"}
                     return None
-
-            # Create new cloud client
-            try:
-                cloud_mqtt_client = MQTTClient(
-                    hostname="us.mqtt.bambulab.com",
-                    port=8883,
-                    username=bambu_cloud.username,
-                    password=bambu_cloud.auth_token,
-                    keepalive=90,
-                    tls_params=TLSParameters(
-                        ca_certs=None,
-                        certfile=None,
-                        keyfile=None,
-                        cert_reqs=ssl.CERT_NONE,
-                        tls_version=ssl.PROTOCOL_TLS,
-                        ciphers=None
-                    )
-                )
-                cloud_mqtt_client.userdata = broker
-                logging.info(f"Created new cloud MQTT client for {broker['Printer_Title']}")
-                return cloud_mqtt_client
-            except MqttError as mqtt_error:
-                if mqtt_error.rc == 135:  # Not authorized
-                    logging.error(f"MQTT authorization failed for {broker['Printer_Title']}, requesting new verification")
-                    auth_states[device_id] = {"status": "email_verification_required"}
+                    
+                except EmailCodeRequiredError:
+                    logging.info(f"Email verification required for {broker['Printer_Title']}")
+                    auth_states[device_id] = {
+                        "status": "email_verification_required",
+                        "bambu_cloud": bambu_cloud  # Store the instance for later use
+                    }
                     await sio.emit('auth_status', {
                         'printer_id': device_id,
-                        'status': 'email_verification_required'
+                        'status': 'email_verification_required',
+                        'message': 'Please check your email for verification code'
                     })
-                    # Trigger email code sending
-                    await bambu_cloud._get_email_verification_code()
                     return None
-                raise mqtt_error
+                    
+                except TfaCodeRequiredError:
+                    logging.info(f"2FA required for {broker['Printer_Title']}")
+                    auth_states[device_id] = {
+                        "status": "2fa_required",
+                        "bambu_cloud": bambu_cloud  # Store the instance for later use
+                    }
+                    await sio.emit('auth_status', {
+                        'printer_id': device_id,
+                        'status': '2fa_required',
+                        'message': 'Please enter your 2FA code'
+                    })
+                    return None
+                
+                except Exception as e:
+                    logging.error(f"Login failed for {broker['Printer_Title']}: {str(e)}")
+                    auth_states[device_id] = {
+                        "status": "error", 
+                        "message": str(e)
+                    }
+                    await sio.emit('auth_status', {
+                        'printer_id': device_id,
+                        'status': 'error',
+                        'message': f'Login failed: {str(e)}'
+                    })
+                    return None
             
+            Mqttpassword = bambu_cloud.auth_token
+            Mqttuser = bambu_cloud.username
         else:
-            # X1C printer handling remains the same
-            client = MQTTClient(
-                hostname=broker["host"],
-                port=broker["port"],
-                username=broker["user"],
-                password=broker["password"],
-                keepalive=90,
-                tls_params=TLSParameters(
-                    ca_certs=None,
-                    certfile=None,
-                    keyfile=None,
-                    cert_reqs=ssl.CERT_NONE,
-                    tls_version=ssl.PROTOCOL_TLS,
-                    ciphers=None
-                )
+            Mqttpassword = broker["password"]
+            Mqttuser = broker["user"]
+
+        logging.info(f"Connecting to MQTT broker for {broker['Printer_Title']}...")
+        client = MQTTClient(
+            hostname=broker["host"],
+            port=broker["port"],
+            username=Mqttuser,
+            password=Mqttpassword,
+            keepalive=90,
+            tls_params=TLSParameters(
+                ca_certs=None,
+                certfile=None,
+                keyfile=None,
+                cert_reqs=ssl.CERT_NONE,
+                tls_version=ssl.PROTOCOL_TLS,
+                ciphers=None
             )
-            client.userdata = broker
-            logging.info(f"Created new local MQTT client for {broker['Printer_Title']}")
-            return client
-        
+        )
+        client.userdata = broker
+        logging.info(f"Successfully created MQTT client for {broker['Printer_Title']}")
+        return client
     except Exception as e:
         logging.error(f"Error in connect_to_broker for {broker['Printer_Title']}: {e}")
         logging.error(traceback.format_exc())
@@ -725,6 +729,12 @@ async def start_or_restart_printer(broker_config):
             await printer_tasks[device_id]
         except asyncio.CancelledError:
             pass
+    
+    # Clear any existing auth state when restarting
+    if device_id in auth_states:
+        old_auth_state = auth_states[device_id]
+        if old_auth_state.get('bambu_cloud'):
+            await old_auth_state['bambu_cloud'].close()
     
     # Create new client and task
     try:
