@@ -208,7 +208,6 @@ async def verify_email():
         logging.error(f"Error in verify_email: {str(e)}")
         return jsonify({'status': 'error', 'message': str(e)})
 
-
 @app.route('/verify_2fa', methods=['POST'])
 async def verify_2fa():
     try:
@@ -619,6 +618,10 @@ async def connect_to_broker(broker):
                     
                 except EmailCodeRequiredError:
                     logging.info(f"Email verification required for {broker['Printer_Title']}")
+                    # Request verification code be sent
+                    await bambu_cloud._get_email_verification_code()
+                    logging.info(f"Verification code email requested for {broker['Printer_Title']}")
+                    
                     auth_states[device_id] = {
                         "status": "email_verification_required",
                         "bambu_cloud": bambu_cloud  # Store the instance for later use
@@ -626,7 +629,7 @@ async def connect_to_broker(broker):
                     await sio.emit('auth_status', {
                         'printer_id': device_id,
                         'status': 'email_verification_required',
-                        'message': 'Please check your email for verification code'
+                        'message': 'Verification code has been sent to your email'
                     })
                     return None
                     
@@ -634,7 +637,7 @@ async def connect_to_broker(broker):
                     logging.info(f"2FA required for {broker['Printer_Title']}")
                     auth_states[device_id] = {
                         "status": "2fa_required",
-                        "bambu_cloud": bambu_cloud  # Store the instance for later use
+                        "bambu_cloud": bambu_cloud
                     }
                     await sio.emit('auth_status', {
                         'printer_id': device_id,

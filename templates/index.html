@@ -161,7 +161,28 @@
             </div>
         </div>
     </div>
-
+    <div id="emailVerificationModal" class="modal fade" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Email Verification Required</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p>A verification code has been sent to your email address.</p>
+                    <div class="mb-3">
+                        <label for="verificationCode" class="form-label">Enter Verification Code</label>
+                        <input type="text" class="form-control" id="verificationCode" placeholder="Enter code">
+                    </div>
+                    <div id="verificationMessage" class="alert alert-info d-none"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="submitVerificationCode">Submit</button>
+                </div>
+            </div>
+        </div>
+    </div>
     <div id="toastContainer" class="position-fixed bottom-0 end-0 p-3"></div>
 
     <!-- Scripts -->
@@ -549,6 +570,72 @@
                 toast.remove();
             });
         }
+        // Add this to your existing JavaScript
+let currentPrinterForVerification = null;
+const emailVerificationModal = new bootstrap.Modal(document.getElementById('emailVerificationModal'));
+const verificationMessage = document.getElementById('verificationMessage');
+
+// Listen for auth status events from the server
+socket.on('auth_status', function(data) {
+    if (data.status === 'email_verification_required') {
+        currentPrinterForVerification = data.printer_id;
+        showVerificationMessage(data.message || 'Please check your email for verification code', 'info');
+        emailVerificationModal.show();
+    }
+});
+
+// Handle verification code submission
+document.getElementById('submitVerificationCode').addEventListener('click', async function() {
+    const code = document.getElementById('verificationCode').value.trim();
+    
+    if (!code) {
+        showVerificationMessage('Please enter the verification code', 'danger');
+        return;
+    }
+
+    try {
+        const response = await fetch('/verify_email', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                printer_id: currentPrinterForVerification,
+                code: code
+            })
+        });
+
+        const data = await response.json();
+        
+        if (data.status === 'success') {
+            showVerificationMessage('Verification successful! Connecting...', 'success');
+            setTimeout(() => {
+                emailVerificationModal.hide();
+                document.getElementById('verificationCode').value = '';
+                verificationMessage.classList.add('d-none');
+            }, 2000);
+        } else {
+            showVerificationMessage(data.message || 'Verification failed', 'danger');
+        }
+    } catch (error) {
+        showVerificationMessage('Error submitting verification code', 'danger');
+        console.error('Error:', error);
+    }
+});
+
+// Helper function to show messages in the verification modal
+function showVerificationMessage(message, type) {
+    verificationMessage.textContent = message;
+    verificationMessage.className = `alert alert-${type}`;
+    verificationMessage.classList.remove('d-none');
+}
+
+// Clear the verification form when the modal is hidden
+document.getElementById('emailVerificationModal').addEventListener('hidden.bs.modal', function () {
+    document.getElementById('verificationCode').value = '';
+    verificationMessage.classList.add('d-none');
+    currentPrinterForVerification = null;
+});
         </script>
         </body>
         </html>
