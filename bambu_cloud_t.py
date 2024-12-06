@@ -1,14 +1,14 @@
 from __future__ import annotations
-import ssl
+from enum import Enum
 import base64
 import json
 import aiohttp
-import certifi
-from dataclasses import dataclass
 import logging
-from enum import Enum
+from dataclasses import dataclass
+from typing import Optional, Dict, Any
+import asyncio
 
-# Try to import optional dependencies
+# Maintain cloudscraper support
 cloudscraper_available = False
 try:
     import cloudscraper
@@ -16,26 +16,12 @@ try:
 except ImportError:
     cloudscraper_available = False
 
-curl_available = False
-try:
-    from curl_cffi import requests as curl_requests
-    curl_available = True
-except ImportError:
-    curl_available = False
-
 class ConnectionMechanismEnum(Enum):
     CLOUDSCRAPER = 1
-    CURL_CFFI = 2
-    REQUESTS = 3
+    REQUESTS = 2
 
-if cloudscraper_available:
-    CONNECTION_MECHANISM = ConnectionMechanismEnum.CLOUDSCRAPER
-else:
-    CONNECTION_MECHANISM = ConnectionMechanismEnum.REQUESTS
+CONNECTION_MECHANISM = ConnectionMechanismEnum.CLOUDSCRAPER if cloudscraper_available else ConnectionMechanismEnum.REQUESTS
 
-IMPERSONATE_BROWSER = 'chrome'
-
-# Custom exceptions
 class CloudflareError(Exception):
     def __init__(self):
         super().__init__("Blocked by Cloudflare")
@@ -63,14 +49,17 @@ class TfaCodeRequiredError(Exception):
 
 @dataclass
 class BambuCloud:
-    def __init__(self, region: str, email: str, username: str, auth_token: str):
+    def __init__(self, region: str, email: str, username: str = '', auth_token: str = ''):
         self._region = region
         self._email = email
         self._username = username
         self._auth_token = auth_token
+        self._password = None
         self._tfaKey = None
+        self.session: Optional[aiohttp.ClientSession] = None
+        self.scraper = cloudscraper.create_scraper() if cloudscraper_available else None
 
-    def _get_headers(self):
+    def _get_headers(self) -> Dict[str, str]:
         return {
             'User-Agent': 'bambu_network_agent/01.09.05.01',
             'X-BBL-Client-Name': 'OrcaSlicer',
@@ -86,182 +75,205 @@ class BambuCloud:
             'Content-Type': 'application/json'
         }
 
+    def _get_headers_with_auth_token(self) -> Dict[str, str]:
+        headers = self._get_headers()
+        headers['Authorization'] = f"Bearer {self._auth_token}"
+        return headers
+
+    async def _ensure_session(self):
+        if self.session is None:
+            self.session = aiohttp.ClientSession()
+
+    async def _test_response(self, response, return400: bool = False) -> None:
+        if isinstance(response, aiohttp.ClientResponse):
+            status = response.status
+            text = await response.text()
+        else:
+            status = response.status_code
+            text = response.text
+
+        if status == 403 and 'cloudflare' in text:
+            logging.error("BLOCKED BY CLOUDFLARE")
+            raise CloudflareError()
+
+        if status == 400 and not return400:
+            logging.error(f"Connection failed with error code: {status}")
+            raise PermissionError(status, text)
+
+        if status > 400:
+            logging.error(f"Connection failed with error code: {status}")
+            raise PermissionError(status, text)
+
+    async def _request(self, method: str, url: str, json_data: dict = None, headers: Dict[str, str] = None, return400: bool = False):
+        if CONNECTION_MECHANISM == ConnectionMechanismEnum.CLOUDSCRAPER and self.scraper:
+            # Run cloudscraper requests in a thread pool
+            loop = asyncio.get_running_loop()
+            if method.upper() == 'GET':
+                response = await loop.run_in_executor(
+                    None, 
+                    lambda: self.scraper.get(url, headers=headers)
+                )
+            else:  # POST
+                response = await loop.run_in_executor(
+                    None, 
+                    lambda: self.scraper.post(url, headers=headers, json=json_data)
+                )
+        else:
+            await self._ensure_session()
+            if method.upper() == 'GET':
+                async with self.session.get(url, headers=headers) as response:
+                    await self._test_response(response, return400)
+                    return response, await response.json()
+            else:  # POST
+                async with self.session.post(url, headers=headers, json=json_data) as response:
+                    await self._test_response(response, return400)
+                    return response, await response.json()
+
+        await self._test_response(response, return400)
+        return response, response.json()
+
     async def _get_authentication_token(self) -> str:
         logging.debug("Getting accessToken from Bambu Cloud")
-        if self._region == "China":
-            url = 'https://api.bambulab.cn/v1/user-service/user/login'
-        else:
-            url = 'https://api.bambulab.com/v1/user-service/user/login'
-
         data = {
             "account": self._email,
             "password": self._password,
             "apiError": ""
         }
 
-        # Create an SSL context
-        ssl_context = ssl.create_default_context(cafile=certifi.where())
+        login_url = self._get_url("login")
+        response, auth_json = await self._request('POST', login_url, json_data=data)
 
-        async with aiohttp.ClientSession() as session:
-            async with session.post(url, json=data, ssl=ssl_context) as response:
-                if response.status == 403 and 'cloudflare' in await response.text():
-                    raise CloudflareError()
-                
-                if response.status != 200:
-                    logging.debug(f"Received error: {response.status}")
-                    raise ValueError(response.status)
-                
-                auth_json = await response.json()
-                accessToken = auth_json.get('accessToken', '')
-                
-                if accessToken:
-                    return accessToken
-                
-                loginType = auth_json.get("loginType")
-                if loginType == 'verifyCode':
-                    raise EmailCodeRequiredError()
-                elif loginType == 'tfa':
-                    self._tfaKey = auth_json.get("tfaKey")
-                    raise TfaCodeRequiredError()
-                else:
-                    raise ValueError(f"Unexpected login type: {loginType}")
+        accessToken = auth_json.get('accessToken', '')
+        if accessToken:
+            return accessToken
 
-    async def _get_email_verification_code(self):
-        if self._region == "China":
-            url = 'https://api.bambulab.cn/v1/user-service/user/send-code'
+        loginType = auth_json.get("loginType")
+        if loginType == 'verifyCode':
+            logging.debug("Received verifyCode response")
+            raise EmailCodeRequiredError()
+        elif loginType == 'tfa':
+            logging.debug("Received tfa response")
+            self._tfaKey = auth_json.get("tfaKey")
+            raise TfaCodeRequiredError()
         else:
-            url = 'https://api.bambulab.com/v1/user-service/user/send-code'
-        
-        data = {
-            "email": self._email,
-            "type": "codeLogin"
-        }
+            logging.error(f"Response not understood: {auth_json}")
+            raise ValueError("Invalid login response")
 
-        async with aiohttp.ClientSession() as session:
-            async with session.post(url, json=data) as response:
-                if response.status != 200:
-                    raise ValueError(response.status)
-
-    async def _get_authentication_token_with_verification_code(self, code: str) -> str:
-        if self._region == "China":
-            url = 'https://api.bambulab.cn/v1/user-service/user/login'
-        else:
-            url = 'https://api.bambulab.com/v1/user-service/user/login'
-
-        data = {
-            "account": self._email,
-            "code": code
-        }
-
-        async with aiohttp.ClientSession() as session:
-            async with session.post(url, json=data) as response:
-                if response.status == 400:
-                    resp_json = await response.json()
-                    if resp_json.get('code') == 1:
-                        await self._get_email_verification_code()
-                        raise EmailCodeExpiredError()
-                    elif resp_json.get('code') == 2:
-                        raise EmailCodeIncorrectError()
-                
-                if response.status != 200:
-                    raise ValueError(response.status)
-                
-                resp_json = await response.json()
-                return resp_json['accessToken']
-
-    async def _get_authentication_token_with_2fa_code(self, code: str) -> str:
-        if self._region == "China":
-            url = 'https://api.bambulab.cn/v1/user-service/user/tfa/login'
-        else:
-            url = 'https://api.bambulab.com/v1/user-service/user/tfa/login'
-
-        data = {
-            "tfaKey": self._tfaKey,
-            "tfaCode": code
-        }
-
-        async with aiohttp.ClientSession() as session:
-            async with session.post(url, json=data) as response:
-                if response.status != 200:
-                    raise ValueError(response.status)
-                return response.cookies.get("token")
-
-    def _get_username_from_authentication_token(self) -> str:
-        tokens = self._auth_token.split(".")
-        if len(tokens) != 3:
-            logging.debug("Auth token is not a JWT, trying alternate method")
-            return None
-        
-        try:
-            b64_string = tokens[1]
-            b64_string += "=" * ((4 - len(b64_string) % 4) % 4)
-            jsonAuthToken = json.loads(base64.b64decode(b64_string))
-            return jsonAuthToken.get('username')
-        except:
-            logging.debug("Failed to decode auth token")
-            return None
-
-    async def test_authentication(self, region: str, email: str, username: str, auth_token: str) -> bool:
-        self._region = region
-        self._email = email
-        self._username = username
-        self._auth_token = auth_token
-        try:
-            await self.get_device_list()
-            return True
-        except:
-            return False
-
-    async def login(self, region: str, email: str, password: str):
+    async def login(self, region: str, email: str, password: str) -> None:
         self._region = region
         self._email = email
         self._password = password
 
         self._auth_token = await self._get_authentication_token()
-        self._username = self._get_username_from_authentication_token()
+        self._username = await self._get_username_from_authentication_token()
 
-    async def login_with_verification_code(self, code: str):
-        self._auth_token = await self._get_authentication_token_with_verification_code(code)
-        self._username = self._get_username_from_authentication_token()
+    async def login_with_verification_code(self, code: str) -> None:
+        data = {
+            "account": self._email,
+            "code": code
+        }
 
-    async def login_with_2fa_code(self, code: str):
-        self._auth_token = await self._get_authentication_token_with_2fa_code(code)
-        self._username = self._get_username_from_authentication_token()
+        login_url = self._get_url("login")
+        response, json_data = await self._request('POST', login_url, json_data=data, return400=True)
 
-    async def get_device_list(self) -> dict:
-        logging.debug("Getting device list from Bambu Cloud")
-        if self._region == "China":
-            url = 'https://api.bambulab.cn/v1/iot-service/api/user/bind'
+        if isinstance(response, aiohttp.ClientResponse):
+            status = response.status
         else:
-            url = 'https://api.bambulab.com/v1/iot-service/api/user/bind'
-        
-        headers = {'Authorization': f'Bearer {self._auth_token}'}
-        
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url, headers=headers, ssl=certifi.where()) as response:
-                if response.status != 200:
-                    logging.debug(f"Received error: {response.status}")
-                    raise ValueError(response.status)
-                json_response = await response.json()
-                return json_response['devices']
+            status = response.status_code
 
-    def get_device_type_from_device_product_name(self, device_product_name: str):
-        if device_product_name == "X1 Carbon":
-            return "X1C"
-        return device_product_name.replace(" ", "")
+        if status == 400:
+            if json_data.get('code') == 1:
+                await self._get_email_verification_code()
+                raise EmailCodeExpiredError()
+            elif json_data.get('code') == 2:
+                raise EmailCodeIncorrectError()
+
+        self._auth_token = json_data['accessToken']
+        self._username = await self._get_username_from_authentication_token()
+
+    async def login_with_2fa_code(self, code: str) -> None:
+        data = {
+            "tfaKey": self._tfaKey,
+            "tfaCode": code
+        }
+
+        tfa_url = self._get_url("tfa")
+        response, _ = await self._request('POST', tfa_url, json_data=data)
+        
+        if isinstance(response, aiohttp.ClientResponse):
+            self._auth_token = response.cookies.get("token")
+        else:
+            self._auth_token = response.cookies.get("token")
+            
+        self._username = await self._get_username_from_authentication_token()
+
+    async def _get_email_verification_code(self):
+        data = {
+            "email": self._email,
+            "type": "codeLogin"
+        }
+        
+        email_code_url = self._get_url("email_code")
+        await self._request('POST', email_code_url, json_data=data)
+        logging.debug("Verification code requested successfully")
+
+    def _get_url(self, endpoint: str) -> str:
+        base_url = "https://api.bambulab.com" if self._region != "China" else "https://api.bambulab.cn"
+        endpoints = {
+            "login": "/v1/user-service/user/login",
+            "tfa": "/v1/user-service/user/tfa/login",
+            "email_code": "/v1/user-service/user/send-code",
+            "devices": "/v1/iot-service/api/user/bind"
+        }
+        return f"{base_url}{endpoints[endpoint]}"
+
+    async def _get_username_from_authentication_token(self) -> str:
+        if not self._auth_token:
+            return None
+
+        try:
+            tokens = self._auth_token.split(".")
+            if len(tokens) == 3:
+                b64_string = tokens[1]
+                b64_string += "=" * ((4 - len(b64_string) % 4) % 4)
+                json_data = json.loads(base64.b64decode(b64_string))
+                return json_data.get('username')
+        except Exception as e:
+            logging.error(f"Error decoding auth token: {e}")
+
+        try:
+            devices = await self.get_device_list()
+            if devices and len(devices) > 0:
+                return f"u_{devices[0].get('user_id')}"
+        except Exception as e:
+            logging.error(f"Error getting username from devices: {e}")
+
+        return None
+
+    async def get_device_list(self) -> list:
+        devices_url = self._get_url("devices")
+        _, response_json = await self._request('GET', devices_url, headers=self._get_headers_with_auth_token())
+        return response_json.get('devices', [])
+
+    async def close(self) -> None:
+        if self.session:
+            await self.session.close()
+            self.session = None
+        if self.scraper:
+            self.scraper.close()
 
     @property
-    def username(self):
+    def username(self) -> str:
         return self._username
-    
+
     @property
-    def auth_token(self):
+    def auth_token(self) -> str:
         return self._auth_token
-    
+
     @property
     def bambu_connected(self) -> bool:
         return bool(self._auth_token)
-    
+
     @property
-    def cloud_mqtt_host(self):
+    def cloud_mqtt_host(self) -> str:
         return "cn.mqtt.bambulab.com" if self._region == "China" else "us.mqtt.bambulab.com"
