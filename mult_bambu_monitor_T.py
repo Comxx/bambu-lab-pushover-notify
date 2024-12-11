@@ -655,7 +655,7 @@ async def search_error(error_code, error_list):
         logging.error(f"Unexpected error in search_error: {e}")
         return None
         
-async def connect_to_broker(broker):
+aasync def connect_to_broker(broker):
     try:
         Mqttpassword = ''
         Mqttuser = ''
@@ -668,29 +668,35 @@ async def connect_to_broker(broker):
             if not bambu_cloud.bambu_connected:
                 logging.info(f"Logging in to Bambu Cloud for {broker['Printer_Title']}...")
                 try:
-                    # First try regular login
-                    await bambu_cloud.login(region="US", email=broker["user"], password=broker["password"])
-                    auth_states[device_id] = {"status": "connected"}
-                    
-                except EmailCodeRequiredError:
-                    # Check if verification code is in settings
+                    # Check if we're using verification code or password
                     if "verification_code" in broker and broker["verification_code"]:
-                        logging.info(f"Found verification code for {broker['Printer_Title']}, attempting verification...")
+                        # Login with verification code
+                        logging.info(f"Attempting verification code login for {broker['Printer_Title']}...")
                         try:
                             await bambu_cloud.login_with_verification_code(broker["verification_code"])
                             auth_states[device_id] = {"status": "connected"}
-                        except (EmailCodeExpiredError, EmailCodeIncorrectError) as e:
-                            logging.error(f"Verification code error for {broker['Printer_Title']}: {str(e)}")
-                            auth_states[device_id] = {"status": "verification_failed"}
+                        except EmailCodeExpiredError:
+                            logging.error(f"Verification code expired for {broker['Printer_Title']}")
+                            auth_states[device_id] = {"status": "verification_expired"}
+                            return None
+                        except EmailCodeIncorrectError:
+                            logging.error(f"Incorrect verification code for {broker['Printer_Title']}")
+                            auth_states[device_id] = {"status": "verification_incorrect"}
                             return None
                     else:
-                        logging.info(f"Email verification required for {broker['Printer_Title']} but no code provided in settings")
-                        auth_states[device_id] = {"status": "email_verification_required"}
-                        return None
+                        # Login with password
+                        logging.info(f"Attempting password login for {broker['Printer_Title']}...")
+                        await bambu_cloud.login(region="US", email=broker["user"], password=broker["password"])
+                        auth_states[device_id] = {"status": "connected"}
                         
                 except CloudflareError:
                     logging.error(f"Cloudflare protection blocked connection for {broker['Printer_Title']}")
                     auth_states[device_id] = {"status": "cloudflare_blocked"}
+                    return None
+                    
+                except EmailCodeRequiredError:
+                    logging.info(f"Email verification required for {broker['Printer_Title']}")
+                    auth_states[device_id] = {"status": "email_verification_required"}
                     return None
                     
                 except TfaCodeRequiredError:
