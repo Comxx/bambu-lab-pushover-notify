@@ -39,7 +39,67 @@ printer_status = {}
 cached_device_error_data = None
 printer_tasks = {}
 auth_states = {}  # Track authentication states for printers
-cloud_mqtt_client = None
+token_refresh_tasks = {}  # Track token refresh tasks per printer
+
+class TokenManager:
+    def __init__(self, device_id: str, broker_config: dict):
+        self.device_id = device_id
+        self.broker_config = broker_config
+        self.access_token = None
+        self.refresh_token = None
+        self.expires_at = None
+        self.refresh_expires_at = None
+
+    async def initialize_tokens(self, bambu_cloud: BambuCloud):
+        """Initialize tokens from successful login"""
+        self.access_token = bambu_cloud.auth_token
+        self.refresh_token = bambu_cloud.refresh_token  # You'll need to add this property to BambuCloud
+        self.expires_at = datetime.now() + timedelta(seconds=7776000)  # Default 90 days
+        self.refresh_expires_at = self.expires_at
+
+    async def refresh_tokens(self):
+        """Refresh tokens before they expire"""
+        if not self.refresh_token:
+            return False
+
+        try:
+            async with aiohttp.ClientSession() as session:
+                url = "https://api.bambulab.com/v1/user-service/user/refreshtoken"
+                data = {"refreshToken": self.refresh_token}
+                async with session.post(url, json=data) as response:
+                    if response.status == 200:
+                        result = await response.json()
+                        self.access_token = result["accessToken"]
+                        self.refresh_token = result["refreshToken"]
+                        self.expires_at = datetime.now() + timedelta(seconds=result["expiresIn"])
+                        self.refresh_expires_at = datetime.now() + timedelta(seconds=result["refreshExpiresIn"])
+                        return True
+                    else:
+                        logging.error(f"Token refresh failed for {self.device_id}: {await response.text()}")
+                        return False
+        except Exception as e:
+            logging.error(f"Error refreshing tokens for {self.device_id}: {e}")
+            return False
+
+async def token_refresh_loop(token_manager: TokenManager):
+    """Background task to refresh tokens before expiration"""
+    while True:
+        try:
+            # Refresh when less than 1 day remaining
+            if token_manager.expires_at:
+                time_until_expiry = token_manager.expires_at - datetime.now()
+                if time_until_expiry < timedelta(days=1):
+                    if await token_manager.refresh_tokens():
+                        logging.info(f"Successfully refreshed tokens for {token_manager.device_id}")
+                    else:
+                        logging.error(f"Failed to refresh tokens for {token_manager.device_id}")
+            
+            # Sleep for 6 hours before checking again
+            await asyncio.sleep(21600)
+        except Exception as e:
+            logging.error(f"Error in token refresh loop for {token_manager.device_id}: {e}")
+            await asyncio.sleep(300)  # Sleep for 5 minutes on error
+
 
 # Initialize Quart app and SocketIO
 app = Quart(__name__)
@@ -608,55 +668,39 @@ async def connect_to_broker(broker):
             if not bambu_cloud.bambu_connected:
                 logging.info(f"Logging in to Bambu Cloud for {broker['Printer_Title']}...")
                 try:
+                    # First try regular login
                     await bambu_cloud.login(region="US", email=broker["user"], password=broker["password"])
                     auth_states[device_id] = {"status": "connected"}
                     
+                except EmailCodeRequiredError:
+                    # Check if verification code is in settings
+                    if "verification_code" in broker and broker["verification_code"]:
+                        logging.info(f"Found verification code for {broker['Printer_Title']}, attempting verification...")
+                        try:
+                            await bambu_cloud.login_with_verification_code(broker["verification_code"])
+                            auth_states[device_id] = {"status": "connected"}
+                        except (EmailCodeExpiredError, EmailCodeIncorrectError) as e:
+                            logging.error(f"Verification code error for {broker['Printer_Title']}: {str(e)}")
+                            auth_states[device_id] = {"status": "verification_failed"}
+                            return None
+                    else:
+                        logging.info(f"Email verification required for {broker['Printer_Title']} but no code provided in settings")
+                        auth_states[device_id] = {"status": "email_verification_required"}
+                        return None
+                        
                 except CloudflareError:
                     logging.error(f"Cloudflare protection blocked connection for {broker['Printer_Title']}")
                     auth_states[device_id] = {"status": "cloudflare_blocked"}
                     return None
                     
-                except EmailCodeRequiredError:
-                    logging.info(f"Email verification required for {broker['Printer_Title']}")
-                    # Request verification code be sent
-                    await bambu_cloud._get_email_verification_code()
-                    logging.info(f"Verification code email requested for {broker['Printer_Title']}")
-                    
-                    auth_states[device_id] = {
-                        "status": "email_verification_required",
-                        "bambu_cloud": bambu_cloud  # Store the instance for later use
-                    }
-                    await sio.emit('auth_status', {
-                        'printer_id': device_id,
-                        'status': 'email_verification_required',
-                        'message': 'Verification code has been sent to your email'
-                    })
-                    return None
-                    
                 except TfaCodeRequiredError:
                     logging.info(f"2FA required for {broker['Printer_Title']}")
-                    auth_states[device_id] = {
-                        "status": "2fa_required",
-                        "bambu_cloud": bambu_cloud
-                    }
-                    await sio.emit('auth_status', {
-                        'printer_id': device_id,
-                        'status': '2fa_required',
-                        'message': 'Please enter your 2FA code'
-                    })
+                    auth_states[device_id] = {"status": "2fa_required"}
                     return None
                 
                 except Exception as e:
                     logging.error(f"Login failed for {broker['Printer_Title']}: {str(e)}")
-                    auth_states[device_id] = {
-                        "status": "error", 
-                        "message": str(e)
-                    }
-                    await sio.emit('auth_status', {
-                        'printer_id': device_id,
-                        'status': 'error',
-                        'message': f'Login failed: {str(e)}'
-                    })
+                    auth_states[device_id] = {"status": "error", "message": str(e)}
                     return None
             
             Mqttpassword = bambu_cloud.auth_token
@@ -759,7 +803,11 @@ async def shutdown(signal, loop):
     for task in printer_tasks.values():
         task.cancel()
     
-    await asyncio.gather(*printer_tasks.values(), return_exceptions=True)
+    logging.info("Closing token refresh tasks...")
+    for task in token_refresh_tasks.values():
+        task.cancel()
+    
+    await asyncio.gather(*printer_tasks.values(), *token_refresh_tasks.values(), return_exceptions=True)
     
     tasks = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
     [task.cancel() for task in tasks]
