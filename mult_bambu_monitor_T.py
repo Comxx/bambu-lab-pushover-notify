@@ -655,7 +655,7 @@ async def search_error(error_code, error_list):
         logging.error(f"Unexpected error in search_error: {e}")
         return None
         
-aasync def connect_to_broker(broker):
+async def connect_to_broker(broker):
     try:
         Mqttpassword = ''
         Mqttuser = ''
