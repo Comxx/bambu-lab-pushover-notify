@@ -667,8 +667,7 @@ async def handle_cli_verification(printer_id: str, client: MQTTClient) -> None:
     try:
         # First attempt login
         await bambu_cloud.login(region="US", email=broker["user"], password=broker["password"])
-        
-    except EmailCodeRequiredError:
+                
         # Handle email verification
         print(f"\nEmail verification required for printer {broker['Printer_Title']}")
         while True:
@@ -681,19 +680,6 @@ async def handle_cli_verification(printer_id: str, client: MQTTClient) -> None:
                 print("Verification code has expired. A new code has been sent.")
             except EmailCodeIncorrectError:
                 print("Incorrect verification code. Please try again.")
-
-    except TfaCodeRequiredError:
-        # Handle 2FA verification
-        print(f"\n2FA required for printer {broker['Printer_Title']}")
-        while True:
-            try:
-                code = input("Please enter the 2FA code: ").strip()
-                await bambu_cloud.login_with_2fa_code(code)
-                print("2FA verification successful!")
-                break
-            except Exception as e:
-                print(f"2FA verification failed: {str(e)}")
-                print("Please try again.")
 
     except Exception as e:
         logging.error(f"Authentication failed: {str(e)}")
