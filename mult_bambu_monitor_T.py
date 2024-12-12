@@ -667,8 +667,7 @@ async def handle_cli_verification(printer_id: str, bambu_cloud: BambuCloud) -> b
         try:
             await bambu_cloud.login(region="US", email=broker["user"], password=broker["password"])
             # If login succeeds without verification, return True
-            return True
-        
+           
             # Now that the code has been sent, we can prompt for it
             print(f"\nEmail verification code has been sent for printer {broker['Printer_Title']}")
             while True:
