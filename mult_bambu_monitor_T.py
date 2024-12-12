@@ -655,41 +655,41 @@ async def search_error(error_code, error_list):
         logging.error(f"Unexpected error in search_error: {e}")
         return None
 
-async def handle_cli_verification(printer_id: str, client: MQTTClient) -> None:
-    """Handle command-line verification for email codes and 2FA"""
+async def handle_cli_verification(printer_id: str, bambu_cloud: BambuCloud) -> bool:
+    """Handle command-line verification for email codes"""
     broker = next((b for b in brokers if b["device_id"] == printer_id), None)
     if not broker:
         logging.error(f"No broker found for printer ID {printer_id}")
-        return
-
-    bambu_cloud = BambuCloud(region="US", email=broker["user"], username='', auth_token='')
+        return False
 
     try:
-        # First attempt login
-        await bambu_cloud.login(region="US", email=broker["user"], password=broker["password"])
-                
-        # Handle email verification
-        print(f"\nEmail verification required for printer {broker['Printer_Title']}")
-        while True:
-            try:
-                code = input("Please enter the email verification code: ").strip()
-                await bambu_cloud.login_with_verification_code(code)
-                print("Email verification successful!")
-                break
-            except EmailCodeExpiredError:
-                print("Verification code has expired. A new code has been sent.")
-            except EmailCodeIncorrectError:
-                print("Incorrect verification code. Please try again.")
+        # First try to login to trigger the email code request
+        try:
+            await bambu_cloud.login(region="US", email=broker["user"], password=broker["password"])
+            # If login succeeds without verification, return True
+            return True
+        
+            # Now that the code has been sent, we can prompt for it
+            print(f"\nEmail verification code has been sent for printer {broker['Printer_Title']}")
+            while True:
+                try:
+                    code = input("Please enter the email verification code: ").strip()
+                    await bambu_cloud.login_with_verification_code(code)
+                    print("Email verification successful!")
+                    return True
+                except EmailCodeExpiredError:
+                    print("Verification code has expired. Requesting new code...")
+                    await bambu_cloud._get_email_verification_code()
+                    print("New verification code has been sent.")
+                except EmailCodeIncorrectError:
+                    print("Incorrect verification code. Please try again.")
+        except Exception as e:
+            logging.error(f"Authentication failed: {str(e)}")
+            return False
 
     except Exception as e:
-        logging.error(f"Authentication failed: {str(e)}")
-        return
-
-    # After successful authentication, update the auth states
-    auth_states[printer_id] = {"status": "connected"}
-    
-    # Attempt to reconnect the printer
-    await start_or_restart_printer(broker)
+        logging.error(f"Verification process failed: {str(e)}")
+        return False
             
 async def connect_to_broker(broker):
     try:
