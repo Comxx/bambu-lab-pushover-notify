@@ -1,54 +1,97 @@
 from __future__ import annotations
+from enum import (
+    Enum,
+)
+
 import base64
 import json
 import aiohttp
-import logging
+import asyncio
+
+cloudscraper_available = False
+try:
+    import cloudscraper
+    cloudscraper_available = True
+except ImportError:
+    cloudscraper_available = False
+
+curl_available = False
+try:
+    from curl_cffi import requests as curl_requests
+    curl_available = True
+except ImportError:
+    curl_available = False
+
+class ConnectionMechanismEnum(Enum):
+    CLOUDSCRAPER = 1,
+    CURL_CFFI = 2,
+    AIOHTTP = 3
+
+if cloudscraper_available:
+    CONNECTION_MECHANISM = ConnectionMechanismEnum.CLOUDSCRAPER
+else:
+    CONNECTION_MECHANISM = ConnectionMechanismEnum.AIOHTTP
+
 from dataclasses import dataclass
-from typing import Optional, Dict, Any
+
+from .constants import (
+     LOGGER,
+     BambuUrl
+)
+from .utils import get_Url
+
+IMPERSONATE_BROWSER='chrome'
 
 class CloudflareError(Exception):
-    """Exception raised when request is blocked by Cloudflare."""
     def __init__(self):
         super().__init__("Blocked by Cloudflare")
         self.error_code = 403
 
-class EmailCodeRequiredError(Exception):
-    """Exception raised when email verification is required."""
+class CodeRequiredError(Exception):
     def __init__(self):
         super().__init__("Email code required")
         self.error_code = 400
 
-class EmailCodeExpiredError(Exception):
-    """Exception raised when email verification code has expired."""
+class CodeExpiredError(Exception):
     def __init__(self):
         super().__init__("Email code expired")
         self.error_code = 400
 
-class EmailCodeIncorrectError(Exception):
-    """Exception raised when email verification code is incorrect."""
+class CodeIncorrectError(Exception):
     def __init__(self):
         super().__init__("Email code incorrect")
         self.error_code = 400
 
 class TfaCodeRequiredError(Exception):
-    """Exception raised when two-factor authentication is required."""
     def __init__(self):
         super().__init__("Two factor authentication code required")
         self.error_code = 400
 
+class CurlUnavailableError(Exception):
+    def __init__(self):
+        super().__init__("curl library unavailable")
+        self.error_code = 400
+
 @dataclass
 class BambuCloud:
-    def __init__(self, region: str, email: str, username: str = '', auth_token: str = ''):
+  
+    def __init__(self, region: str, email: str, username: str, auth_token: str):
         self._region = region
         self._email = email
         self._username = username
         self._auth_token = auth_token
-        self._password = None
         self._tfaKey = None
-        self.session: Optional[aiohttp.ClientSession] = None
+        self._session = None
 
-    def _get_headers(self) -> Dict[str, str]:
-        """Get standard headers for API requests."""
+    async def __aenter__(self):
+        self._session = aiohttp.ClientSession()
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        if self._session:
+            await self._session.close()
+
+    def _get_headers(self):
         return {
             'User-Agent': 'bambu_network_agent/01.09.05.01',
             'X-BBL-Client-Name': 'OrcaSlicer',
@@ -64,241 +107,262 @@ class BambuCloud:
             'Content-Type': 'application/json'
         }
 
-    def _get_headers_with_auth_token(self) -> Dict[str, str]:
-        """Get headers with authorization token."""
-        headers = self._get_headers()
+    def _get_headers_with_auth_token(self) -> dict:
+        if CONNECTION_MECHANISM == ConnectionMechanismEnum.CURL_CFFI:
+            headers = {}
+        else:
+            headers = self._get_headers()
         headers['Authorization'] = f"Bearer {self._auth_token}"
         return headers
 
-    async def _ensure_session(self):
-        """Ensure an active session exists."""
-        if self.session is None or self.session.closed:
-            self.session = aiohttp.ClientSession()
-
-    async def _test_response(self, response: aiohttp.ClientResponse, return400: bool = False) -> None:
-        """Test API response for common errors."""
+    async def _test_response(self, response, return400=False):
+        # Check specifically for cloudflare block
         if response.status == 403 and 'cloudflare' in await response.text():
-            logging.error("BLOCKED BY CLOUDFLARE")
+            LOGGER.error("BLOCKED BY CLOUDFLARE")
             raise CloudflareError()
+        elif response.status == 429 and 'cloudflare' in await response.text():
+            LOGGER.error("TEMPORARY 429 BLOCK BY CLOUDFLARE")
+            raise CloudflareError(response.status, await response.text())
+        elif response.status == 400 and not return400:
+            LOGGER.error(f"Connection failed with error code: {response.status}")
+            LOGGER.debug(f"Response: '{await response.text()}'")
+            raise PermissionError(response.status, await response.text())
+        elif response.status > 400:
+            LOGGER.error(f"Connection failed with error code: {response.status}")
+            LOGGER.debug(f"Response: '{await response.text()}'")
+            raise PermissionError(response.status, await response.text())
 
-        if response.status == 400 and not return400:
-            error_text = await response.text()
-            logging.error(f"Connection failed with error code: {response.status}")
-            logging.error(f"Error response: {error_text}")
-            raise PermissionError(response.status, error_text)
-
-        if response.status > 400:
-            error_text = await response.text()
-            logging.error(f"Connection failed with error code: {response.status}")
-            logging.error(f"Error response: {error_text}")
-            raise PermissionError(response.status, error_text)
-
-    def _get_url(self, endpoint: str) -> str:
-        """Get the full URL for an API endpoint."""
-        base_url = "https://api.bambulab.com" if self._region != "China" else "https://api.bambulab.cn"
-        endpoints = {
-            "login": "/v1/user-service/user/login",
-            "tfa": "/v1/user-service/user/tfa/login",
-            "email_code": "/v1/user-service/user/send-code",
-            "sms_code": "/v1/user-service/user/send-code",
-            "devices": "/v1/iot-service/api/user/bind",
-            "projects": "/v1/iot-service/api/user/projects"
-        }
-        return f"{base_url}{endpoints[endpoint]}"
-
-    async def _get(self, url: str) -> aiohttp.ClientResponse:
-        """Make a GET request to the API."""
-        await self._ensure_session()
+        LOGGER.debug(f"Response: {response.status}")
+        async def _get(self, urlenum: BambuUrl):
+        url = get_Url(urlenum, self._region)
         headers = self._get_headers_with_auth_token()
-        try:
-            async with self.session.get(url, headers=headers, timeout=30) as response:
+        if CONNECTION_MECHANISM == ConnectionMechanismEnum.CURL_CFFI:
+            if not curl_available:
+                LOGGER.debug(f"Curl library is unavailable.")
+                raise CurlUnavailableError()
+            response = curl_requests.get(url, headers=headers, timeout=10, impersonate=IMPERSONATE_BROWSER)
+        elif CONNECTION_MECHANISM == ConnectionMechanismEnum.CLOUDSCRAPER:
+            if len(headers) == 0:
+                headers = self._get_headers()
+            scraper = cloudscraper.create_scraper()
+            response = scraper.get(url, headers=headers, timeout=10)
+        elif CONNECTION_MECHANISM == ConnectionMechanismEnum.AIOHTTP:
+            if not self._session:
+                self._session = aiohttp.ClientSession()
+            async with self._session.get(url, headers=headers, timeout=10) as response:
                 await self._test_response(response)
                 return response
-        except aiohttp.ClientError as e:
-            logging.error(f"Network error during GET request: {e}")
-            raise
+        else:
+            raise NotImplementedError()
 
-    async def _post(self, url: str, json_data: dict, headers: Dict[str, str] = None, return400: bool = False) -> aiohttp.ClientResponse:
-        """Make a POST request to the API."""
-        await self._ensure_session()
-        if headers is None:
-            headers = self._get_headers()
-        
-        try:
-            async with self.session.post(url, headers=headers, json=json_data, timeout=30) as response:
+    async def _post(self, urlenum: BambuUrl, json_data: dict, headers={}, return400=False):
+        url = get_Url(urlenum, self._region)
+        if CONNECTION_MECHANISM == ConnectionMechanismEnum.CURL_CFFI:
+            if not curl_available:
+                LOGGER.debug(f"Curl library is unavailable.")
+                raise CurlUnavailableError()
+            response = curl_requests.post(url, headers=headers, json=json_data, impersonate=IMPERSONATE_BROWSER)
+        elif CONNECTION_MECHANISM == ConnectionMechanismEnum.CLOUDSCRAPER:
+            if len(headers) == 0:
+                headers = self._get_headers()
+            scraper = cloudscraper.create_scraper()
+            response = scraper.post(url, headers=headers, json=json_data)
+        elif CONNECTION_MECHANISM == ConnectionMechanismEnum.AIOHTTP:
+            if not self._session:
+                self._session = aiohttp.ClientSession()
+            async with self._session.post(url, headers=headers, json=json_data, timeout=10) as response:
                 await self._test_response(response, return400)
                 return response
-        except aiohttp.ClientError as e:
-            logging.error(f"Network error during POST request: {e}")
-            raise
+        else:
+            raise NotImplementedError()
 
     async def _get_authentication_token(self) -> str:
-        """Get authentication token from Bambu Cloud."""
-        logging.debug("Getting accessToken from Bambu Cloud")
+        LOGGER.debug("Getting accessToken from Bambu Cloud")
+
         data = {
             "account": self._email,
             "password": self._password,
             "apiError": ""
         }
 
-        login_url = self._get_url("login")
-        response = await self._post(login_url, json_data=data)
+        response = await self._post(BambuUrl.LOGIN, json_data=data)
         auth_json = await response.json()
-
+        
         accessToken = auth_json.get('accessToken', '')
-        if accessToken:
+        if accessToken != '':
             return accessToken
-
-        loginType = auth_json.get("loginType")
-        if loginType == 'verifyCode':
-            logging.debug("Received verifyCode response")
-            await self._get_email_verification_code()
-            raise EmailCodeRequiredError()
+        
+        loginType = auth_json.get("loginType", None)
+        if loginType is None:
+            LOGGER.error(f"loginType not present")
+            LOGGER.error(f"Response not understood: '{await response.text()}'")
+            return ValueError(0)
+        elif loginType == 'verifyCode':
+            LOGGER.debug(f"Received verifyCode response")
+            raise CodeRequiredError()
         elif loginType == 'tfa':
-            logging.debug("Received tfa response")
+            LOGGER.debug(f"Received tfa response")
             self._tfaKey = auth_json.get("tfaKey")
             raise TfaCodeRequiredError()
         else:
-            logging.error(f"Response not understood: {auth_json}")
-            raise ValueError("Invalid login response")
+            LOGGER.debug(f"Did not understand json. loginType = '{loginType}'")
+            LOGGER.error(f"Response not understood: '{await response.text()}'")
+            return ValueError(1)
 
     async def _get_new_code(self):
-        """Request a new verification code based on email or phone."""
         if '@' in self._email:
             await self._get_email_verification_code()
         else:
             await self._get_sms_verification_code()
-
+    
     async def _get_email_verification_code(self):
-        """Request an email verification code."""
         data = {
             "email": self._email,
             "type": "codeLogin"
         }
-        email_code_url = self._get_url("email_code")
-        await self._post(email_code_url, json_data=data)
-        logging.debug("Email verification code requested successfully")
-        
+
+        LOGGER.debug("Requesting email verification code")
+        await self._post(BambuUrl.EMAIL_CODE, json_data=data)
+        LOGGER.debug("Verification code requested successfully.")
+
     async def _get_sms_verification_code(self):
-        """Request an SMS verification code."""
         data = {
             "phone": self._email,
             "type": "codeLogin"
         }
-        sms_code_url = self._get_url("sms_code")
-        await self._post(sms_code_url, json_data=data)
-        logging.debug("SMS verification code requested successfully")
 
-    async def login(self, region: str, email: str, password: str) -> None:
-        """Login to Bambu Cloud."""
-        self._region = region
-        self._email = email
-        self._password = password
+        LOGGER.debug("Requesting SMS verification code")
+        await self._post(BambuUrl.SMS_CODE, json_data=data)
+        LOGGER.debug("Verification code requested successfully.")
 
-        try:
-            self._auth_token = await self._get_authentication_token()
-            self._username = await self._get_username_from_authentication_token()
-        except Exception as e:
-            logging.error(f"Login failed: {e}")
-            raise
-
-    async def login_with_verification_code(self, code: str) -> None:
-        """Login using email verification code."""
+    async def _get_authentication_token_with_verification_code(self, code) -> str:
+        LOGGER.debug("Attempting to connect with provided verification code.")
         data = {
             "account": self._email,
             "code": code
         }
 
-        login_url = self._get_url("login")
-        response = await self._post(login_url, json_data=data, return400=True)
+        response = await self._post(BambuUrl.LOGIN, json_data=data, return400=True)
+        status_code = response.status
 
-        if response.status == 400:
+        if status_code == 200:
+            LOGGER.debug("Authentication successful.")
             response_json = await response.json()
-            if response_json.get('code') == 1:
-                await self._get_email_verification_code()
-                raise EmailCodeExpiredError()
-            elif response_json.get('code') == 2:
-                raise EmailCodeIncorrectError()
+            LOGGER.debug(f"Response = '{response_json}'")
+            return response_json['accessToken']
+        elif status_code == 400:
+            response_json = await response.json()
+            LOGGER.debug(f"Received response: {response_json}")           
+            if response_json['code'] == 1:
+                await self._get_new_code()
+                raise CodeExpiredError()
+            elif response_json['code'] == 2:
+                raise CodeIncorrectError()
+            else:
+                LOGGER.error(f"Response not understood: '{response_json}'")
+                raise ValueError(response_json['code'])
 
-        response_json = await response.json()
-        self._auth_token = response_json['accessToken']
-        self._username = await self._get_username_from_authentication_token()
+    async def _get_authentication_token_with_2fa_code(self, code: str) -> str:
+        LOGGER.debug("Attempting to connect with provided 2FA code.")
 
-    async def login_with_2fa_code(self, code: str) -> None:
-        """Login using 2FA code."""
         data = {
             "tfaKey": self._tfaKey,
             "tfaCode": code
         }
 
-        tfa_url = self._get_url("tfa")
-        response = await self._post(tfa_url, json_data=data)
-        self._auth_token = response.cookies.get("token")
-        if not self._auth_token:
-            response_json = await response.json()
-            self._auth_token = response_json.get('accessToken')
-        self._username = await self._get_username_from_authentication_token()
+        response = await self._post(BambuUrl.TFA_LOGIN, json_data=data)
 
-    async def _get_username_from_authentication_token(self) -> str:
-        """Extract username from authentication token."""
-        if not self._auth_token:
+        LOGGER.debug(f"Response: {response.status}")
+        if response.status == 200:
+            LOGGER.debug("Authentication successful.")
+
+        cookies = response.cookies
+        token_from_tfa = cookies.get("token")
+        return token_from_tfa
+
+    def _get_username_from_authentication_token(self) -> str:
+        LOGGER.debug("Trying to get username from authentication token.")
+        username = None
+        tokens = self._auth_token.split(".")
+        if len(tokens) != 3:
+            LOGGER.debug("Received authToken is not a JWT.")
             return None
 
+        LOGGER.debug("Authentication token looks to be a JWT")
         try:
-            tokens = self._auth_token.split(".")
-            if len(tokens) == 3:
-                b64_string = tokens[1]
-                b64_string += "=" * ((4 - len(b64_string) % 4) % 4)
-                json_data = json.loads(base64.b64decode(b64_string))
-                username = json_data.get('username')
-                if username:
-                    return username
-        except Exception as e:
-            logging.debug(f"Could not decode JWT token: {e}")
+            b64_string = self._auth_token.split(".")[1]
+            b64_string += "=" * ((4 - len(b64_string) % 4) % 4)
+            jsonAuthToken = json.loads(base64.b64decode(b64_string))
+            username = jsonAuthToken.get('username', None)
+        except:
+            LOGGER.debug("Unable to decode authToken to json to retrieve username.")
 
-        # Fallback to getting username from projects
+        if username is None:
+            LOGGER.debug(f"Unable to decode authToken to retrieve username. AuthToken = {self._auth_token}")
+
+        return username
+
+    async def test_authentication(self, region: str, email: str, username: str, auth_token: str) -> bool:
+        self._region = region
+        self._email = email
+        self._username = username
+        self._auth_token = auth_token
         try:
-            response = await self._get(self._get_url("projects"))
-            projects_data = await response.json()
-            if projects_data.get('projects'):
-                first_project = projects_data['projects'][0]
-                user_id = first_project.get('user_id')
-                if user_id:
-                    return f"u_{user_id}"
-        except Exception as e:
-            logging.error(f"Error getting username from projects: {e}")
+            await self.get_device_list()
+        except:
+            return False
+        return True
 
-        return None
+    async def login(self, region: str, email: str, password: str) -> str:
+        self._region = region
+        self._email = email
+        self._password = password
 
-    async def get_device_list(self) -> list:
-        """Get list of devices from Bambu Cloud."""
-        devices_url = self._get_url("devices")
-        response = await self._get(devices_url)
-        response_json = await response.json()
-        return response_json.get('devices', [])
+        result = await self._get_authentication_token()
+        self._auth_token = result
+        self._username = self._get_username_from_authentication_token()
+        
+    async def login_with_verification_code(self, code: str):
+        result = await self._get_authentication_token_with_verification_code(code)
+        self._auth_token = result
+        self._username = self._get_username_from_authentication_token()
+
+    async def login_with_2fa_code(self, code: str):
+        result = await self._get_authentication_token_with_2fa_code(code)
+        self._auth_token = result
+        self._username = self._get_username_from_authentication_token()
 
     async def request_new_code(self):
-        """Request a new verification code."""
         await self._get_new_code()
-    
-    async def close(self) -> None:
-        """Close the session."""
-        if self.session and not self.session.closed:
-            await self.session.close()
-            self.session = None
 
-    @property
-    def username(self) -> str:
-        return self._username
+    async def get_device_list(self) -> dict:
+        LOGGER.debug("Getting device list from Bambu Cloud")
+        try:
+            response = await self._get(BambuUrl.BIND)
+            return (await response.json())['devices']
+        except:
+            return None
 
-    @property
-    def auth_token(self) -> str:
-        return self._auth_token
+    async def get_slicer_settings(self) -> dict:
+        LOGGER.debug("Getting slicer settings from Bambu Cloud")
+        try:
+            response = await self._get(BambuUrl.SLICER_SETTINGS)
+            return await response.json()
+        except:
+            return None
 
-    @property
-    def bambu_connected(self) -> bool:
-        return bool(self._auth_token)
+    async def get_tasklist(self) -> dict:
+        LOGGER.debug("Getting full task list from Bambu Cloud")
+        try:
+            response = await self._get(BambuUrl.TASKS)
+            return await response.json()
+        except:
+            return None
 
-    @property
-    def cloud_mqtt_host(self) -> str:
-        return "cn.mqtt.bambulab.com" if self._region == "China" else "us.mqtt.bambulab.com"
+    async def get_projects(self) -> dict:
+        LOGGER.debug("Getting projects list from Bambu Cloud")
+        try:
+            response = await self._get(BambuUrl.PROJECTS)
+            return await response.json()
+        except:
+            return None

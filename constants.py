@@ -1,3 +1,12 @@
+# Description: Constants for the Bambu API
+from enum import (
+    Enum,
+)
+import logging
+
+LOGGER = logging.getLogger()
+
+
 CURRENT_STAGE_IDS = {
     "default": "unknown",
     0: "printing",
@@ -40,4 +49,24 @@ CURRENT_STAGE_IDS = {
     -1: "idle",  # DUPLICATED
     # P1 returns 255 for idle
     255: "idle",  # DUPLICATED
+}
+class BambuUrl(Enum):
+    LOGIN = 1
+    TFA_LOGIN = 2
+    EMAIL_CODE = 3
+    SMS_CODE = 4
+    BIND = 5
+    SLICER_SETTINGS = 6
+    TASKS = 7
+    PROJECTS = 8
+
+BAMBU_URL = {
+    BambuUrl.LOGIN: 'https://api.bambulab.com/v1/user-service/user/login',
+    BambuUrl.TFA_LOGIN: 'https://bambulab.com/api/sign-in/tfa',
+    BambuUrl.EMAIL_CODE: 'https://api.bambulab.com/v1/user-service/user/sendemail/code',
+    BambuUrl.SMS_CODE: 'https://bambulab.cn/api/v1/user-service/user/sendsmscode',
+    BambuUrl.BIND: 'https://api.bambulab.com/v1/iot-service/api/user/bind',
+    BambuUrl.SLICER_SETTINGS: 'https://api.bambulab.com/v1/iot-service/api/slicer/setting?version=1.10.0.89',
+    BambuUrl.TASKS: 'https://api.bambulab.com/v1/user-service/my/tasks',
+    BambuUrl.PROJECTS: 'https://api.bambulab.com/v1/iot-service/api/user/project',
 }
