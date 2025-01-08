@@ -1,29 +1,37 @@
+from __future__ import annotations
+import base64
+import json
 import aiohttp
 import logging
 from dataclasses import dataclass
 from typing import Optional, Dict, Any
 
 class CloudflareError(Exception):
+    """Exception raised when request is blocked by Cloudflare."""
     def __init__(self):
         super().__init__("Blocked by Cloudflare")
         self.error_code = 403
 
 class EmailCodeRequiredError(Exception):
+    """Exception raised when email verification is required."""
     def __init__(self):
         super().__init__("Email code required")
         self.error_code = 400
 
 class EmailCodeExpiredError(Exception):
+    """Exception raised when email verification code has expired."""
     def __init__(self):
         super().__init__("Email code expired")
         self.error_code = 400
 
 class EmailCodeIncorrectError(Exception):
+    """Exception raised when email verification code is incorrect."""
     def __init__(self):
         super().__init__("Email code incorrect")
         self.error_code = 400
 
 class TfaCodeRequiredError(Exception):
+    """Exception raised when two-factor authentication is required."""
     def __init__(self):
         super().__init__("Two factor authentication code required")
         self.error_code = 400
@@ -40,6 +48,7 @@ class BambuCloud:
         self.session: Optional[aiohttp.ClientSession] = None
 
     def _get_headers(self) -> Dict[str, str]:
+        """Get standard headers for API requests."""
         return {
             'User-Agent': 'bambu_network_agent/01.09.05.01',
             'X-BBL-Client-Name': 'OrcaSlicer',
@@ -56,15 +65,18 @@ class BambuCloud:
         }
 
     def _get_headers_with_auth_token(self) -> Dict[str, str]:
+        """Get headers with authorization token."""
         headers = self._get_headers()
         headers['Authorization'] = f"Bearer {self._auth_token}"
         return headers
 
     async def _ensure_session(self):
+        """Ensure an active session exists."""
         if self.session is None or self.session.closed:
             self.session = aiohttp.ClientSession()
 
     async def _test_response(self, response: aiohttp.ClientResponse, return400: bool = False) -> None:
+        """Test API response for common errors."""
         if response.status == 403 and 'cloudflare' in await response.text():
             logging.error("BLOCKED BY CLOUDFLARE")
             raise CloudflareError()
@@ -81,7 +93,21 @@ class BambuCloud:
             logging.error(f"Error response: {error_text}")
             raise PermissionError(response.status, error_text)
 
+    def _get_url(self, endpoint: str) -> str:
+        """Get the full URL for an API endpoint."""
+        base_url = "https://api.bambulab.com" if self._region != "China" else "https://api.bambulab.cn"
+        endpoints = {
+            "login": "/v1/user-service/user/login",
+            "tfa": "/v1/user-service/user/tfa/login",
+            "email_code": "/v1/user-service/user/send-code",
+            "sms_code": "/v1/user-service/user/send-code",
+            "devices": "/v1/iot-service/api/user/bind",
+            "projects": "/v1/iot-service/api/user/projects"
+        }
+        return f"{base_url}{endpoints[endpoint]}"
+
     async def _get(self, url: str) -> aiohttp.ClientResponse:
+        """Make a GET request to the API."""
         await self._ensure_session()
         headers = self._get_headers_with_auth_token()
         try:
@@ -93,6 +119,7 @@ class BambuCloud:
             raise
 
     async def _post(self, url: str, json_data: dict, headers: Dict[str, str] = None, return400: bool = False) -> aiohttp.ClientResponse:
+        """Make a POST request to the API."""
         await self._ensure_session()
         if headers is None:
             headers = self._get_headers()
@@ -106,6 +133,7 @@ class BambuCloud:
             raise
 
     async def _get_authentication_token(self) -> str:
+        """Get authentication token from Bambu Cloud."""
         logging.debug("Getting accessToken from Bambu Cloud")
         data = {
             "account": self._email,
@@ -134,16 +162,35 @@ class BambuCloud:
             logging.error(f"Response not understood: {auth_json}")
             raise ValueError("Invalid login response")
 
+    async def _get_new_code(self):
+        """Request a new verification code based on email or phone."""
+        if '@' in self._email:
+            await self._get_email_verification_code()
+        else:
+            await self._get_sms_verification_code()
+
     async def _get_email_verification_code(self):
+        """Request an email verification code."""
         data = {
             "email": self._email,
             "type": "codeLogin"
         }
         email_code_url = self._get_url("email_code")
         await self._post(email_code_url, json_data=data)
-        logging.debug("Verification code requested successfully")
+        logging.debug("Email verification code requested successfully")
+        
+    async def _get_sms_verification_code(self):
+        """Request an SMS verification code."""
+        data = {
+            "phone": self._email,
+            "type": "codeLogin"
+        }
+        sms_code_url = self._get_url("sms_code")
+        await self._post(sms_code_url, json_data=data)
+        logging.debug("SMS verification code requested successfully")
 
     async def login(self, region: str, email: str, password: str) -> None:
+        """Login to Bambu Cloud."""
         self._region = region
         self._email = email
         self._password = password
@@ -156,6 +203,7 @@ class BambuCloud:
             raise
 
     async def login_with_verification_code(self, code: str) -> None:
+        """Login using email verification code."""
         data = {
             "account": self._email,
             "code": code
@@ -177,6 +225,7 @@ class BambuCloud:
         self._username = await self._get_username_from_authentication_token()
 
     async def login_with_2fa_code(self, code: str) -> None:
+        """Login using 2FA code."""
         data = {
             "tfaKey": self._tfaKey,
             "tfaCode": code
@@ -190,18 +239,8 @@ class BambuCloud:
             self._auth_token = response_json.get('accessToken')
         self._username = await self._get_username_from_authentication_token()
 
-    def _get_url(self, endpoint: str) -> str:
-        base_url = "https://api.bambulab.com" if self._region != "China" else "https://api.bambulab.cn"
-        endpoints = {
-            "login": "/v1/user-service/user/login",
-            "tfa": "/v1/user-service/user/tfa/login",
-            "email_code": "/v1/user-service/user/send-code",
-            "devices": "/v1/iot-service/api/user/bind",
-            "projects": "/v1/iot-service/api/user/projects"
-        }
-        return f"{base_url}{endpoints[endpoint]}"
-
     async def _get_username_from_authentication_token(self) -> str:
+        """Extract username from authentication token."""
         if not self._auth_token:
             return None
 
@@ -232,12 +271,18 @@ class BambuCloud:
         return None
 
     async def get_device_list(self) -> list:
+        """Get list of devices from Bambu Cloud."""
         devices_url = self._get_url("devices")
         response = await self._get(devices_url)
         response_json = await response.json()
         return response_json.get('devices', [])
 
+    async def request_new_code(self):
+        """Request a new verification code."""
+        await self._get_new_code()
+    
     async def close(self) -> None:
+        """Close the session."""
         if self.session and not self.session.closed:
             await self.session.close()
             self.session = None
