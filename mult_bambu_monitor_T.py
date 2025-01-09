@@ -965,55 +965,23 @@ async def main():
 
         # Authenticate cloud printers before any connections
         logging.info("Authenticating cloud printers...")
+        await authenticate_cloud_printers()
+
+        # Connect to cloud printers first
+        logging.info("Connecting cloud printers...")
         for broker in brokers:
             if broker['printer_type'] in ['A1', 'P1S']:
-                try:
-                    bambu_cloud = BambuCloud(region="US", email=broker['user'], username='', auth_token='')
+                await start_or_restart_printer(broker)
 
-                    # Attempt login
-                    try:
-                        await bambu_cloud.login(region="US", email=broker['user'], password=broker['password'])
-                        logging.info(f"Authentication successful for {broker['Printer_Title']}.")
-                    
-                    # Handle verification code request
-                    except CodeRequiredError:
-                        while True:
-                            request_new_code = input(f"Verification code required for {broker['user']}. Do you want to request a new code? (yes/no): ").strip().lower()
-                            if request_new_code == "yes":
-                                await bambu_cloud._get_email_verification_code()
-                                logging.info("A new verification code has been sent to your email.")
-                            code = input("Enter the verification code: ").strip()
-                            try:
-                                await bambu_cloud.login_with_verification_code(code)
-                                logging.info(f"Verification successful for {broker['Printer_Title']}.")
-                                break
-                            except CodeExpiredError:
-                                logging.error("Verification code expired. Please request a new code.")
-                            except CodeIncorrectError:
-                                logging.error("Incorrect verification code. Please try again.")
-
-                    # Handle 2FA request
-                    except TfaCodeRequiredError:
-                        code = input("Two-factor authentication code required. Enter the code: ").strip()
-                        await bambu_cloud.login_with_2fa_code(code)
-                        logging.info(f"Two-factor authentication successful for {broker['Printer_Title']}.")
-
-                    except Exception as e:
-                        logging.error(f"Unexpected error during authentication for {broker['Printer_Title']}: {e}")
-                        raise
-
-                except Exception as e:
-                    logging.error(f"Failed to authenticate cloud printer {broker['Printer_Title']}: {e}")
-
-        # Connect to cloud and local printers
-        logging.info("Connecting printers...")
-        tasks = []
+        # Connect to local printers (X1)
+        logging.info("Connecting local printers...")
         for broker in brokers:
-            tasks.append(start_or_restart_printer(broker))
+            if broker['printer_type'] == 'X1C':
+                await start_or_restart_printer(broker)
 
-        # Start a single web server for all printers
-        logging.info("Starting web server for all printers...")
-        server_task = asyncio.create_task(start_server())
+        # Start the web server
+        logging.info("Starting web server...")
+        web_task = asyncio.create_task(start_server())
 
         # Handle shutdown signals
         signals = (signal.SIGHUP, signal.SIGTERM, signal.SIGINT)
@@ -1023,12 +991,10 @@ async def main():
                 s, lambda s=s: asyncio.create_task(shutdown(s, loop))
             )
 
-        await asyncio.gather(server_task, *tasks)
-
+        await web_task
     except Exception as e:
-        logging.error("Cannot connect: An unexpected error occurred.")
         logging.error(f"Fatal error: {e}")
-        raise
+        raise e
 
 
 
