@@ -4,8 +4,8 @@ import base64
 import json
 import aiohttp
 from dataclasses import dataclass
-from .constants import LOGGER, BambuUrl
-from .utils import get_Url
+from constants import LOGGER, BambuUrl
+from utils import get_Url
 
 IMPERSONATE_BROWSER = 'chrome'
 
