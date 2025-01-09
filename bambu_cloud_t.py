@@ -43,7 +43,8 @@ class BambuCloud:
         self._auth_token = auth_token
         self._password = None
         self._tfaKey = None
-
+        self._session = aiohttp.ClientSession()  # Initialize an HTTP session
+    
     def _get_headers(self):
         return {
             'User-Agent': 'bambu_network_agent/01.09.05.01',
@@ -167,7 +168,11 @@ class BambuCloud:
             async with session.get(url) as response:
                 await self._test_response(response)
                 return await response.read()
-
+    
+    async def close(self):
+        """Clean up resources."""
+        if self._session:
+            await self._session.close()
     @property
     def username(self):
         return self._username
