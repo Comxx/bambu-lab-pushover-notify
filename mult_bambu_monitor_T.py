@@ -1005,29 +1005,15 @@ async def main():
                 except Exception as e:
                     logging.error(f"Failed to authenticate cloud printer {broker['Printer_Title']}: {e}")
 
-        # Connect to cloud printers
-        logging.info("Connecting cloud printers...")
-        cloud_tasks = []
+        # Connect to cloud and local printers
+        logging.info("Connecting printers...")
+        tasks = []
         for broker in brokers:
-            if broker['printer_type'] in ['A1', 'P1S']:
-                cloud_tasks.append(start_or_restart_printer(broker))
+            tasks.append(start_or_restart_printer(broker))
 
-        # Connect to local printers (e.g., X1C)
-        logging.info("Connecting local printers...")
-        local_tasks = []
-        for broker in brokers:
-            if broker['printer_type'] == 'X1C':
-                local_tasks.append(start_or_restart_printer(broker))
-
-        # Start web server for cloud printers
-        logging.info("Starting web server for cloud printers...")
-        cloud_server_task = asyncio.create_task(start_server())
-
-        # Start separate web servers for each local printer
-        local_server_tasks = []
-        for broker in brokers:
-            if broker['printer_type'] == 'X1C':
-                local_server_tasks.append(asyncio.create_task(start_server()))
+        # Start a single web server for all printers
+        logging.info("Starting web server for all printers...")
+        server_task = asyncio.create_task(start_server())
 
         # Handle shutdown signals
         signals = (signal.SIGHUP, signal.SIGTERM, signal.SIGINT)
@@ -1037,12 +1023,13 @@ async def main():
                 s, lambda s=s: asyncio.create_task(shutdown(s, loop))
             )
 
-        await asyncio.gather(cloud_server_task, *local_server_tasks, *cloud_tasks, *local_tasks)
+        await asyncio.gather(server_task, *tasks)
 
     except Exception as e:
         logging.error("Cannot connect: An unexpected error occurred.")
         logging.error(f"Fatal error: {e}")
         raise
+
 
 
 if __name__ == "__main__":
