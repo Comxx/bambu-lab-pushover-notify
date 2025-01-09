@@ -13,7 +13,7 @@ import time
 import wled_t
 from quart import Quart, request, render_template, jsonify, send_file, send_from_directory
 import socketio
-from bambu_cloud_t import BambuCloud, CloudflareError, EmailCodeRequiredError, TfaCodeRequiredError, EmailCodeExpiredError, EmailCodeIncorrectError
+from bambu_cloud_t import BambuCloud, CloudflareError, CodeRequiredError, TfaCodeRequiredError, CodeExpiredError, CodeIncorrectError
 import traceback
 from constants import CURRENT_STAGE_IDS
 from aiomqtt import Client as MQTTClient, TLSParameters, MqttError
@@ -40,6 +40,7 @@ cached_device_error_data = None
 printer_tasks = {}
 auth_states = {}  # Track authentication states for printers
 token_refresh_tasks = {}  # Track token refresh tasks per printer
+settings_file = 'settings.json'
 
 class TokenManager:
     def __init__(self, device_id: str, broker_config: dict):
@@ -245,14 +246,14 @@ async def verify_email():
             
             return jsonify({'status': 'success', 'message': 'Email verification successful'})
             
-        except EmailCodeExpiredError:
+        except CodeExpiredError:
             # Request a new code automatically
             await bambu_cloud._get_email_verification_code()
             return jsonify({
                 'status': 'error', 
                 'message': 'Verification code expired. A new code has been sent to your email.'
             })
-        except EmailCodeIncorrectError:
+        except CodeIncorrectError:
             return jsonify({
                 'status': 'error', 
                 'message': 'Incorrect verification code. Please try again.'
@@ -675,11 +676,11 @@ async def handle_cli_verification(printer_id: str, bambu_cloud: BambuCloud) -> b
                     await bambu_cloud.login_with_verification_code(code)
                     print("Email verification successful!")
                     return True
-                except EmailCodeExpiredError:
+                except CodeExpiredError:
                     print("Verification code has expired. Requesting new code...")
                     await bambu_cloud._get_email_verification_code()
                     print("New verification code has been sent.")
-                except EmailCodeIncorrectError:
+                except CodeIncorrectError:
                     print("Incorrect verification code. Please try again.")
         except Exception as e:
             logging.error(f"Authentication failed: {str(e)}")
@@ -772,6 +773,7 @@ async def printer_loop(client):
     if device_id in printer_tasks:
         del printer_tasks[device_id]
 
+
 def is_code_expired(printer_id):
     try:
         with open(settings_file, 'r') as f:
@@ -817,7 +819,7 @@ async def authenticate_cloud_printers():
             try:
                 await bambu_cloud.login(region="US", email=email, password=password)
                 logging.info(f"Cloud authentication successful for {broker['Printer_Title']}.")
-            except EmailCodeRequiredError:
+            except CodeRequiredError:
                 if not is_code_expired(broker['device_id']):
                     logging.info(f"Using stored code for {broker['Printer_Title']}.")
                     with open(settings_file, 'r') as f:
@@ -834,7 +836,7 @@ async def authenticate_cloud_printers():
                     # Store the email code and set expiration
                     expires_at = datetime.now() + timedelta(minutes=5)  # Assuming a 5-minute code validity
                     store_email_code(broker['device_id'], code, expires_at)
-                except EmailCodeExpiredError:
+                except CodeExpiredError:
                     logging.error(f"Verification code expired for {broker['Printer_Title']}. Requesting a new code...")
                     await bambu_cloud._get_email_verification_code()
                     code = input(f"New verification code sent to {email}. Enter the code: ").strip()
@@ -868,7 +870,7 @@ async def authenticate_cloud_printers():
             try:
                 await bambu_cloud.login(region="US", email=email, password=password)
                 logging.info(f"Cloud authentication successful for {broker['Printer_Title']}.")
-            except EmailCodeRequiredError:
+            except CodeRequiredError:
                 if not is_code_expired(broker['device_id']):
                     logging.info(f"Using stored code for {broker['Printer_Title']}.")
                     with open(settings_file, 'r') as f:
@@ -885,7 +887,7 @@ async def authenticate_cloud_printers():
                     # Store the email code and set expiration
                     expires_at = datetime.now() + timedelta(minutes=5)  # Assuming a 5-minute code validity
                     store_email_code(broker['device_id'], code, expires_at)
-                except EmailCodeExpiredError:
+                except CodeExpiredError:
                     logging.error(f"Verification code expired for {broker['Printer_Title']}. Requesting a new code...")
                     await bambu_cloud._get_email_verification_code()
                     code = input(f"New verification code sent to {email}. Enter the code: ").strip()
@@ -963,23 +965,69 @@ async def main():
 
         # Authenticate cloud printers before any connections
         logging.info("Authenticating cloud printers...")
-        await authenticate_cloud_printers()
-
-        # Connect to cloud printers first
-        logging.info("Connecting cloud printers...")
         for broker in brokers:
             if broker['printer_type'] in ['A1', 'P1S']:
-                await start_or_restart_printer(broker)
+                try:
+                    bambu_cloud = BambuCloud(region="US", email=broker['user'], username='', auth_token='')
 
-        # Connect to local printers (X1)
+                    # Attempt login
+                    try:
+                        await bambu_cloud.login(region="US", email=broker['user'], password=broker['password'])
+                        logging.info(f"Authentication successful for {broker['Printer_Title']}.")
+                    
+                    # Handle verification code request
+                    except CodeRequiredError:
+                        while True:
+                            request_new_code = input(f"Verification code required for {broker['user']}. Do you want to request a new code? (yes/no): ").strip().lower()
+                            if request_new_code == "yes":
+                                await bambu_cloud._get_email_verification_code()
+                                logging.info("A new verification code has been sent to your email.")
+                            code = input("Enter the verification code: ").strip()
+                            try:
+                                await bambu_cloud.login_with_verification_code(code)
+                                logging.info(f"Verification successful for {broker['Printer_Title']}.")
+                                break
+                            except CodeExpiredError:
+                                logging.error("Verification code expired. Please request a new code.")
+                            except CodeIncorrectError:
+                                logging.error("Incorrect verification code. Please try again.")
+
+                    # Handle 2FA request
+                    except TfaCodeRequiredError:
+                        code = input("Two-factor authentication code required. Enter the code: ").strip()
+                        await bambu_cloud.login_with_2fa_code(code)
+                        logging.info(f"Two-factor authentication successful for {broker['Printer_Title']}.")
+
+                    except Exception as e:
+                        logging.error(f"Unexpected error during authentication for {broker['Printer_Title']}: {e}")
+                        raise
+
+                except Exception as e:
+                    logging.error(f"Failed to authenticate cloud printer {broker['Printer_Title']}: {e}")
+
+        # Connect to cloud printers
+        logging.info("Connecting cloud printers...")
+        cloud_tasks = []
+        for broker in brokers:
+            if broker['printer_type'] in ['A1', 'P1S']:
+                cloud_tasks.append(start_or_restart_printer(broker))
+
+        # Connect to local printers (e.g., X1C)
         logging.info("Connecting local printers...")
+        local_tasks = []
         for broker in brokers:
             if broker['printer_type'] == 'X1C':
-                await start_or_restart_printer(broker)
+                local_tasks.append(start_or_restart_printer(broker))
 
-        # Start the web server
-        logging.info("Starting web server...")
-        web_task = asyncio.create_task(start_server())
+        # Start web server for cloud printers
+        logging.info("Starting web server for cloud printers...")
+        cloud_server_task = asyncio.create_task(start_server())
+
+        # Start separate web servers for each local printer
+        local_server_tasks = []
+        for broker in brokers:
+            if broker['printer_type'] == 'X1C':
+                local_server_tasks.append(asyncio.create_task(start_server()))
 
         # Handle shutdown signals
         signals = (signal.SIGHUP, signal.SIGTERM, signal.SIGINT)
@@ -989,10 +1037,12 @@ async def main():
                 s, lambda s=s: asyncio.create_task(shutdown(s, loop))
             )
 
-        await web_task
+        await asyncio.gather(cloud_server_task, *local_server_tasks, *cloud_tasks, *local_tasks)
+
     except Exception as e:
+        logging.error("Cannot connect: An unexpected error occurred.")
         logging.error(f"Fatal error: {e}")
-        raise e
+        raise
 
 
 if __name__ == "__main__":
