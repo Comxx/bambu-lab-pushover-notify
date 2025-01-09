@@ -665,7 +665,8 @@ async def connect_to_broker(broker):
        # bambu_cloud = BambuCloud(region="US", email=broker["user"], username='', auth_token='')
 
         if broker["printer_type"] in ["A1", "P1S"]:
-            pass  # Do nothing
+            logging.info(f"Using global credentials to log in cloud for {broker['Printer_Title']}")
+            logging.info(f"Using global credentials - User: {Mqttuser}, Password: {Mqttpassword}")
             # try:
             #     # Attempt to login using email and password
             #     await bambu_cloud.login(region="US", email=broker["user"], password=broker["password"])
