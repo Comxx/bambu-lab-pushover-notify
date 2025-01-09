@@ -864,7 +864,8 @@ async def authenticate_cloud_printers():
     for broker in brokers:
         if broker['printer_type'] in ['A1', 'P1S']:
             email, password = await prompt_credentials()
-            bambu_cloud = BambuCloud(region="US", email=email)
+            bambu_cloud = BambuCloud(region="US", email=email, username='', auth_token='')
+
             auth_states[broker["device_id"]] = {"bambu_cloud": bambu_cloud}
 
             try:
