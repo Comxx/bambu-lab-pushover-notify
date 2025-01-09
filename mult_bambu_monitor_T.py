@@ -102,7 +102,21 @@ async def token_refresh_loop(token_manager: TokenManager):
             logging.error(f"Error in token refresh loop for {token_manager.device_id}: {e}")
             await asyncio.sleep(300)  # Sleep for 5 minutes on error
 
-
+def setup_logging():
+    local_timezone = tzlocal.get_localzone()
+    current_datetime = datetime.now(local_timezone)
+    datetime_str = current_datetime.strftime("%Y-%m-%d_%I-%M-%S%p")
+    logfile_path = "logs/"
+    logfile_name = f"{logfile_path}output_{datetime_str}.log"
+    log_formatter = logging.Formatter('%(asctime)s %(levelname)s: %(message)s', datefmt='%m-%d-%Y %I:%M:%S %p')
+    
+    rotating_handler = RotatingFileHandler(logfile_name, maxBytes=1024*1024, backupCount=5)
+    rotating_handler.setFormatter(log_formatter)
+    
+    logger = logging.getLogger()
+    logger.setLevel(logging.INFO)
+    logger.addHandler(rotating_handler)
+    
 # Initialize Quart app and SocketIO
 app = Quart(__name__)
 sio = socketio.AsyncServer(async_mode='asgi')
@@ -296,21 +310,6 @@ async def verify_2fa():
             
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)})
-
-def setup_logging():
-    local_timezone = tzlocal.get_localzone()
-    current_datetime = datetime.now(local_timezone)
-    datetime_str = current_datetime.strftime("%Y-%m-%d_%I-%M-%S%p")
-    logfile_path = "logs/"
-    logfile_name = f"{logfile_path}output_{datetime_str}.log"
-    log_formatter = logging.Formatter('%(asctime)s %(levelname)s: %(message)s', datefmt='%m-%d-%Y %I:%M:%S %p')
-    
-    rotating_handler = RotatingFileHandler(logfile_name, maxBytes=1024*1024, backupCount=5)
-    rotating_handler.setFormatter(log_formatter)
-    
-    logger = logging.getLogger()
-    logger.setLevel(logging.INFO)
-    logger.addHandler(rotating_handler)
 
 async def on_connect(client):
     try:
