@@ -836,7 +836,16 @@ async def authenticate_cloud_printers():
                     ).get('email_code_data', {})
                     code = code_data.get('code')
                 else:
-                    code = input(f"Verification code sent to {broker['user']}. Enter the code: ").strip()
+                    # Ask if the user wants to resend the code
+                    resend_choice = input(
+                        f"The verification code for {broker['Printer_Title']} may have expired. Do you want to resend it? (yes/no): "
+                    ).strip().lower()
+
+                    if resend_choice in ["yes", "y"]:
+                        await bambu_cloud._get_email_verification_code()
+                        logging.info(f"New verification code sent to {broker['user']}.")
+                    
+                    code = input(f"Enter the verification code sent to {broker['user']}: ").strip()
 
                 try:
                     # Attempt to login with the verification code
@@ -862,10 +871,10 @@ async def authenticate_cloud_printers():
                     raise e
             except Exception as e:
                 logging.error(f"Login failed for {broker['Printer_Title']}: {str(e)}")
-                auth_states[device_id] = {"status": "error", "message": str(e)}
+                auth_states[broker['device_id']] = {"status": "error", "message": str(e)}
                 return None
 
-            
+        # Update global credentials
         Mqttpassword = bambu_cloud.auth_token
         Mqttuser = bambu_cloud.username
 
