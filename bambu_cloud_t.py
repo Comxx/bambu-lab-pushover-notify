@@ -94,9 +94,9 @@ class BambuCloud:
     
     async def _get_new_code(self):
         if '@' in self._email:
-            self._get_email_verification_code()
+            await self._get_email_verification_code()
         else:
-            self._get_sms_verification_code()       
+            await self._get_sms_verification_code()       
 
     async def _get_email_verification_code(self):
         # Send the email verification code request
@@ -160,7 +160,7 @@ class BambuCloud:
             "code": code
         }
 
-        response = self._post(BambuUrl.LOGIN, json=data, return400=True)
+        response = await self._post(BambuUrl.LOGIN, json=data, return400=True)
         status_code = response.status_code
 
         if status_code == 200:
@@ -170,7 +170,7 @@ class BambuCloud:
             LOGGER.debug(f"Received response: {response.json()}")           
             if response.json()['code'] == 1:
                 # Code has expired. Request a new one.
-                self._get_new_code()
+                await self._get_new_code()
                 raise CodeExpiredError()
             elif response.json()['code'] == 2:
                 # Code was incorrect. Let the user try again.
@@ -189,7 +189,7 @@ class BambuCloud:
         if len(tokens) != 3:
             LOGGER.debug("Received authToken is not a JWT.")
             LOGGER.debug("Trying to use project API to retrieve username instead")
-            response = self.get_projects();
+            response = await self.get_projects();
             if response is not None:
                 projectsnode = response.get('projects', None)
                 if projectsnode is None:
@@ -225,14 +225,14 @@ class BambuCloud:
         self._region = region
         self._email = email
         self._password = password
-        result = self._get_authentication_token()
+        result = await self._get_authentication_token()
         self._auth_token = result
-        self._username = self._get_username_from_authentication_token()
+        self._username = await self._get_username_from_authentication_token()  # Await this coroutine
 
     async def login_with_verification_code(self, code: str):
-        result = self._get_authentication_token_with_verification_code(code)
+        result = await self._get_authentication_token_with_verification_code(code)
         self._auth_token = result
-        self._username = self._get_username_from_authentication_token()
+        self._username = await self._get_username_from_authentication_token()
 
     async def login_with_2fa_code(self, code: str):
         result = self._get_authentication_token_with_2fa_code(code)
