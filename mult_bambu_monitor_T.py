@@ -816,50 +816,61 @@ def store_email_code(printer_id, code, expires_at):
 async def authenticate_cloud_printers():
     global Mqttpassword, Mqttuser
     for broker in brokers:
-        # Initialize BambuCloud instance
         bambu_cloud = BambuCloud(region="US", email=broker["user"], username='', auth_token='')
 
         if broker["printer_type"] in ["A1", "P1S"]:
             try:
-                # Attempt to login using email and password
-                await bambu_cloud.login(region="US", email=broker["user"], password=broker["password"])
-            except CodeRequiredError:
-                logging.info(f"Verification code required for {broker['Printer_Title']}.")
-
-                while True:
-                    # Ask if the user wants to resend the code
-                    resend_choice = input(
-                        f"Do you want to resend the verification code for {broker['Printer_Title']}? (yes/no): "
-                    ).strip().lower()
-
-                    if resend_choice in ["yes", "y"]:
-                        await bambu_cloud._get_email_verification_code()
-                        logging.info(f"New verification code sent to {broker['user']}.")
-
-                    code = input(f"Enter the verification code sent to {broker['user']}: ").strip()
-
+                while True:  # Retry until successful or unrecoverable error
                     try:
-                        # Attempt to login with the verification code
-                        await bambu_cloud.login_with_verification_code(code)
-                        logging.info(f"Verification successful for {broker['Printer_Title']}.")
-
-                        # Store the email code and set expiration
-                        expires_at = datetime.now() + timedelta(minutes=5)  # Assuming a 5-minute code validity
-                        store_email_code(broker['device_id'], code, expires_at)
-                        break
+                        await bambu_cloud.login(region="US", email=broker["user"], password=broker["password"])
+                        logging.info(f"Login successful for {broker['Printer_Title']}.")
+                        break  # Exit loop on success
+                    except CodeRequiredError:
+                        logging.info(f"Verification code required for {broker['Printer_Title']}.")
+                        await handle_verification_code(bambu_cloud, broker)
+                    except CodeIncorrectError:
+                        logging.warning(f"Incorrect verification code for {broker['Printer_Title']}. Retrying...")
+                        await handle_verification_code(bambu_cloud, broker)
                     except CodeExpiredError:
-                        logging.error(f"Verification code expired for {broker['Printer_Title']}. Please try again.")
+                        logging.error(f"Verification code expired for {broker['Printer_Title']}. Requesting a new code...")
+                        await handle_verification_code(bambu_cloud, broker)
                     except Exception as e:
-                        logging.error(f"Failed to verify {broker['Printer_Title']} with the provided code: {e}")
-                        raise e
+                        logging.error(f"Login failed for {broker['Printer_Title']}: {e}")
+                        auth_states[broker['device_id']] = {"status": "error", "message": str(e)}
+                        return None
             except Exception as e:
-                logging.error(f"Login failed for {broker['Printer_Title']}: {str(e)}")
-                auth_states[broker['device_id']] = {"status": "error", "message": str(e)}
+                logging.error(f"Failed to authenticate {broker['Printer_Title']}: {e}")
                 return None
 
-        # Update global credentials
         Mqttpassword = bambu_cloud.auth_token
         Mqttuser = bambu_cloud.username
+
+
+async def handle_verification_code(bambu_cloud, broker):
+    """Handle the process of entering and verifying codes."""
+    for _ in range(3):  # Limit retries
+        resend_choice = input(f"Do you want to resend the verification code for {broker['Printer_Title']}? (yes/no): ").strip().lower()
+
+        if resend_choice in ["yes", "y"]:
+            await bambu_cloud._get_get_new_code()
+            logging.info(f"New verification code sent to {broker['user']}.")
+
+        code = input(f"Enter the verification code sent to {broker['user']}: ").strip()
+
+        try:
+            await bambu_cloud.login_with_verification_code(code)
+            logging.info(f"Verification successful for {broker['Printer_Title']}.")
+            expires_at = datetime.now() + timedelta(minutes=5)
+            store_email_code(broker['device_id'], code, expires_at)
+            break
+        except CodeIncorrectError:
+            logging.warning(f"Incorrect verification code for {broker['Printer_Title']}. Please try again.")
+        except CodeExpiredError:
+            logging.error(f"Verification code expired for {broker['Printer_Title']}. Requesting a new code...")
+            await bambu_cloud._get_new_code()
+        except Exception as e:
+            logging.error(f"Unexpected error during verification for {broker['Printer_Title']}: {e}")
+            raise e
 
 
 async def start_or_restart_printer(broker_config):
