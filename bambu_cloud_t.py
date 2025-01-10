@@ -91,7 +91,44 @@ class BambuCloud:
             async with session.post(url, headers=headers, json=data) as response:
                 await self._test_response(response)
                 return await response.json()
+    
+    async def _get_new_code(self):
+        if '@' in self._email:
+            self._get_email_verification_code()
+        else:
+            self._get_sms_verification_code()       
 
+    async def _get_email_verification_code(self):
+        # Send the email verification code request
+        data = {
+            "email": self._email,
+            "type": "codeLogin"
+        }
+
+        LOGGER.debug("Requesting email verification code")
+        try:
+            response = await self._post(BambuUrl.EMAIL_CODE, json_data=data)
+            LOGGER.debug("Verification code requested successfully.")
+            return response
+        except Exception as e:
+            LOGGER.error(f"Failed to request email verification code: {e}")
+
+    async def _get_sms_verification_code(self):
+        # Send the SMS verification code request
+        data = {
+            "phone": self._phone,
+            "type": "codeLogin"
+        }
+
+        LOGGER.debug("Requesting SMS verification code")
+        try:
+            response = await self._post(BambuUrl.SMS_CODE, json_data=data)
+            LOGGER.debug("Verification code requested successfully.")
+            return response
+        except Exception as e:
+            LOGGER.error(f"Failed to request SMS verification code: {e}")
+    
+    
     async def _get_authentication_token(self) -> str:
         LOGGER.debug("Getting accessToken from Bambu Cloud")
         data = {
@@ -115,28 +152,95 @@ class BambuCloud:
             raise TfaCodeRequiredError()
         else:
             raise ValueError("Unknown loginType")
+        
+    async def _get_authentication_token_with_verification_code(self, code) -> dict:
+        LOGGER.debug("Attempting to connect with provided verification code.")
+        data = {
+            "account": self._email,
+            "code": code
+        }
+
+        response = self._post(BambuUrl.LOGIN, json=data, return400=True)
+        status_code = response.status_code
+
+        if status_code == 200:
+            LOGGER.debug("Authentication successful.")
+            LOGGER.debug(f"Response = '{response.json()}'")
+        elif status_code == 400:
+            LOGGER.debug(f"Received response: {response.json()}")           
+            if response.json()['code'] == 1:
+                # Code has expired. Request a new one.
+                self._get_new_code()
+                raise CodeExpiredError()
+            elif response.json()['code'] == 2:
+                # Code was incorrect. Let the user try again.
+                raise CodeIncorrectError()
+            else:
+                LOGGER.error(f"Response not understood: '{response.json()}'")
+                raise ValueError(response.json()['code'])
+
+        return response.json()['accessToken']       
+
+    async def _get_username_from_authentication_token(self) -> str:
+        LOGGER.debug("Trying to get username from authentication token.")
+        # User name is in 2nd portion of the auth token (delimited with periods)
+        username = None
+        tokens = self._auth_token.split(".")
+        if len(tokens) != 3:
+            LOGGER.debug("Received authToken is not a JWT.")
+            LOGGER.debug("Trying to use project API to retrieve username instead")
+            response = self.get_projects();
+            if response is not None:
+                projectsnode = response.get('projects', None)
+                if projectsnode is None:
+                    LOGGER.debug("Failed to find projects node")
+                else:
+                    if len(projectsnode) == 0:
+                        LOGGER.debug("No projects node in response")
+                    else:
+                        project=projectsnode[0]
+                        if project.get('user_id', None) is None:
+                            LOGGER.debug("No user_id entry")
+                        else:
+                            username = f"u_{project['user_id']}"
+                            LOGGER.debug(f"Found user_id of {username}")
+        else:
+            LOGGER.debug("Authentication token looks to be a JWT")
+            try:
+                b64_string = self._auth_token.split(".")[1]
+                # String must be multiples of 4 chars in length. For decode pad with = character
+                b64_string += "=" * ((4 - len(b64_string) % 4) % 4)
+                jsonAuthToken = json.loads(base64.b64decode(b64_string))
+                # Gives json payload with "username":"u_<digits>" within it
+                username = jsonAuthToken.get('username', None)
+            except:
+                LOGGER.debug("Unable to decode authToken to json to retrieve username.")
+
+        if username is None:
+            LOGGER.debug(f"Unable to decode authToken to retrieve username. AuthToken = {self._auth_token}")
+
+        return username
 
     async def login(self, region: str, email: str, password: str):
         self._region = region
         self._email = email
         self._password = password
-        self._auth_token = await self._get_authentication_token()
+        result = self._get_authentication_token()
+        self._auth_token = result
+        self._username = self._get_username_from_authentication_token()
 
     async def login_with_verification_code(self, code: str):
-        data = {
-            "account": self._email,
-            "code": code
-        }
-        response = await self._post(BambuUrl.LOGIN, data)
-        self._auth_token = response.get('accessToken', '')
+        result = self._get_authentication_token_with_verification_code(code)
+        self._auth_token = result
+        self._username = self._get_username_from_authentication_token()
 
     async def login_with_2fa_code(self, code: str):
-        data = {
-            "tfaKey": self._tfaKey,
-            "tfaCode": code
-        }
-        response = await self._post(BambuUrl.TFA_LOGIN, data)
-        self._auth_token = response.get('accessToken', '')
+        result = self._get_authentication_token_with_2fa_code(code)
+        self._auth_token = result
+        self._username = self._get_username_from_authentication_token()
+        
+    async def request_new_code(self):
+        self._get_new_code()    
 
     async def get_device_list(self) -> dict:
         LOGGER.debug("Getting device list from Bambu Cloud")
