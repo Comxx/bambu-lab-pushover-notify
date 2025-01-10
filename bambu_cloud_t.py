@@ -76,21 +76,90 @@ class BambuCloud:
 
         LOGGER.debug(f"Response: {response.status}")
 
+    # async def _get(self, urlenum: BambuUrl):
+    #     url = get_Url(urlenum, self._region)
+    #     headers = self._get_headers_with_auth_token()
+    #     async with aiohttp.ClientSession() as session:
+    #         async with session.get(url, headers=headers) as response:
+    #             return await response
+    
+    # async def _post(self, urlenum: BambuUrl, json: str, headers={}, return400=False):
+    #     url = get_Url(urlenum, self._region)
+    #     headers = self._get_headers_with_auth_token()
+    #     async with aiohttp.ClientSession() as session:
+    #         async with session.post(url, headers=headers, json=json) as response:
+    #             return response
+    
     async def _get(self, urlenum: BambuUrl):
+        """
+        Perform an HTTP GET request using aiohttp.
+
+        Args:
+            urlenum (BambuUrl): Enum representing the API endpoint.
+
+        Returns:
+            dict: Parsed JSON response from the API.
+
+        Raises:
+            aiohttp.ClientResponseError: If the response status is >= 400.
+        """
         url = get_Url(urlenum, self._region)
         headers = self._get_headers_with_auth_token()
+
         async with aiohttp.ClientSession() as session:
             async with session.get(url, headers=headers) as response:
-                await self._test_response(response)
-                return await response.json()
+                if response.status >= 400:
+                    text = await response.text()
+                    raise aiohttp.ClientResponseError(
+                        request_info=response.request_info,
+                        history=response.history,
+                        status=response.status,
+                        message=text,
+                        headers=response.headers,
+                    )
+                try:
+                    return await response.json()
+                except aiohttp.ContentTypeError:
+                    return {"error": "Invalid response format", "text": await response.text()}
 
-    async def _post(self, urlenum: BambuUrl, data: dict):
+
+    async def _post(self, urlenum: BambuUrl, json_payload: dict, return400=False):
+        """
+        Perform an HTTP POST request using aiohttp.
+
+        Args:
+            urlenum (BambuUrl): Enum representing the API endpoint.
+            json_payload (dict): The JSON payload for the POST request.
+            return400 (bool): If True, allows HTTP 400 responses without raising an exception.
+
+        Returns:
+            dict: Parsed JSON response from the API.
+
+        Raises:
+            aiohttp.ClientResponseError: If the response status is >= 400 and `return400` is False.
+        """
         url = get_Url(urlenum, self._region)
         headers = self._get_headers_with_auth_token()
+
         async with aiohttp.ClientSession() as session:
-            async with session.post(url, headers=headers, json=data) as response:
-                await self._test_response(response)
-                return await response.json()
+            async with session.post(url, headers=headers, json=json_payload) as response:
+                if not return400 and response.status >= 400:
+                    text = await response.text()
+                    raise aiohttp.ClientResponseError(
+                        request_info=response.request_info,
+                        history=response.history,
+                        status=response.status,
+                        message=text,
+                        headers=response.headers,
+                    )
+                elif response.status >= 400:
+                    return {"warning": f"HTTP {response.status}", "text": await response.text()}
+                
+                try:
+                    return await response.json()
+                except aiohttp.ContentTypeError:
+                    return {"error": "Invalid response format", "text": await response.text()}
+
     
     async def _get_new_code(self):
         if '@' in self._email:
@@ -107,7 +176,7 @@ class BambuCloud:
 
         LOGGER.debug("Requesting email verification code")
         try:
-            response = await self._post(BambuUrl.EMAIL_CODE, json_data=data)
+            response = await self._post(BambuUrl.EMAIL_CODE, json_payload=data)
             LOGGER.debug("Verification code requested successfully.")
             return response
         except Exception as e:
@@ -122,7 +191,7 @@ class BambuCloud:
 
         LOGGER.debug("Requesting SMS verification code")
         try:
-            response = await self._post(BambuUrl.SMS_CODE, json_data=data)
+            response = await self._post(BambuUrl.SMS_CODE, json_payload=data)
             LOGGER.debug("Verification code requested successfully.")
             return response
         except Exception as e:
@@ -137,7 +206,7 @@ class BambuCloud:
             "apiError": ""
         }
 
-        response = await self._post(BambuUrl.LOGIN, data)
+        response = await self._post(BambuUrl.LOGIN, json_payload=data)
         accessToken = response.get('accessToken', '')
         if accessToken:
             return accessToken
@@ -160,7 +229,7 @@ class BambuCloud:
             "code": code
         }
 
-        response = await self._post(BambuUrl.LOGIN, json=data, return400=True)
+        response = await self._post(BambuUrl.LOGIN, json_payload=data, return400=True)
         status_code = response.status_code
 
         if status_code == 200:
