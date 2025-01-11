@@ -157,7 +157,7 @@ class BambuCloud:
             LOGGER.error(f"Response not understood: '{response.text}'")
             return ValueError(1) # FIXME
         
-    def _get_new_code(self):
+    async def _get_new_code(self):
         if '@' in self._email:
             self._get_email_verification_code()
         else:
