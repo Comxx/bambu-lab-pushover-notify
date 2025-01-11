@@ -1,6 +1,7 @@
 #!/usr/bin/python
 import asyncio
 import logging
+from math import e
 import ssl
 import tzlocal
 import signal
@@ -820,22 +821,29 @@ async def authenticate_cloud_printers():
         bambu_cloud = BambuCloud(region="US", email=broker["user"], username='', auth_token='')
 
         if broker["printer_type"] in ["A1", "P1S"]:
-            try:
-                while True:  # Retry until successful or unrecoverable error
-                    try:
-                        await bambu_cloud.login(region="US", email=broker["user"], password=broker["password"])
-                        logging.info(f"Login successful for {broker['Printer_Title']}.")
-                        break  # Exit loop on success
-                    except CodeRequiredError:
-                        logging.info(f"Verification code required for {broker['Printer_Title']}.")
-                        await handle_verification_code(bambu_cloud, broker)
-                    except Exception as e:
-                        logging.error(f"Failed to authenticate {broker['Printer_Title']}: {e}")
-                        raise e  # Stop retries on failure
-            except Exception as e:
-                logging.error(f"Authentication failed for {broker['Printer_Title']}: {e}")
-                auth_states[broker['device_id']] = {"status": "error", "message": str(e)}
-                continue  # Move to the next printer
+            max_retries = 3  # Set a retry limit
+            for attempt in range(max_retries):
+                try:
+                    logging.info(f"Attempt {attempt + 1}/{max_retries} for {broker['Printer_Title']}.")
+                    await bambu_cloud.login(region="US", email=broker["user"], password=broker["password"])
+                    logging.info(f"Login successful for {broker['Printer_Title']}.")
+                    break  # Exit loop on success
+                except CodeRequiredError:
+                    logging.info(f"Verification code required for {broker['Printer_Title']}.")
+                    await handle_verification_code(bambu_cloud, broker)
+                except CodeExpiredError:
+                    logging.info(f"Verification code expired for {broker['Printer_Title']}. Requesting a new code...")
+                    await bambu_cloud._get_new_code()
+                except CodeIncorrectError:
+                    logging.info(f"Incorrect verification code for {broker['Printer_Title']}.")
+                    await handle_verification_code(bambu_cloud, broker)        
+                except Exception as e:
+                    logging.error(f"Failed to authenticate {broker['Printer_Title']}: {e}")
+                    auth_states[broker['device_id']] = {"status": "error", "message": str(e)}
+                    break  # Stop retrying for this printer
+            else:
+                logging.error(f"Max retries exceeded for {broker['Printer_Title']}. Skipping this printer.")
+                continue
 
             # Update global credentials
             Mqttpassword = bambu_cloud.auth_token
