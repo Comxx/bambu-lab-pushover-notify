@@ -92,23 +92,21 @@ class BambuCloud:
         
         self._test_response(response)
         
-        return response
+        return response.json()  # Parse JSON from the response
 
 
 
-    def _post(self, urlenum: BambuUrl, json: str, headers={}, return400=False):
+    
+    def _post(self, urlenum: BambuUrl, json: dict, headers=None, return400=False):
         url = get_Url(urlenum, self._region)
-        
-        # Use cloudscraper for the request
         if len(headers) == 0:
-            headers = self._get_headers()
+            headers = headers or self._get_headers()
         scraper = cloudscraper.create_scraper()
         response = scraper.post(url, headers=headers, json=json)
-        
         self._test_response(response, return400)
-        
-        return response
 
+        return response.json()  # Parse JSON from the response
+    
 
     
     def _get_new_code(self):
@@ -157,6 +155,7 @@ class BambuCloud:
         }
 
         response = self._post(BambuUrl.LOGIN, json=data)
+        LOGGER.info(f"Login response: {response}")
         accessToken = response.get('accessToken', '')
         if accessToken:
             return accessToken
