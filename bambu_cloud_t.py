@@ -2,7 +2,6 @@ from __future__ import annotations
 from enum import Enum
 import base64
 import json
-import aiohttp
 from dataclasses import dataclass
 from constants import LOGGER, BambuUrl
 from utils import get_Url
@@ -44,7 +43,6 @@ class BambuCloud:
         self._auth_token = auth_token
         self._password = None
         self._tfaKey = None
-        self._session = aiohttp.ClientSession()  # Initialize an HTTP session
     
     def _get_headers(self):
         return {
@@ -113,13 +111,13 @@ class BambuCloud:
 
 
     
-    async def _get_new_code(self):
+    def _get_new_code(self):
         if '@' in self._email:
-            await self._get_email_verification_code()
+            self._get_email_verification_code()
         else:
-            await self._get_sms_verification_code()       
+            self._get_sms_verification_code()       
 
-    async def _get_email_verification_code(self):
+    def _get_email_verification_code(self):
         # Send the email verification code request
         data = {
             "email": self._email,
@@ -128,13 +126,13 @@ class BambuCloud:
 
         LOGGER.debug("Requesting email verification code")
         try:
-            response = await self._post(BambuUrl.EMAIL_CODE, json_payload=data)
+            response = self._post(BambuUrl.EMAIL_CODE, json=data)
             LOGGER.debug("Verification code requested successfully.")
             return response
         except Exception as e:
             LOGGER.error(f"Failed to request email verification code: {e}")
 
-    async def _get_sms_verification_code(self):
+    def _get_sms_verification_code(self):
         # Send the SMS verification code request
         data = {
             "phone": self._phone,
@@ -143,14 +141,14 @@ class BambuCloud:
 
         LOGGER.debug("Requesting SMS verification code")
         try:
-            response = await self._post(BambuUrl.SMS_CODE, json_payload=data)
+            response = self._post(BambuUrl.SMS_CODE, json=data)
             LOGGER.debug("Verification code requested successfully.")
             return response
         except Exception as e:
             LOGGER.error(f"Failed to request SMS verification code: {e}")
     
     
-    async def _get_authentication_token(self) -> str:
+    def _get_authentication_token(self) -> str:
         LOGGER.debug("Getting accessToken from Bambu Cloud")
         data = {
             "account": self._email,
@@ -158,7 +156,7 @@ class BambuCloud:
             "apiError": ""
         }
 
-        response = await self._post(BambuUrl.LOGIN, json_payload=data)
+        response = self._post(BambuUrl.LOGIN, json=data)
         accessToken = response.get('accessToken', '')
         if accessToken:
             return accessToken
@@ -174,14 +172,14 @@ class BambuCloud:
         else:
             raise ValueError("Unknown loginType")
         
-    async def _get_authentication_token_with_verification_code(self, code) -> dict:
+    def _get_authentication_token_with_verification_code(self, code) -> dict:
         LOGGER.debug("Attempting to connect with provided verification code.")
         data = {
             "account": self._email,
             "code": code
         }
 
-        response = await self._post(BambuUrl.LOGIN, json_payload=data, return400=True)
+        response = self._post(BambuUrl.LOGIN, json=data, return400=True)
         status_code = response.status_code
 
         if status_code == 200:
@@ -191,7 +189,7 @@ class BambuCloud:
             LOGGER.debug(f"Received response: {response.json()}")           
             if response.json()['code'] == 1:
                 # Code has expired. Request a new one.
-                await self._get_new_code()
+                self._get_new_code()
                 raise CodeExpiredError()
             elif response.json()['code'] == 2:
                 # Code was incorrect. Let the user try again.
@@ -202,7 +200,7 @@ class BambuCloud:
 
         return response.json()['accessToken']       
 
-    async def _get_username_from_authentication_token(self) -> str:
+    def _get_username_from_authentication_token(self) -> str:
         LOGGER.debug("Trying to get username from authentication token.")
         # User name is in 2nd portion of the auth token (delimited with periods)
         username = None
@@ -210,7 +208,7 @@ class BambuCloud:
         if len(tokens) != 3:
             LOGGER.debug("Received authToken is not a JWT.")
             LOGGER.debug("Trying to use project API to retrieve username instead")
-            response = await self.get_projects();
+            response = self.get_projects();
             if response is not None:
                 projectsnode = response.get('projects', None)
                 if projectsnode is None:
@@ -242,20 +240,20 @@ class BambuCloud:
 
         return username
 
-    async def login(self, region: str, email: str, password: str):
+    def login(self, region: str, email: str, password: str):
         self._region = region
         self._email = email
         self._password = password
-        result = await self._get_authentication_token()
+        result = self._get_authentication_token()
         self._auth_token = result
-        self._username = await self._get_username_from_authentication_token()  # Await this coroutine
+        self._username = self._get_username_from_authentication_token()  # Await this coroutine
 
-    async def login_with_verification_code(self, code: str):
-        result = await self._get_authentication_token_with_verification_code(code)
+    def login_with_verification_code(self, code: str):
+        result = self._get_authentication_token_with_verification_code(code)
         self._auth_token = result
-        self._username = await self._get_username_from_authentication_token()
+        self._username = self._get_username_from_authentication_token()
 
-    async def login_with_2fa_code(self, code: str):
+    def login_with_2fa_code(self, code: str):
         result = self._get_authentication_token_with_2fa_code(code)
         self._auth_token = result
         self._username = self._get_username_from_authentication_token()
@@ -263,41 +261,191 @@ class BambuCloud:
     async def request_new_code(self):
         self._get_new_code()    
 
-    async def get_device_list(self) -> dict:
+    def get_device_list(self) -> dict:
         LOGGER.debug("Getting device list from Bambu Cloud")
-        return await self._get(BambuUrl.BIND)
+        try:
+            response = self._get(BambuUrl.BIND)
+        except:
+            return None
+        return response.json()['devices']
 
-    async def get_slicer_settings(self) -> dict:
+    # The slicer settings are of the following form:
+    #
+    # {
+    #     "message": "success",
+    #     "code": null,
+    #     "error": null,
+    #     "print": {
+    #         "public": [
+    #             {
+    #                 "setting_id": "GP004",
+    #                 "version": "01.09.00.15",
+    #                 "name": "0.20mm Standard @BBL X1C",
+    #                 "update_time": "2024-07-04 11:27:08",
+    #                 "nickname": null
+    #             },
+    #             ...
+    #         }
+    #         "private": []
+    #     },
+    #     "printer": {
+    #         "public": [
+    #             {
+    #                 "setting_id": "GM001",
+    #                 "version": "01.09.00.15",
+    #                 "name": "Bambu Lab X1 Carbon 0.4 nozzle",
+    #                 "update_time": "2024-07-04 11:25:07",
+    #                 "nickname": null
+    #             },
+    #             ...
+    #         ],
+    #         "private": []
+    #     },
+    #     "filament": {
+    #         "public": [
+    #             {
+    #                 "setting_id": "GFSA01",
+    #                 "version": "01.09.00.15",
+    #                 "name": "Bambu PLA Matte @BBL X1C",
+    #                 "update_time": "2024-07-04 11:29:21",
+    #                 "nickname": null,
+    #                 "filament_id": "GFA01"
+    #             },
+    #             ...
+    #         ],
+    #         "private": [
+    #             {
+    #                 "setting_id": "PFUS46ea5c221cabe5",
+    #                 "version": "1.9.0.14",
+    #                 "name": "Fillamentum PLA Extrafill @Bambu Lab X1 Carbon 0.4 nozzle",
+    #                 "update_time": "2024-07-10 06:48:17",
+    #                 "base_id": null,
+    #                 "filament_id": "Pc628b24",
+    #                 "filament_type": "PLA",
+    #                 "filament_is_support": "0",
+    #                 "nozzle_temperature": [
+    #                     190,
+    #                     240
+    #                 ],
+    #                 "nozzle_hrc": "3",
+    #                 "filament_vendor": "Fillamentum"
+    #             },
+    #             ...
+    #         ]
+    #     },
+    #     "settings": {}
+    # }
+
+    def get_slicer_settings(self) -> dict:
         LOGGER.debug("Getting slicer settings from Bambu Cloud")
-        return await self._get(BambuUrl.SLICER_SETTINGS)
-
-    async def get_tasklist(self) -> dict:
-        LOGGER.debug("Getting full task list from Bambu Cloud")
-        return await self._get(BambuUrl.TASKS)
-
-    async def get_projects(self) -> dict:
-        LOGGER.debug("Getting projects list from Bambu Cloud")
-        return await self._get(BambuUrl.PROJECTS)
-
-    async def get_latest_task_for_printer(self, deviceId: str) -> dict:
-        LOGGER.debug(f"Getting latest task for printer {deviceId}")
-        tasklist = await self.get_tasklist()
-        for task in tasklist.get('hits', []):
-            if task.get('deviceId') == deviceId:
-                return task
-        return {}
-
-    async def download(self, url: str) -> bytes:
-        LOGGER.debug(f"Downloading file from {url}")
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url) as response:
-                await self._test_response(response)
-                return await response.read()
+        try:
+            response = self._get(BambuUrl.SLICER_SETTINGS)
+        except:
+            return None
+        return response.json()
     
-    async def close(self):
-        """Clean up resources."""
-        if self._session:
-            await self._session.close()
+    # The task list is of the following form with a 'hits' array with typical 20 entries.
+    #
+    # "total": 531,
+    # "hits": [
+    #     {
+    #     "id": 35237965,
+    #     "designId": 0,
+    #     "designTitle": "",
+    #     "instanceId": 0,
+    #     "modelId": "REDACTED",
+    #     "title": "REDACTED",
+    #     "cover": "REDACTED",
+    #     "status": 4,
+    #     "feedbackStatus": 0,
+    #     "startTime": "2023-12-21T19:02:16Z",
+    #     "endTime": "2023-12-21T19:02:35Z",
+    #     "weight": 34.62,
+    #     "length": 1161,
+    #     "costTime": 10346,
+    #     "profileId": 35276233,
+    #     "plateIndex": 1,
+    #     "plateName": "",
+    #     "deviceId": "REDACTED",
+    #     "amsDetailMapping": [
+    #         {
+    #         "ams": 4,
+    #         "sourceColor": "F4D976FF",
+    #         "targetColor": "F4D976FF",
+    #         "filamentId": "GFL99",
+    #         "filamentType": "PLA",
+    #         "targetFilamentType": "",
+    #         "weight": 34.62
+    #         }
+    #     ],
+    #     "mode": "cloud_file",
+    #     "isPublicProfile": false,
+    #     "isPrintable": true,
+    #     "deviceModel": "P1P",
+    #     "deviceName": "Bambu P1P",
+    #     "bedType": "textured_plate"
+    #     },
+
+    def get_tasklist(self) -> dict:
+        LOGGER.debug("Getting full task list from Bambu Cloud")
+        try:
+            response = self._get(BambuUrl.TASKS)
+        except:
+            return None
+        return response.json()
+
+    # Returns a list of projects for the account.
+    #
+    # {
+    # "message": "success",
+    # "code": null,
+    # "error": null,
+    # "projects": [
+    #     {
+    #     "project_id": "164995388",
+    #     "user_id": "1688388450",
+    #     "model_id": "US48e2103d939bf8",
+    #     "status": "ACTIVE",
+    #     "name": "Alcohol_Marker_Storage_for_Copic,_Ohuhu_and_the_like",
+    #     "content": "{'printed_plates': [{'plate': 1}]}",
+    #     "create_time": "2024-11-17 06:12:33",
+    #     "update_time": "2024-11-17 06:12:40"
+    #     },
+    #     ...
+    #
+    def get_projects(self) -> dict:
+        LOGGER.debug("Getting projects list from Bambu Cloud")
+        try:
+            response = self._get(BambuUrl.PROJECTS)
+        except:
+            return None
+        return response.json()
+
+    def get_latest_task_for_printer(self, deviceId: str) -> dict:
+        LOGGER.debug(f"Getting latest task for printer from Bambu Cloud")
+        try:
+            data = self.get_tasklist_for_printer(deviceId)
+            if len(data) != 0:
+                return data[0]
+            LOGGER.debug("No tasks found for printer")
+            return None
+        except:
+            return None
+
+    def get_tasklist_for_printer(self, deviceId: str) -> dict:
+        LOGGER.debug(f"Getting full task list for printer from Bambu Cloud")
+        tasks = []
+        data = self.get_tasklist()
+        for task in data['hits']:
+            if task['deviceId'] == deviceId:
+                tasks.append(task)
+        return tasks
+
+    def get_device_type_from_device_product_name(self, device_product_name: str):
+        if device_product_name == "X1 Carbon":
+            return "X1C"
+        return device_product_name.replace(" ", "")
+
     @property
     def username(self):
         return self._username
