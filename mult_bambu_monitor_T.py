@@ -858,7 +858,7 @@ async def handle_verification_code(bambu_cloud, broker):
         resend_choice = input(f"Do you want to resend the verification code for {broker['Printer_Title']}? (yes/no): ").strip().lower()
 
         if resend_choice in ["yes", "y"]:
-            bambu_cloud._get_get_new_code()
+            bambu_cloud._get_new_code()
             logging.info(f"New verification code sent to {broker['user']}.")
 
         code = input(f"Enter the verification code sent to {broker['user']}: ").strip()
