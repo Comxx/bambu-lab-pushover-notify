@@ -829,19 +829,13 @@ async def authenticate_cloud_printers():
                     except CodeRequiredError:
                         logging.info(f"Verification code required for {broker['Printer_Title']}.")
                         await handle_verification_code(bambu_cloud, broker)
-                    except CodeIncorrectError:
-                        logging.warning(f"Incorrect verification code for {broker['Printer_Title']}. Retrying...")
-                        await handle_verification_code(bambu_cloud, broker)
-                    except CodeExpiredError:
-                        logging.error(f"Verification code expired for {broker['Printer_Title']}. Requesting a new code...")
-                        await handle_verification_code(bambu_cloud, broker)
                     except Exception as e:
-                        logging.error(f"Login failed for {broker['Printer_Title']}: {e}")
-                        auth_states[broker['device_id']] = {"status": "error", "message": str(e)}
-                        return None
+                        logging.error(f"Failed to authenticate {broker['Printer_Title']}: {e}")
+                        raise e  # Stop retries on failure
             except Exception as e:
-                logging.error(f"Failed to authenticate {broker['Printer_Title']}: {e}")
-                return None
+                logging.error(f"Authentication failed for {broker['Printer_Title']}: {e}")
+                auth_states[broker['device_id']] = {"status": "error", "message": str(e)}
+                continue  # Move to the next printer
 
             # Update global credentials
             Mqttpassword = bambu_cloud.auth_token
@@ -854,7 +848,8 @@ async def authenticate_cloud_printers():
 
 async def handle_verification_code(bambu_cloud, broker):
     """Handle the process of entering and verifying codes."""
-    for _ in range(3):  # Limit retries
+    max_retries = 3
+    for attempt in range(max_retries):
         resend_choice = input(f"Do you want to resend the verification code for {broker['Printer_Title']}? (yes/no): ").strip().lower()
 
         if resend_choice in ["yes", "y"]:
@@ -868,7 +863,7 @@ async def handle_verification_code(bambu_cloud, broker):
             logging.info(f"Verification successful for {broker['Printer_Title']}.")
             expires_at = datetime.now() + timedelta(minutes=5)
             store_email_code(broker['device_id'], code, expires_at)
-            break
+            return  # Exit on success
         except CodeIncorrectError:
             logging.warning(f"Incorrect verification code for {broker['Printer_Title']}. Please try again.")
         except CodeExpiredError:
@@ -876,7 +871,11 @@ async def handle_verification_code(bambu_cloud, broker):
             await bambu_cloud._get_new_code()
         except Exception as e:
             logging.error(f"Unexpected error during verification for {broker['Printer_Title']}: {e}")
-            raise e
+            raise e  # Exit on unexpected errors
+
+    logging.error(f"Failed to verify {broker['Printer_Title']} after {max_retries} attempts.")
+    raise Exception("Max retries exceeded for email verification.")
+
 
 
 async def start_or_restart_printer(broker_config):

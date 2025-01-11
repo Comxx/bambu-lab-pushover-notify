@@ -72,10 +72,7 @@ class BambuCloud:
         # Example: X-BBL-Device-ID: 370f9f43-c6fe-47d7-aec9-5fe5ef7e7673
 
     def _get_headers_with_auth_token(self) -> dict:
-        if CONNECTION_MECHANISM == ConnectionMechanismEnum.CURL_CFFI:
-            headers = {}
-        else:
-            headers = self._get_headers()
+        headers = self._get_headers()
         headers['Authorization'] = f"Bearer {self._auth_token}"
         return headers
 
@@ -89,14 +86,14 @@ class BambuCloud:
             raise CloudflareError(response.status_code, response.text)
         elif response.status_code == 400 and not return400:
             LOGGER.error(f"Connection failed with error code: {response.status_code}")
-            LOGGER.debug(f"Response: '{response.text}'")
+            LOGGER.info(f"Response: '{response.text}'")
             raise PermissionError(response.status_code, response.text)
         elif response.status_code > 400:
             LOGGER.error(f"Connection failed with error code: {response.status_code}")
-            LOGGER.debug(f"Response: '{response.text}'")
+            LOGGER.info(f"Response: '{response.text}'")
             raise PermissionError(response.status_code, response.text)
 
-        LOGGER.debug(f"Response: {response.status_code}")
+        LOGGER.info(f"Response: {response.status_code}")
 
     def _get(self, urlenum: BambuUrl):
         url = get_Url(urlenum, self._region)
@@ -122,7 +119,7 @@ class BambuCloud:
         return response
 
     def _get_authentication_token(self) -> str:
-        LOGGER.debug("Getting accessToken from Bambu Cloud")
+        LOGGER.info("Getting accessToken from Bambu Cloud")
 
         # First we need to find out how Bambu wants us to login.
         data = {
@@ -145,15 +142,15 @@ class BambuCloud:
             LOGGER.error(f"Response not understood: '{response.text}'")
             return ValueError(0) # FIXME
         elif loginType == 'verifyCode':
-            LOGGER.debug(f"Received verifyCode response")
+            LOGGER.info(f"Received verifyCode response")
             raise CodeRequiredError()
         elif loginType == 'tfa':
             # Store the tfaKey for later use
-            LOGGER.debug(f"Received tfa response")
+            LOGGER.info(f"Received tfa response")
             self._tfaKey = auth_json.get("tfaKey")
             raise TfaCodeRequiredError()
         else:
-            LOGGER.debug(f"Did not understand json. loginType = '{loginType}'")
+            LOGGER.info(f"Did not understand json. loginType = '{loginType}'")
             LOGGER.error(f"Response not understood: '{response.text}'")
             return ValueError(1) # FIXME
         
@@ -170,9 +167,9 @@ class BambuCloud:
             "type": "codeLogin"
         }
 
-        LOGGER.debug("Requesting email verification code")
+        LOGGER.info("Requesting email verification code")
         self._post(BambuUrl.EMAIL_CODE, json=data)
-        LOGGER.debug("Verification code requested successfully.")
+        LOGGER.info("Verification code requested successfully.")
 
     def _get_sms_verification_code(self):
         # Send the verification code request
@@ -181,12 +178,12 @@ class BambuCloud:
             "type": "codeLogin"
         }
 
-        LOGGER.debug("Requesting SMS verification code")
+        LOGGER.info("Requesting SMS verification code")
         self._post(BambuUrl.SMS_CODE, json=data)
-        LOGGER.debug("Verification code requested successfully.")
+        LOGGER.info("Verification code requested successfully.")
 
     def _get_authentication_token_with_verification_code(self, code) -> dict:
-        LOGGER.debug("Attempting to connect with provided verification code.")
+        LOGGER.info("Attempting to connect with provided verification code.")
         data = {
             "account": self._email,
             "code": code
@@ -196,10 +193,10 @@ class BambuCloud:
         status_code = response.status_code
 
         if status_code == 200:
-            LOGGER.debug("Authentication successful.")
-            LOGGER.debug(f"Response = '{response.json()}'")
+            LOGGER.info("Authentication successful.")
+            LOGGER.info(f"Response = '{response.json()}'")
         elif status_code == 400:
-            LOGGER.debug(f"Received response: {response.json()}")           
+            LOGGER.info(f"Received response: {response.json()}")           
             if response.json()['code'] == 1:
                 # Code has expired. Request a new one.
                 self._get_new_code()
@@ -214,7 +211,7 @@ class BambuCloud:
         return response.json()['accessToken']
     
     def _get_authentication_token_with_2fa_code(self, code: str) -> dict:
-        LOGGER.debug("Attempting to connect with provided 2FA code.")
+        LOGGER.info("Attempting to connect with provided 2FA code.")
 
         data = {
             "tfaKey": self._tfaKey,
@@ -223,41 +220,41 @@ class BambuCloud:
 
         response = self._post(BambuUrl.TFA_LOGIN, json=data)
 
-        LOGGER.debug(f"Response: {response.status_code}")
+        LOGGER.info(f"Response: {response.status_code}")
         if response.status_code == 200:
-            LOGGER.debug("Authentication successful.")
+            LOGGER.info("Authentication successful.")
 
         cookies = response.cookies.get_dict()
         token_from_tfa = cookies.get("token")
-        #LOGGER.debug(f"token_from_tfa: {token_from_tfa}")
+        #LOGGER.info(f"token_from_tfa: {token_from_tfa}")
 
         return token_from_tfa
     
     def _get_username_from_authentication_token(self) -> str:
-        LOGGER.debug("Trying to get username from authentication token.")
+        LOGGER.info("Trying to get username from authentication token.")
         # User name is in 2nd portion of the auth token (delimited with periods)
         username = None
         tokens = self._auth_token.split(".")
         if len(tokens) != 3:
-            LOGGER.debug("Received authToken is not a JWT.")
-            LOGGER.debug("Trying to use project API to retrieve username instead")
+            LOGGER.info("Received authToken is not a JWT.")
+            LOGGER.info("Trying to use project API to retrieve username instead")
             response = self.get_projects();
             if response is not None:
                 projectsnode = response.get('projects', None)
                 if projectsnode is None:
-                    LOGGER.debug("Failed to find projects node")
+                    LOGGER.info("Failed to find projects node")
                 else:
                     if len(projectsnode) == 0:
-                        LOGGER.debug("No projects node in response")
+                        LOGGER.info("No projects node in response")
                     else:
                         project=projectsnode[0]
                         if project.get('user_id', None) is None:
-                            LOGGER.debug("No user_id entry")
+                            LOGGER.info("No user_id entry")
                         else:
                             username = f"u_{project['user_id']}"
-                            LOGGER.debug(f"Found user_id of {username}")
+                            LOGGER.info(f"Found user_id of {username}")
         else:
-            LOGGER.debug("Authentication token looks to be a JWT")
+            LOGGER.info("Authentication token looks to be a JWT")
             try:
                 b64_string = self._auth_token.split(".")[1]
                 # String must be multiples of 4 chars in length. For decode pad with = character
@@ -266,10 +263,10 @@ class BambuCloud:
                 # Gives json payload with "username":"u_<digits>" within it
                 username = jsonAuthToken.get('username', None)
             except:
-                LOGGER.debug("Unable to decode authToken to json to retrieve username.")
+                LOGGER.info("Unable to decode authToken to json to retrieve username.")
 
         if username is None:
-            LOGGER.debug(f"Unable to decode authToken to retrieve username. AuthToken = {self._auth_token}")
+            LOGGER.info(f"Unable to decode authToken to retrieve username. AuthToken = {self._auth_token}")
 
         return username
     
@@ -346,7 +343,7 @@ class BambuCloud:
         self._get_new_code()
 
     def get_device_list(self) -> dict:
-        LOGGER.debug("Getting device list from Bambu Cloud")
+        LOGGER.info("Getting device list from Bambu Cloud")
         try:
             response = self._get(BambuUrl.BIND)
         except:
@@ -421,7 +418,7 @@ class BambuCloud:
     # }
 
     def get_slicer_settings(self) -> dict:
-        LOGGER.debug("Getting slicer settings from Bambu Cloud")
+        LOGGER.info("Getting slicer settings from Bambu Cloud")
         try:
             response = self._get(BambuUrl.SLICER_SETTINGS)
         except:
@@ -471,7 +468,7 @@ class BambuCloud:
     #     },
 
     def get_tasklist(self) -> dict:
-        LOGGER.debug("Getting full task list from Bambu Cloud")
+        LOGGER.info("Getting full task list from Bambu Cloud")
         try:
             response = self._get(BambuUrl.TASKS)
         except:
@@ -498,7 +495,7 @@ class BambuCloud:
     #     ...
     #
     def get_projects(self) -> dict:
-        LOGGER.debug("Getting projects list from Bambu Cloud")
+        LOGGER.info("Getting projects list from Bambu Cloud")
         try:
             response = self._get(BambuUrl.PROJECTS)
         except:
@@ -506,18 +503,18 @@ class BambuCloud:
         return response.json()
 
     def get_latest_task_for_printer(self, deviceId: str) -> dict:
-        LOGGER.debug(f"Getting latest task for printer from Bambu Cloud")
+        LOGGER.info(f"Getting latest task for printer from Bambu Cloud")
         try:
             data = self.get_tasklist_for_printer(deviceId)
             if len(data) != 0:
                 return data[0]
-            LOGGER.debug("No tasks found for printer")
+            LOGGER.info("No tasks found for printer")
             return None
         except:
             return None
 
     def get_tasklist_for_printer(self, deviceId: str) -> dict:
-        LOGGER.debug(f"Getting full task list for printer from Bambu Cloud")
+        LOGGER.info(f"Getting full task list for printer from Bambu Cloud")
         tasks = []
         data = self.get_tasklist()
         for task in data['hits']:
@@ -531,7 +528,7 @@ class BambuCloud:
         return device_product_name.replace(" ", "")
 
     def download(self, url: str) -> bytearray:
-        LOGGER.debug(f"Downloading cover image: {url}")
+        LOGGER.info(f"Downloading cover image: {url}")
         try:
             # This is just a standard download from an unauthenticated end point.
             response = requests.get(url)
