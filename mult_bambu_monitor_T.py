@@ -823,7 +823,7 @@ async def authenticate_cloud_printers():
             try:
                 while True:  # Retry until successful or unrecoverable error
                     try:
-                        await bambu_cloud.login(region="US", email=broker["user"], password=broker["password"])
+                        bambu_cloud.login(region="US", email=broker["user"], password=broker["password"])
                         logging.info(f"Login successful for {broker['Printer_Title']}.")
                         break  # Exit loop on success
                     except CodeRequiredError:
@@ -858,13 +858,13 @@ async def handle_verification_code(bambu_cloud, broker):
         resend_choice = input(f"Do you want to resend the verification code for {broker['Printer_Title']}? (yes/no): ").strip().lower()
 
         if resend_choice in ["yes", "y"]:
-            await bambu_cloud._get_get_new_code()
+            bambu_cloud._get_get_new_code()
             logging.info(f"New verification code sent to {broker['user']}.")
 
         code = input(f"Enter the verification code sent to {broker['user']}: ").strip()
 
         try:
-            await bambu_cloud.login_with_verification_code(code)
+            bambu_cloud.login_with_verification_code(code)
             logging.info(f"Verification successful for {broker['Printer_Title']}.")
             expires_at = datetime.now() + timedelta(minutes=5)
             store_email_code(broker['device_id'], code, expires_at)
@@ -873,7 +873,7 @@ async def handle_verification_code(bambu_cloud, broker):
             logging.warning(f"Incorrect verification code for {broker['Printer_Title']}. Please try again.")
         except CodeExpiredError:
             logging.error(f"Verification code expired for {broker['Printer_Title']}. Requesting a new code...")
-            await bambu_cloud._get_new_code()
+            bambu_cloud._get_new_code()
         except Exception as e:
             logging.error(f"Unexpected error during verification for {broker['Printer_Title']}: {e}")
             raise e
