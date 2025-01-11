@@ -1,13 +1,16 @@
 from __future__ import annotations
-from enum import Enum
+from enum import (
+    Enum,
+)
+
 import base64
 import json
+import requests
 from dataclasses import dataclass
 from constants import LOGGER, BambuUrl
 from utils import get_Url
 import cloudscraper
-
-IMPERSONATE_BROWSER = 'chrome'
+IMPERSONATE_BROWSER='chrome'
 
 class CloudflareError(Exception):
     def __init__(self):
@@ -31,19 +34,24 @@ class CodeIncorrectError(Exception):
 
 class TfaCodeRequiredError(Exception):
     def __init__(self):
-        super().__init__("Two-factor authentication code required")
+        super().__init__("Two factor authentication code required")
+        self.error_code = 400
+
+class CurlUnavailableError(Exception):
+    def __init__(self):
+        super().__init__("curl library unavailable")
         self.error_code = 400
 
 @dataclass
 class BambuCloud:
+  
     def __init__(self, region: str, email: str, username: str, auth_token: str):
         self._region = region
         self._email = email
         self._username = username
         self._auth_token = auth_token
-        self._password = None
         self._tfaKey = None
-    
+
     def _get_headers(self):
         return {
             'User-Agent': 'bambu_network_agent/01.09.05.01',
@@ -54,12 +62,20 @@ class BambuCloud:
             'X-BBL-OS-Type': 'linux',
             'X-BBL-OS-Version': '6.2.0',
             'X-BBL-Agent-Version': '01.09.05.01',
+            'X-BBL-Executable-info': '{}',
+            'X-BBL-Agent-OS-Type': 'linux',
             'accept': 'application/json',
             'Content-Type': 'application/json'
         }
+        # Orca/Bambu Studio also add this - need to work out what an appropriate ID is to put here:
+        # 'X-BBL-Device-ID': BBL_AUTH_UUID,
+        # Example: X-BBL-Device-ID: 370f9f43-c6fe-47d7-aec9-5fe5ef7e7673
 
     def _get_headers_with_auth_token(self) -> dict:
-        headers = self._get_headers()
+        if CONNECTION_MECHANISM == ConnectionMechanismEnum.CURL_CFFI:
+            headers = {}
+        else:
+            headers = self._get_headers()
         headers['Authorization'] = f"Bearer {self._auth_token}"
         return headers
 
@@ -77,11 +93,11 @@ class BambuCloud:
             raise PermissionError(response.status_code, response.text)
         elif response.status_code > 400:
             LOGGER.error(f"Connection failed with error code: {response.status_code}")
-            LOGGER.info(f"Response: '{response.text}'")
+            LOGGER.debug(f"Response: '{response.text}'")
             raise PermissionError(response.status_code, response.text)
 
         LOGGER.debug(f"Response: {response.status_code}")
-    
+
     def _get(self, urlenum: BambuUrl):
         url = get_Url(urlenum, self._region)
         headers = self._get_headers_with_auth_token()
@@ -92,8 +108,7 @@ class BambuCloud:
         
         self._test_response(response)
         
-        return response.json()  # Parse JSON from the response
-
+        return response
 
 
     
@@ -104,49 +119,12 @@ class BambuCloud:
         response = scraper.post(url, headers=headers, json=json)
         self._test_response(response, return400)
 
-        return response.json()  # Parse JSON from the response
-    
+        return response
 
-    
-    def _get_new_code(self):
-        if '@' in self._email:
-            self._get_email_verification_code()
-        else:
-            self._get_sms_verification_code()       
-
-    def _get_email_verification_code(self):
-        # Send the email verification code request
-        data = {
-            "email": self._email,
-            "type": "codeLogin"
-        }
-
-        LOGGER.debug("Requesting email verification code")
-        try:
-            response = self._post(BambuUrl.EMAIL_CODE, json=data)
-            LOGGER.debug("Verification code requested successfully.")
-            return response
-        except Exception as e:
-            LOGGER.error(f"Failed to request email verification code: {e}")
-
-    def _get_sms_verification_code(self):
-        # Send the SMS verification code request
-        data = {
-            "phone": self._phone,
-            "type": "codeLogin"
-        }
-
-        LOGGER.debug("Requesting SMS verification code")
-        try:
-            response = self._post(BambuUrl.SMS_CODE, json=data)
-            LOGGER.debug("Verification code requested successfully.")
-            return response
-        except Exception as e:
-            LOGGER.error(f"Failed to request SMS verification code: {e}")
-    
-    
     def _get_authentication_token(self) -> str:
         LOGGER.debug("Getting accessToken from Bambu Cloud")
+
+        # First we need to find out how Bambu wants us to login.
         data = {
             "account": self._email,
             "password": self._password,
@@ -154,22 +132,59 @@ class BambuCloud:
         }
 
         response = self._post(BambuUrl.LOGIN, json=data)
-        LOGGER.info(f"Login response: {response}")
-        accessToken = response.get('accessToken', '')
-        if accessToken:
-            return accessToken
 
-        loginType = response.get("loginType")
-        if loginType == 'verifyCode':
-            LOGGER.debug("Received verifyCode response")
+        auth_json = response.json()
+        accessToken = auth_json.get('accessToken', '')
+        if accessToken != '':
+            # We were provided the accessToken directly.
+            return accessToken
+        
+        loginType = auth_json.get("loginType", None)
+        if loginType is None:
+            LOGGER.error(f"loginType not present")
+            LOGGER.error(f"Response not understood: '{response.text}'")
+            return ValueError(0) # FIXME
+        elif loginType == 'verifyCode':
+            LOGGER.debug(f"Received verifyCode response")
             raise CodeRequiredError()
         elif loginType == 'tfa':
-            self._tfaKey = response.get("tfaKey")
-            LOGGER.debug("Received tfa response")
+            # Store the tfaKey for later use
+            LOGGER.debug(f"Received tfa response")
+            self._tfaKey = auth_json.get("tfaKey")
             raise TfaCodeRequiredError()
         else:
-            raise ValueError("Unknown loginType")
+            LOGGER.debug(f"Did not understand json. loginType = '{loginType}'")
+            LOGGER.error(f"Response not understood: '{response.text}'")
+            return ValueError(1) # FIXME
         
+    def _get_new_code(self):
+        if '@' in self._email:
+            self._get_email_verification_code()
+        else:
+            self._get_sms_verification_code()
+    
+    def _get_email_verification_code(self):
+        # Send the verification code request
+        data = {
+            "email": self._email,
+            "type": "codeLogin"
+        }
+
+        LOGGER.debug("Requesting email verification code")
+        self._post(BambuUrl.EMAIL_CODE, json=data)
+        LOGGER.debug("Verification code requested successfully.")
+
+    def _get_sms_verification_code(self):
+        # Send the verification code request
+        data = {
+            "phone": self._email,
+            "type": "codeLogin"
+        }
+
+        LOGGER.debug("Requesting SMS verification code")
+        self._post(BambuUrl.SMS_CODE, json=data)
+        LOGGER.debug("Verification code requested successfully.")
+
     def _get_authentication_token_with_verification_code(self, code) -> dict:
         LOGGER.debug("Attempting to connect with provided verification code.")
         data = {
@@ -196,8 +211,28 @@ class BambuCloud:
                 LOGGER.error(f"Response not understood: '{response.json()}'")
                 raise ValueError(response.json()['code'])
 
-        return response.json()['accessToken']       
+        return response.json()['accessToken']
+    
+    def _get_authentication_token_with_2fa_code(self, code: str) -> dict:
+        LOGGER.debug("Attempting to connect with provided 2FA code.")
 
+        data = {
+            "tfaKey": self._tfaKey,
+            "tfaCode": code
+        }
+
+        response = self._post(BambuUrl.TFA_LOGIN, json=data)
+
+        LOGGER.debug(f"Response: {response.status_code}")
+        if response.status_code == 200:
+            LOGGER.debug("Authentication successful.")
+
+        cookies = response.cookies.get_dict()
+        token_from_tfa = cookies.get("token")
+        #LOGGER.debug(f"token_from_tfa: {token_from_tfa}")
+
+        return token_from_tfa
+    
     def _get_username_from_authentication_token(self) -> str:
         LOGGER.debug("Trying to get username from authentication token.")
         # User name is in 2nd portion of the auth token (delimited with periods)
@@ -237,15 +272,66 @@ class BambuCloud:
             LOGGER.debug(f"Unable to decode authToken to retrieve username. AuthToken = {self._auth_token}")
 
         return username
+    
+    # Retrieves json description of devices in the form:
+    # {
+    #     'message': 'success',
+    #     'code': None,
+    #     'error': None,
+    #     'devices': [
+    #         {
+    #             'dev_id': 'REDACTED',
+    #             'name': 'Bambu P1S',
+    #             'online': True,
+    #             'print_status': 'SUCCESS',
+    #             'dev_model_name': 'C12',
+    #             'dev_product_name': 'P1S',
+    #             'dev_access_code': 'REDACTED',
+    #             'nozzle_diameter': 0.4
+    #         },
+    #         {
+    #             'dev_id': 'REDACTED',
+    #             'name': 'Bambu P1P',
+    #             'online': True,
+    #             'print_status': 'RUNNING',
+    #             'dev_model_name': 'C11',
+    #             'dev_product_name': 'P1P',
+    #             'dev_access_code': 'REDACTED',
+    #             'nozzle_diameter': 0.4
+    #         },
+    #         {
+    #             'dev_id': 'REDACTED',
+    #             'name': 'Bambu X1C',
+    #             'online': True,
+    #             'print_status': 'RUNNING',
+    #             'dev_model_name': 'BL-P001',
+    #             'dev_product_name': 'X1 Carbon',
+    #             'dev_access_code': 'REDACTED',
+    #             'nozzle_diameter': 0.4
+    #         }
+    #     ]
+    # }
+    
+    def test_authentication(self, region: str, email: str, username: str, auth_token: str) -> bool:
+        self._region = region
+        self._email = email
+        self._username = username
+        self._auth_token = auth_token
+        try:
+            self.get_device_list()
+        except:
+            return False
+        return True
 
-    def login(self, region: str, email: str, password: str):
+    def login(self, region: str, email: str, password: str) -> str:
         self._region = region
         self._email = email
         self._password = password
+
         result = self._get_authentication_token()
         self._auth_token = result
-        self._username = self._get_username_from_authentication_token()  # Await this coroutine
-
+        self._username = self._get_username_from_authentication_token()
+        
     def login_with_verification_code(self, code: str):
         result = self._get_authentication_token_with_verification_code(code)
         self._auth_token = result
@@ -255,9 +341,9 @@ class BambuCloud:
         result = self._get_authentication_token_with_2fa_code(code)
         self._auth_token = result
         self._username = self._get_username_from_authentication_token()
-        
-    async def request_new_code(self):
-        self._get_new_code()    
+
+    def request_new_code(self):
+        self._get_new_code()
 
     def get_device_list(self) -> dict:
         LOGGER.debug("Getting device list from Bambu Cloud")
@@ -444,14 +530,27 @@ class BambuCloud:
             return "X1C"
         return device_product_name.replace(" ", "")
 
+    def download(self, url: str) -> bytearray:
+        LOGGER.debug(f"Downloading cover image: {url}")
+        try:
+            # This is just a standard download from an unauthenticated end point.
+            response = requests.get(url)
+        except:
+            return None
+        return response.content
+
     @property
     def username(self):
         return self._username
-
+    
     @property
     def auth_token(self):
         return self._auth_token
-
+    
     @property
     def bambu_connected(self) -> bool:
-        return bool(self._auth_token)
+        return self._auth_token != "" and self._auth_token != None
+    
+    @property
+    def cloud_mqtt_host(self):
+        return "cn.mqtt.bambulab.com" if self._region == "China" else "us.mqtt.bambulab.com"
