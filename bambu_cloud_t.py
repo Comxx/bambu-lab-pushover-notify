@@ -323,7 +323,7 @@ class BambuCloud:
             return False
         return True
 
-    def login(self, region: str, email: str, password: str) -> str:
+    async def login(self, region: str, email: str, password: str) -> str:
         self._region = region
         self._email = email
         self._password = password
@@ -332,7 +332,7 @@ class BambuCloud:
         self._auth_token = result
         self._username = self._get_username_from_authentication_token()
         
-    def login_with_verification_code(self, code: str):
+    async def login_with_verification_code(self, code: str):
         result = self._get_authentication_token_with_verification_code(code)
         self._auth_token = result
         self._username = self._get_username_from_authentication_token()
