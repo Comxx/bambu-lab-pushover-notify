@@ -98,9 +98,8 @@ class BambuCloud:
 
     
     def _post(self, urlenum: BambuUrl, json: dict, headers=None, return400=False):
-        url = get_Url(urlenum, self._region)
-        if len(headers) == 0:
-            headers = headers or self._get_headers()
+        url = get_Url(urlenum, self._region)        
+        headers = headers or self._get_headers()
         scraper = cloudscraper.create_scraper()
         response = scraper.post(url, headers=headers, json=json)
         self._test_response(response, return400)
