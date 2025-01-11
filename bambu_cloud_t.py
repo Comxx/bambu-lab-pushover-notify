@@ -6,6 +6,7 @@ import aiohttp
 from dataclasses import dataclass
 from constants import LOGGER, BambuUrl
 from utils import get_Url
+import cloudscraper
 
 IMPERSONATE_BROWSER = 'chrome'
 
@@ -64,90 +65,52 @@ class BambuCloud:
         headers['Authorization'] = f"Bearer {self._auth_token}"
         return headers
 
-    async def _test_response(self, response):
-        if response.status == 403:
+    def _test_response(self, response, return400=False):
+        # Check specifically for cloudflare block
+        if response.status_code == 403 and 'cloudflare' in response.text:
             LOGGER.error("BLOCKED BY CLOUDFLARE")
             raise CloudflareError()
-        elif response.status >= 400:
-            text = await response.text()
-            LOGGER.error(f"Connection failed with error code: {response.status}")
-            LOGGER.debug(f"Response: '{text}'")
-            raise PermissionError(response.status, text)
+        elif response.status_code == 429 and 'cloudflare' in response.text:
+            LOGGER.error("TEMPORARY 429 BLOCK BY CLOUDFLARE")
+            raise CloudflareError(response.status_code, response.text)
+        elif response.status_code == 400 and not return400:
+            LOGGER.error(f"Connection failed with error code: {response.status_code}")
+            LOGGER.debug(f"Response: '{response.text}'")
+            raise PermissionError(response.status_code, response.text)
+        elif response.status_code > 400:
+            LOGGER.error(f"Connection failed with error code: {response.status_code}")
+            LOGGER.info(f"Response: '{response.text}'")
+            raise PermissionError(response.status_code, response.text)
 
-        LOGGER.debug(f"Response: {response.status}")
-
-    # async def _get(self, urlenum: BambuUrl):
-    #     url = get_Url(urlenum, self._region)
-    #     headers = self._get_headers_with_auth_token()
-    #     async with aiohttp.ClientSession() as session:
-    #         async with session.get(url, headers=headers) as response:
-    #             return await response
+        LOGGER.debug(f"Response: {response.status_code}")
     
-    # async def _post(self, urlenum: BambuUrl, json: str, headers={}, return400=False):
-    #     url = get_Url(urlenum, self._region)
-    #     headers = self._get_headers_with_auth_token()
-    #     async with aiohttp.ClientSession() as session:
-    #         async with session.post(url, headers=headers, json=json) as response:
-    #             return response
-    
-    async def _get(self, urlenum: BambuUrl):
-        """
-        Perform an HTTP GET request using aiohttp.
-
-        Args:
-            urlenum (BambuUrl): Enum representing the API endpoint.
-
-        Returns:
-            dict: Parsed JSON response from the API.
-
-        Raises:
-            aiohttp.ClientResponseError: If the response status is >= 400.
-        """
+    def _get(self, urlenum: BambuUrl):
         url = get_Url(urlenum, self._region)
         headers = self._get_headers_with_auth_token()
-
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url, headers=headers) as response:
-                if response.status >= 400:
-                    text = await response.text()
-                    raise aiohttp.ClientResponseError(
-                        request_info=response.request_info,
-                        history=response.history,
-                        status=response.status,
-                        message=text,
-                        headers=response.headers,
-                    )
-                try:
-                    return await response.json()
-                except aiohttp.ContentTypeError:
-                    return {"error": "Invalid response format", "text": await response.text()}
+        
+        # Use cloudscraper for the GET request
+        scraper = cloudscraper.create_scraper()
+        response = scraper.get(url, headers=headers, timeout=10)
+        
+        self._test_response(response)
+        
+        return response
 
 
-    async def _post(self, urlenum: BambuUrl, json_payload: dict, return400=False) -> dict:
-    
+
+    def _post(self, urlenum: BambuUrl, json: str, headers={}, return400=False):
         url = get_Url(urlenum, self._region)
-        headers = self._get_headers_with_auth_token()
+        
+        # Use cloudscraper for the request
+        if len(headers) == 0:
+            headers = self._get_headers()
+        scraper = cloudscraper.create_scraper()
+        response = scraper.post(url, headers=headers, json=json)
+        
+        self._test_response(response, return400)
+        
+        return response
 
-        async with aiohttp.ClientSession() as session:
-            async with session.post(url, headers=headers, json=json_payload) as response:
-                status_code = response.status
-                if not return400 and status_code >= 400:
-                    text = await response.text()
-                    raise aiohttp.ClientResponseError(
-                        request_info=response.request_info,
-                        history=response.history,
-                        status=status_code,
-                        message=text,
-                        headers=response.headers,
-                    )
-                elif status_code >= 400:
-                    return {"status_code": status_code, "response": await response.text()}
-
-                try:
-                    json_response = await response.json()
-                    return {"status_code": status_code, "response": json_response}
-                except aiohttp.ContentTypeError:
-                    return {"status_code": status_code, "response": {"error": "Invalid response format", "text": await response.text()}}
 
     
     async def _get_new_code(self):

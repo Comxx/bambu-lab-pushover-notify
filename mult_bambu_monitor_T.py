@@ -788,6 +788,7 @@ def is_code_expired(printer_id):
     except Exception as e:
         logging.error(f"Error checking code expiration: {e}")
         return True
+    
 def store_email_code(printer_id, code, expires_at):
     try:
         with open(settings_file, 'r') as f:
@@ -842,8 +843,13 @@ async def authenticate_cloud_printers():
                 logging.error(f"Failed to authenticate {broker['Printer_Title']}: {e}")
                 return None
 
-        Mqttpassword = bambu_cloud.auth_token
-        Mqttuser = bambu_cloud.username
+            # Update global credentials
+            Mqttpassword = bambu_cloud.auth_token
+            Mqttuser = bambu_cloud.username
+            logging.info(f"Global credentials set - User: {Mqttuser}, Password: {Mqttpassword}")
+        else:
+            logging.info(f"Skipping cloud authentication for {broker['Printer_Title']} (local printer).")
+
 
 
 async def handle_verification_code(bambu_cloud, broker):
