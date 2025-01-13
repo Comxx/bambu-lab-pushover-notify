@@ -852,30 +852,73 @@ async def authenticate_cloud_printers():
 
 
 async def handle_verification_code(bambu_cloud, broker):
-    """Handle the process of entering and verifying codes."""
+    """
+    Handles the email verification process with a 3-month expiration check.
+    """
+    max_retries = 5
+    retry_delay = 10  # Seconds to wait between retries
+    retries = 0
 
-    resend_choice = input(f"Do you want to resend the verification code for {broker['Printer_Title']}? (yes/no): ").strip().lower()
+    while retries < max_retries:
+        try:
+            # Check if a valid code is already stored
+            with open('settings.json', 'r') as file:
+                settings = json.load(file)
+                printer_settings = next((item for item in settings if item['device_id'] == broker['device_id']), {})
+                code_data = printer_settings.get('email_code_data', {})
+                stored_code = code_data.get('code')
+                expires_at = code_data.get('expires_at')
 
-    if resend_choice in ["yes", "y"]:
-            await bambu_cloud._get_new_code()
-            logging.info(f"New verification code sent to {broker['user']}.")
+                if stored_code and expires_at and datetime.fromisoformat(expires_at) > datetime.now():
+                    # Use the stored code if it is still valid
+                    logging.info(f"Using stored code for {broker['Printer_Title']}.")
+                    await bambu_cloud.login_with_verification_code(stored_code)
+                    logging.info(f"Verification successful for {broker['Printer_Title']}.")
+                    return  # Exit after successful verification
 
+            # No valid code found, request a new one
+            resend_choice = input(f"Do you want to resend the verification code for {broker['Printer_Title']}? (yes/no): ").strip().lower()
+            if resend_choice in ["yes", "y"]:
+                await bambu_cloud._get_email_verification_code()
+                logging.info(f"New verification code sent to {broker['user']}.")
+
+            # Prompt the user for the new code
             code = input(f"Enter the verification code sent to {broker['user']}: ").strip()
 
-    try:
+            # Try to authenticate with the new code
             await bambu_cloud.login_with_verification_code(code)
             logging.info(f"Verification successful for {broker['Printer_Title']}.")
-            expires_at = datetime.now() + timedelta(minutes=5)
-            store_email_code(broker['device_id'], code, expires_at)
-            return  # Exit on success
-    except CodeIncorrectError:
+
+            # Save the code and expiration time (3 months)
+            expires_at = datetime.now() + timedelta(days=90)
+            with open('settings.json', 'r') as file:
+                settings = json.load(file)
+            for item in settings:
+                if item['device_id'] == broker['device_id']:
+                    item['email_code_data'] = {'code': code, 'expires_at': expires_at.isoformat()}
+                    break
+            with open('settings.json', 'w') as file:
+                json.dump(settings, file, indent=4)
+
+            return  # Exit on successful authentication
+
+        except CodeExpiredError:
+            retries += 1
+            logging.warning(f"Verification code expired for {broker['Printer_Title']}. Retrying...")
+            await asyncio.sleep(retry_delay)
+
+        except CodeIncorrectError:
+            retries += 1
             logging.warning(f"Incorrect verification code for {broker['Printer_Title']}. Please try again.")
-    except CodeExpiredError:
-            logging.error(f"Verification code expired for {broker['Printer_Title']}. Requesting a new code...")
-            await bambu_cloud._get_new_code()
-    except Exception as e:
+            await asyncio.sleep(retry_delay)
+
+        except Exception as e:
             logging.error(f"Unexpected error during verification for {broker['Printer_Title']}: {e}")
-            raise e  # Exit on unexpected errors
+            raise e
+
+    # If the maximum retries are reached
+    logging.error(f"Max retries reached for {broker['Printer_Title']}. Authentication failed.")
+
 
 async def start_or_restart_printer(broker_config):
     device_id = broker_config['device_id']
