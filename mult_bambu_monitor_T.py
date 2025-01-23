@@ -850,7 +850,6 @@ async def authenticate_cloud_printers():
             logging.info(f"Skipping cloud authentication for {broker['Printer_Title']} (local printer).")
 
 
-
 async def handle_verification_code(bambu_cloud, broker):
     """
     Handles the email verification process.
@@ -891,24 +890,6 @@ async def handle_verification_code(bambu_cloud, broker):
 
     # If the maximum retries are reached
     logging.error(f"Max retries reached for {broker['Printer_Title']}. Authentication failed.")
-
-        except CodeExpiredError:
-            retries += 1
-            logging.warning(f"Verification code expired for {broker['Printer_Title']}. Retrying...")
-            await asyncio.sleep(retry_delay)
-
-        except CodeIncorrectError:
-            retries += 1
-            logging.warning(f"Incorrect verification code for {broker['Printer_Title']}. Please try again.")
-            await asyncio.sleep(retry_delay)
-
-        except Exception as e:
-            logging.error(f"Unexpected error during verification for {broker['Printer_Title']}: {e}")
-            raise e
-
-    # If the maximum retries are reached
-    logging.error(f"Max retries reached for {broker['Printer_Title']}. Authentication failed.")
-
 
 async def start_or_restart_printer(broker_config):
     device_id = broker_config['device_id']
