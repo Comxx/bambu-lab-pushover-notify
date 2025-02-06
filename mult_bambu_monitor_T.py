@@ -447,8 +447,8 @@ async def on_message(client, message):
                 remaining_time = ""  # Default value
                 if time_left_seconds != 0:
                         remaining_time = str(timedelta(minutes=printer_status[device_id]['mc_remaining_time']))
-                        printer_status[device_id]['gcode_state'] == "FINISH" and time_left_seconds == 0:
-                        my_finish_datetime = "Done!"
+                        if printer_status[device_id]['gcode_state'] == "FINISH" and time_left_seconds == 0:
+                            my_finish_datetime = "Done!"
 
             # Handle gcode state changes
             if printer_status[device_id]['gcode_state'] != previous_gcode_states.get(device_id, {}).get('state'):
@@ -1079,7 +1079,6 @@ async def authenticate_cloud_printers():
             logging.info(f"Global credentials set - User: {Mqttuser}, Password: {Mqttpassword}")
         else:
             logging.info(f"Skipping cloud authentication for {broker['Printer_Title']} (local printer).")
-
 
 
 async def handle_verification_code(bambu_cloud, broker):
