@@ -179,7 +179,9 @@ async def get_printers():
 @app.errorhandler(404)
 async def not_found(e):
     return jsonify({"error": "Not found"}), 404
-
+@sio.event
+async def disconnect(sid):
+    logging.info(f"Client {sid} disconnected")
 @app.errorhandler(500)
 async def server_error(e):
     return jsonify({"error": "Internal server error"}), 500
@@ -465,6 +467,7 @@ async def on_message(client, message):
                 asyncio.create_task(asyncio.to_thread(message.send))
 
             # Emit printer update to WebSocket
+        try:
             await sio.emit('printer_update', {
                 'printer_id': device_id,
                 'printer': userdata['Printer_Title'],
@@ -476,7 +479,14 @@ async def on_message(client, message):
                 'error_messages': [found_hms_error['intro'], found_device_error['intro']],
                 'approx_end': my_finish_datetime
             })
-
+        except KeyError as e:
+            if 'Session is disconnected' in str(e):
+                logging.error(f"Session {device_id} disconnected unexpectedly during message emission.")
+                # Handle re-establishing the connection or clean-up
+               # await reconnect_printer(device_id)  # or any other logic to handle reconnection
+            else:
+                logging.error(f"Unexpected KeyError during emit: {str(e)}")
+                raise
     except json.JSONDecodeError:
         logging.error(f"Failed to decode MQTT message: {message.payload}")
     except Exception as e:
