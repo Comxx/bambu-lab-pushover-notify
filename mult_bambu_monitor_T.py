@@ -46,6 +46,7 @@ Mqttpassword = ''
 Mqttuser = ''
 shared_mqtt_client = None  # Single MQTT Client for A1 & P1S
 connected_cloud_printers = set()  # Track connected cloud printers
+verification_state = {}  # Track verification states for printers
 
 
 class TokenManager:
@@ -329,49 +330,54 @@ async def on_connect(client):
         await client.publish(f"device/{client.userdata['device_id']}/request", payloadpushall)
     except Exception as e:
         logging.error(f"Error in on_connect: {e}")
+
 async def on_message(client, message):
     global DASH, first_run, percent_notify, my_finish_datetime
     global previous_gcode_states, printer_states
     global current_stage, printer_status
-
-    try:
+    try:    
         userdata = client.userdata
         printer_type = userdata.get("printer_type", "Unknown")
-
-        # Determine correct device_id for A1/P1S (shared connection) or X1C (separate connection)
-        if printer_type in ["A1", "P1S"]:
-            msgData = message.payload.decode('utf-8')
-            dataDict = json.loads(msgData)
-            device_id = dataDict.get("device_id")
-            if device_id not in connected_cloud_printers:
-                logging.warning(f"Received message for unknown cloud printer: {device_id}")
-                return
-        else:
-            device_id = userdata['device_id']
-
-        if not device_id:
-            logging.error("Device ID not found in the message")
+        po_app = Application(userdata['my_pushover_app'])
+        po_user = po_app.get_user(userdata['my_pushover_user'])
+        server_identifier = (userdata['password'], userdata['device_id'])
+        prev_state = previous_gcode_states.get(server_identifier, {'state': None})          
+        if message.payload is None:
+            logging.error("No message received from Printer")
             return
-
-        # Ensure the printer status exists
-        if device_id not in printer_status:
-            printer_status[device_id] = {
-                'stg_cur': 0,
-                'gcode_state': None,
-                'layer_num': 0,
-                'total_layer_num': 0,
-                'subtask_name': 'Unknown',
-                'project_id': 'Unknown',
-                'print_error': 0,
-                'mc_remaining_time': 0,
-                'percent_done': 0,
-                'mc_print_stage': 'unknown'
-            }
-
         msgData = message.payload.decode('utf-8')
         dataDict = json.loads(msgData)
-
         if 'print' in dataDict:
+            if printer_type in ["A1", "P1S"]:
+                msgData = message.payload.decode('utf-8')
+                dataDict = json.loads(msgData)
+                device_id = dataDict.get("device_id")
+                if device_id not in connected_cloud_printers:
+                    logging.warning(f"Received message for unknown cloud printer: {device_id}")
+                    return
+            else:
+                device_id = userdata['device_id'] 
+                
+                
+                device_id = userdata['device_id']
+            if not device_id:
+                logging.error("Device ID not found in the message")
+                return
+            if device_id not in printer_status:
+                printer_status[device_id] = {
+                    'stg_cur': 0,
+                    'gcode_state': None,
+                    'layer_num': 0,
+                    'total_layer_num': 0,
+                    'subtask_name': 'Unknown',
+                    'project_id': 'Unknown',
+                    'print_error': 0,
+                    'mc_remaining_time': 0,
+                    'percent_done': 0,
+                    'mc_print_stage': 'unknown'
+                }
+            
+            # Extract data from dataDict
             print_data = dataDict['print']
             printer_status[device_id].update({
                 'stg_cur': print_data.get("stg_cur", printer_status[device_id]['stg_cur']),
@@ -385,9 +391,9 @@ async def on_message(client, message):
                 'mc_remaining_time': print_data.get("mc_remaining_time", printer_status[device_id]['mc_remaining_time']),
                 'mc_print_stage': print_data.get("mc_print_stage", printer_status[device_id]['mc_print_stage'])
             })
-
+            print_data = dataDict['print']
             current_stage = get_current_stage_name(printer_status[device_id]['mc_print_stage'])
-
+            
             # Initialize state for new printer
             if device_id not in printer_states:
                 printer_states[device_id] = {
@@ -396,9 +402,10 @@ async def on_message(client, message):
                     'doorOpen': False,
                     'errorstate': 'None'
                 }
-
+            logging.debug(f"Existing printer_states keys: {printer_states.keys()}")
             printer_state = printer_states[device_id]
-
+            logging.debug(f"Existing printer_states: {printer_state}")
+            
             # Process HMS data
             hms_data = print_data.get('hms', [{'attr': 0, 'code': 0}])
             hms_data = hms_data[0] if hms_data else {'attr': 0, 'code': 0}
@@ -435,6 +442,46 @@ async def on_message(client, message):
                             logging.debug("Closed")
                             printer_state['doorlight'] = False
 
+            # Handle print cancellation
+            if printer_state['previous_print_error'] == 50348044 and printer_status[device_id]['print_error'] == 0:
+                chamberlight_off_data = {
+                    "system": {
+                        "sequence_id": "2003",
+                        "command": "ledctrl",
+                        "led_node": "chamber_light",
+                        "led_mode": "off",
+                        "led_on_time": 500,
+                        "led_off_time": 500,
+                        "loop_times": 0,
+                        "interval_time": 0
+                    },
+                    "user_id": "123456789"
+                }
+                Chamberlogo_off_data = {
+                    "print": {
+                        "sequence_id": "2026",
+                        "command": "gcode_line",
+                        "param": "M960 S5 P0 \n"
+                    },
+                    "user_id": "1234567890"
+                }
+                payload = json.dumps(chamberlight_off_data)
+                payloadlogo = json.dumps(Chamberlogo_off_data)
+                await client.publish(f"device/{userdata['device_id']}/request", payload)
+                await client.publish(f"device/{userdata['device_id']}/request", payloadlogo)
+                message = po_user.create_message(
+                    title=f"{userdata['Printer_Title']} Cancelled",
+                    message="Print Cancelled",
+                    sound=userdata['PO_SOUND'],
+                    priority=1
+                )
+                asyncio.create_task(asyncio.to_thread(message.send))
+                logging.debug(f"Print cancelled on {userdata['Printer_Title']}")
+                printer_state['previous_print_error'] = printer_status[device_id]['print_error']
+                return
+            
+            printer_state['previous_print_error'] = printer_status[device_id]['print_error']
+            
             # Calculate remaining time and finish datetime
             time_left_seconds = int(printer_status[device_id]['mc_remaining_time']) * 60
             if time_left_seconds != 0:
@@ -444,276 +491,77 @@ async def on_message(client, message):
                 my_finish_datetime = local_time.strftime("%m-%d-%Y %I:%M %p (%Z)")
                 remaining_time = str(timedelta(minutes=printer_status[device_id]['mc_remaining_time']))
             else:
-                remaining_time = ""  # Default value
-                if time_left_seconds != 0:
-                        remaining_time = str(timedelta(minutes=printer_status[device_id]['mc_remaining_time']))
-                        if printer_status[device_id]['gcode_state'] == "FINISH" and time_left_seconds == 0:
-                            my_finish_datetime = "Done!"
+                if printer_status[device_id]['gcode_state'] == "FINISH" and time_left_seconds == 0:
+                    my_finish_datetime = "Done!"
+                remaining_time = ""
 
             # Handle gcode state changes
-            if printer_status[device_id]['gcode_state'] != previous_gcode_states.get(device_id, {}).get('state'):
-                previous_gcode_states[device_id] = {'state': printer_status[device_id]['gcode_state']}
-                msg_text = f"<ul><li>State: {printer_status[device_id]['gcode_state']}</li>"
-                msg_text += f"<li>Percent: {printer_status[device_id]['percent_done']}%</li>"
-                msg_text += f"<li>Remaining time: {remaining_time}</li></ul>"
+            if (printer_status[device_id]['gcode_state'] != prev_state['state'] or prev_state['state'] is None):
+                priority = 0
+                logging.info(DASH)
+                logging.info(f"{userdata['Printer_Title']} gcode_state has changed to {printer_status[device_id]['gcode_state']}")
+                json_formatted_str = json.dumps(dataDict, indent=2)
+                logging.debug(DASH + json_formatted_str + DASH)
+                previous_gcode_states[server_identifier] = {'state': printer_status[device_id]['gcode_state']}
 
-                # Send notification
-                po_app = Application(userdata['my_pushover_app'])
-                po_user = po_app.get_user(userdata['my_pushover_user'])
-                message = po_user.create_message(
-                    title=userdata['Printer_Title'],
-                    message=msg_text,
-                    sound=userdata['PO_SOUND'],
-                    priority=0
-                )
-                asyncio.create_task(asyncio.to_thread(message.send))
-
-            # Emit printer update to WebSocket
-        try:
-            await sio.emit('printer_update', {
-                'printer_id': device_id,
-                'printer': userdata['Printer_Title'],
-                'percent': printer_status[device_id]['percent_done'],
-                'remaining_time': remaining_time,
-                'state': printer_status[device_id]['gcode_state'],
-                'current_stage': current_stage,
-                'error': "",
-                'error_messages': [found_hms_error['intro'], found_device_error['intro']],
-                'approx_end': my_finish_datetime
-            })
-        except KeyError as e:
-            if 'Session is disconnected' in str(e):
-                logging.error(f"Session {device_id} disconnected unexpectedly during message emission.")
-                # Handle re-establishing the connection or clean-up
-               # await reconnect_printer(device_id)  # or any other logic to handle reconnection
-            else:
-                logging.error(f"Unexpected KeyError during emit: {str(e)}")
-                raise
-    except json.JSONDecodeError:
-        logging.error(f"Failed to decode MQTT message: {message.payload}")
-    except Exception as e:
-        logging.error(f"Unexpected error in on_message(): {e}")
-
-# async def on_message(client, message):
-#     global DASH, first_run, percent_notify, my_finish_datetime
-#     global previous_gcode_states, printer_states
-#     global current_stage, printer_status
-#     try:    
-#         userdata = client.userdata
-#         po_app = Application(userdata['my_pushover_app'])
-#         po_user = po_app.get_user(userdata['my_pushover_user'])
-#         server_identifier = (userdata['password'], userdata['device_id'])
-#         prev_state = previous_gcode_states.get(server_identifier, {'state': None})
-        
-#         if message.payload is None:
-#             logging.error("No message received from Printer")
-#             return
-#         msgData = message.payload.decode('utf-8')
-#         dataDict = json.loads(msgData)
-#         if 'print' in dataDict:
-#             device_id = userdata['device_id']
-#             if not device_id:
-#                 logging.error("Device ID not found in the message")
-#                 return
-#             if device_id not in printer_status:
-#                 printer_status[device_id] = {
-#                     'stg_cur': 0,
-#                     'gcode_state': None,
-#                     'layer_num': 0,
-#                     'total_layer_num': 0,
-#                     'subtask_name': 'Unknown',
-#                     'project_id': 'Unknown',
-#                     'print_error': 0,
-#                     'mc_remaining_time': 0,
-#                     'percent_done': 0,
-#                     'mc_print_stage': 'unknown'
-#                 }
-            
-#             # Extract data from dataDict
-#             print_data = dataDict['print']
-#             printer_status[device_id].update({
-#                 'stg_cur': print_data.get("stg_cur", printer_status[device_id]['stg_cur']),
-#                 'gcode_state': print_data.get("gcode_state", printer_status[device_id]['gcode_state']),
-#                 'layer_num': print_data.get("layer_num", printer_status[device_id]['layer_num']),
-#                 'total_layer_num': print_data.get("total_layer_num", printer_status[device_id]['total_layer_num']),
-#                 'subtask_name': print_data.get("subtask_name", printer_status[device_id]['subtask_name']),
-#                 'project_id': print_data.get("project_id", printer_status[device_id]['project_id']),
-#                 'percent_done': print_data.get("mc_percent", printer_status[device_id]['percent_done']),
-#                 'print_error': print_data.get("print_error", printer_status[device_id]['print_error']),
-#                 'mc_remaining_time': print_data.get("mc_remaining_time", printer_status[device_id]['mc_remaining_time']),
-#                 'mc_print_stage': print_data.get("mc_print_stage", printer_status[device_id]['mc_print_stage'])
-#             })
-#             print_data = dataDict['print']
-#             current_stage = get_current_stage_name(printer_status[device_id]['mc_print_stage'])
-            
-#             # Initialize state for new printer
-#             if device_id not in printer_states:
-#                 printer_states[device_id] = {
-#                     'previous_print_error': 0,
-#                     'doorlight': False,
-#                     'doorOpen': False,
-#                     'errorstate': 'None'
-#                 }
-#             logging.debug(f"Existing printer_states keys: {printer_states.keys()}")
-#             printer_state = printer_states[device_id]
-#             logging.debug(f"Existing printer_states: {printer_state}")
-            
-#             # Process HMS data
-#             hms_data = print_data.get('hms', [{'attr': 0, 'code': 0}])
-#             hms_data = hms_data[0] if hms_data else {'attr': 0, 'code': 0}
-#             attr, code = hms_data.get('attr', 0), hms_data.get('code', 0)
-#             device__HMS_error_code = hms_code(attr, code)
-
-#             # Fetch error information
-#             english_errors = await fetch_english_errors() or []
-#             error_code_to_hms_cleaned = str(device__HMS_error_code).replace('_', '')
-#             found_hms_error = await search_error(error_code_to_hms_cleaned, english_errors)
-#             hex_error_code = decimal_to_hex(printer_status[device_id]['print_error'])
-#             device_errors = await fetch_device_errors() or []
-#             log_cached_data()
-#             found_device_error = await search_error(hex_error_code, device_errors)
-#             found_hms_error = found_hms_error or {'intro': 'Unknown error'}
-#             found_device_error = found_device_error or {'intro': 'Unknown error'}
-
-#             # Process door state
-#             if "home_flag" in print_data:
-#                 home_flag = print_data["home_flag"]
-#                 door_state = bool((home_flag >> 23) & 1)
-#                 if printer_state['doorOpen'] != door_state:
-#                     printer_state['doorOpen'] = door_state
-#                     gcode_state = printer_status[device_id]['gcode_state']
-#                     if gcode_state in ["FINISH", "IDLE", "FAILED"]:
-#                         if door_state and not printer_state['doorlight'] and userdata['ledlight']:
-#                             await wled_t.set_power(userdata['wled_ip'], True)
-#                             await wled_t.set_brightness(userdata['wled_ip'], 255)
-#                             await wled_t.set_color(userdata['wled_ip'], (255, 255, 255))
-#                             logging.debug("Opened")
-#                             printer_state['doorlight'] = True
-#                         elif not door_state and printer_state['doorlight'] and userdata['ledlight']:
-#                             await wled_t.set_power(userdata['wled_ip'], False)
-#                             logging.debug("Closed")
-#                             printer_state['doorlight'] = False
-
-#             # Handle print cancellation
-#             if printer_state['previous_print_error'] == 50348044 and printer_status[device_id]['print_error'] == 0:
-#                 chamberlight_off_data = {
-#                     "system": {
-#                         "sequence_id": "2003",
-#                         "command": "ledctrl",
-#                         "led_node": "chamber_light",
-#                         "led_mode": "off",
-#                         "led_on_time": 500,
-#                         "led_off_time": 500,
-#                         "loop_times": 0,
-#                         "interval_time": 0
-#                     },
-#                     "user_id": "123456789"
-#                 }
-#                 Chamberlogo_off_data = {
-#                     "print": {
-#                         "sequence_id": "2026",
-#                         "command": "gcode_line",
-#                         "param": "M960 S5 P0 \n"
-#                     },
-#                     "user_id": "1234567890"
-#                 }
-#                 payload = json.dumps(chamberlight_off_data)
-#                 payloadlogo = json.dumps(Chamberlogo_off_data)
-#                 await client.publish(f"device/{userdata['device_id']}/request", payload)
-#                 await client.publish(f"device/{userdata['device_id']}/request", payloadlogo)
-#                 message = po_user.create_message(
-#                     title=f"{userdata['Printer_Title']} Cancelled",
-#                     message="Print Cancelled",
-#                     sound=userdata['PO_SOUND'],
-#                     priority=1
-#                 )
-#                 asyncio.create_task(asyncio.to_thread(message.send))
-#                 logging.debug(f"Print cancelled on {userdata['Printer_Title']}")
-#                 printer_state['previous_print_error'] = printer_status[device_id]['print_error']
-#                 return
-            
-#             printer_state['previous_print_error'] = printer_status[device_id]['print_error']
-            
-#             # Calculate remaining time and finish datetime
-#             time_left_seconds = int(printer_status[device_id]['mc_remaining_time']) * 60
-#             if time_left_seconds != 0:
-#                 aprox_finish_time = time.time() + time_left_seconds
-#                 local_timezone = tzlocal.get_localzone()
-#                 local_time = datetime.fromtimestamp(aprox_finish_time, local_timezone)
-#                 my_finish_datetime = local_time.strftime("%m-%d-%Y %I:%M %p (%Z)")
-#                 remaining_time = str(timedelta(minutes=printer_status[device_id]['mc_remaining_time']))
-#             else:
-#                 if printer_status[device_id]['gcode_state'] == "FINISH" and time_left_seconds == 0:
-#                     my_finish_datetime = "Done!"
-#                 remaining_time = ""
-
-#             # Handle gcode state changes
-#             if (printer_status[device_id]['gcode_state'] != prev_state['state'] or prev_state['state'] is None):
-#                 priority = 0
-#                 logging.info(DASH)
-#                 logging.info(f"{userdata['Printer_Title']} gcode_state has changed to {printer_status[device_id]['gcode_state']}")
-#                 json_formatted_str = json.dumps(dataDict, indent=2)
-#                 logging.debug(DASH + json_formatted_str + DASH)
-#                 previous_gcode_states[server_identifier] = {'state': printer_status[device_id]['gcode_state']}
-
-#                 msg_text = "<ul>"
-#                 msg_text += f"<li>State: {printer_status[device_id]['gcode_state']} </li>"
-#                 msg_text += f"<li>Percent: {printer_status[device_id]['percent_done']}% </li>"
-#                 msg_text += f"<li>Lines: {printer_status[device_id]['layer_num']}/{printer_status[device_id]['total_layer_num']} </li>"
-#                 if 'subtask_name' in print_data:
-#                     msg_text += f"<li>Name: {printer_status[device_id]['subtask_name']} </li>"
-#                 msg_text += f"<li>Remaining time: {remaining_time} </li>"
-#                 msg_text += f"<li>Aprox End: {my_finish_datetime}</li>"
-#                 if printer_status[device_id]['print_error'] != 0 or printer_status[device_id]['gcode_state'] == "FAILED":
-#                     if printer_status[device_id]['print_error'] is not None:
-#                         msg_text += f"<li>print_error: {printer_status[device_id]['print_error']}</li>"
-#                     if device__HMS_error_code == "":
-#                         msg_text += f"<li>Description: {found_device_error['intro']}</li>"
-#                     elif device__HMS_error_code != "":
-#                         msg_text += f"<li>HMS code: {device__HMS_error_code}</li>"
-#                         msg_text += f"<li>Description: {found_hms_error['intro']}</li>"
-#                     priority = 1
-#                 msg_text += "</ul>"
+                msg_text = "<ul>"
+                msg_text += f"<li>State: {printer_status[device_id]['gcode_state']} </li>"
+                msg_text += f"<li>Percent: {printer_status[device_id]['percent_done']}% </li>"
+                msg_text += f"<li>Lines: {printer_status[device_id]['layer_num']}/{printer_status[device_id]['total_layer_num']} </li>"
+                if 'subtask_name' in print_data:
+                    msg_text += f"<li>Name: {printer_status[device_id]['subtask_name']} </li>"
+                msg_text += f"<li>Remaining time: {remaining_time} </li>"
+                msg_text += f"<li>Aprox End: {my_finish_datetime}</li>"
+                if printer_status[device_id]['print_error'] != 0 or printer_status[device_id]['gcode_state'] == "FAILED":
+                    if printer_status[device_id]['print_error'] is not None:
+                        msg_text += f"<li>print_error: {printer_status[device_id]['print_error']}</li>"
+                    if device__HMS_error_code == "":
+                        msg_text += f"<li>Description: {found_device_error['intro']}</li>"
+                    elif device__HMS_error_code != "":
+                        msg_text += f"<li>HMS code: {device__HMS_error_code}</li>"
+                        msg_text += f"<li>Description: {found_hms_error['intro']}</li>"
+                    priority = 1
+                msg_text += "</ul>"
                 
-#                 if not first_run:
-#                     message = po_user.create_message(
-#                         title=userdata['Printer_Title'],
-#                         message=msg_text,
-#                         url=f"https://wiki.bambulab.com/en/x1/troubleshooting/hmscode/{device__HMS_error_code}" if device__HMS_error_code else "",
-#                         html=True,
-#                         sound=userdata['PO_SOUND'],
-#                         priority=priority
-#                     )
-#                     asyncio.create_task(asyncio.to_thread(message.send))
-#                     message.url = ""
-#                     device__HMS_error_code = ""
+                if not first_run:
+                    message = po_user.create_message(
+                        title=userdata['Printer_Title'],
+                        message=msg_text,
+                        url=f"https://wiki.bambulab.com/en/x1/troubleshooting/hmscode/{device__HMS_error_code}" if device__HMS_error_code else "",
+                        html=True,
+                        sound=userdata['PO_SOUND'],
+                        priority=priority
+                    )
+                    asyncio.create_task(asyncio.to_thread(message.send))
+                    message.url = ""
+                    device__HMS_error_code = ""
 
-#             # Prepare error messages
-#             error_messages = []
-#             if printer_status[device_id]['print_error'] is not None:
-#                 error_messages.append(f"print_error: {printer_status[device_id]['print_error']}")
-#             if device__HMS_error_code is not None:
-#                 error_messages.append(f"HMS code: {device__HMS_error_code}")
-#                 error_messages.append(f"Description: {found_hms_error['intro']}")
+            # Prepare error messages
+            error_messages = []
+            if printer_status[device_id]['print_error'] is not None:
+                error_messages.append(f"print_error: {printer_status[device_id]['print_error']}")
+            if device__HMS_error_code is not None:
+                error_messages.append(f"HMS code: {device__HMS_error_code}")
+                error_messages.append(f"Description: {found_hms_error['intro']}")
 
-#             # Emit printer update
-#             await sio.emit('printer_update', {
-#             'printer_id': userdata["device_id"],
-#             'printer': userdata['Printer_Title'],
-#             'percent': printer_status[device_id]['percent_done'],
-#             'lines': printer_status[device_id]['layer_num'],
-#             'lines_total': printer_status[device_id]['total_layer_num'],
-#             'remaining_time': remaining_time,
-#             'approx_end': my_finish_datetime,
-#             'state': printer_status[device_id]['gcode_state'],
-#             'project_name': printer_status[device_id]['subtask_name'],
-#             'current_stage': current_stage,  
-#             'error': "",
-#             'error_messages': error_messages
-#         })
-#     except Exception as e:
-#         logging.error(f"Unexpected error in on_message: {e}")
-#         logging.error(traceback.format_exc())
+            # Emit printer update
+            await sio.emit('printer_update', {
+            'printer_id': userdata["device_id"],
+            'printer': userdata['Printer_Title'],
+            'percent': printer_status[device_id]['percent_done'],
+            'lines': printer_status[device_id]['layer_num'],
+            'lines_total': printer_status[device_id]['total_layer_num'],
+            'remaining_time': remaining_time,
+            'approx_end': my_finish_datetime,
+            'state': printer_status[device_id]['gcode_state'],
+            'project_name': printer_status[device_id]['subtask_name'],
+            'current_stage': current_stage,  
+            'error': "",
+            'error_messages': error_messages
+        })
+    except Exception as e:
+        logging.error(f"Unexpected error in on_message: {e}")
+        logging.error(traceback.format_exc())
 def hms_code(attr, code):
     try:
         if not isinstance(attr, int) or attr < 0 or not isinstance(code, int) or code < 0:
@@ -1085,24 +933,37 @@ async def handle_verification_code(bambu_cloud, broker):
     """
     Handles the email verification process.
     """
+    # Get the user's email (or phone number if applicable) to track their state
+    user_email = broker['user']
+
+    # Check if the user has already been authenticated (using the same verification code)
+    if user_email in verification_state and verification_state[user_email].get('authenticated', False):
+        logging.info(f"{broker['Printer_Title']} is already authenticated.")
+        return  # Skip the login and verification if already authenticated
+
     max_retries = 5
     retry_delay = 10  # Seconds to wait between retries
     retries = 0
 
     while retries < max_retries:
         try:
-            # Prompt user to resend the verification code
-            resend_choice = input(f"Do you want to resend the verification code for {broker['Printer_Title']}? (yes/no): ").strip().lower()
-            if resend_choice in ["yes", "y"]:
-                await bambu_cloud._get_new_code()
-                logging.info(f"New verification code sent to {broker['user']}.")
+            # If this is the first time the user is attempting authentication, prompt for verification code
+            if user_email not in verification_state or not verification_state[user_email].get('authenticated', False):
+                resend_choice = input(f"Do you want to resend the verification code for {broker['Printer_Title']}? (yes/no): ").strip().lower()
+                if resend_choice in ["yes", "y"]:
+                    await bambu_cloud._get_new_code()
+                    logging.info(f"New verification code sent to {broker['user']}.")
 
-            # Prompt the user for the new code
+            # Prompt the user for the new code (only once for the user, not for each printer)
             code = input(f"Enter the verification code sent to {broker['user']}: ").strip()
 
             # Try to authenticate with the new code
             await bambu_cloud.login_with_verification_code(code)
             logging.info(f"Verification successful for {broker['Printer_Title']}.")
+
+            # Mark the user as authenticated globally
+            verification_state[user_email] = {'authenticated': True}
+
             return  # Exit on successful authentication
 
         except CodeExpiredError:
@@ -1121,6 +982,7 @@ async def handle_verification_code(bambu_cloud, broker):
 
     # If the maximum retries are reached
     logging.error(f"Max retries reached for {broker['Printer_Title']}. Authentication failed.")
+    verification_state[user_email] = {'authenticated': False}
 
 async def start_or_restart_printer(broker_config):
     device_id = broker_config['device_id']
