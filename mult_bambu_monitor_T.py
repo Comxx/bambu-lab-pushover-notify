@@ -348,9 +348,7 @@ async def on_message(client, message):
         msgData = message.payload.decode('utf-8')
         dataDict = json.loads(msgData)
         if 'print' in dataDict:
-            if printer_type in ["A1", "P1S"]:
-                msgData = message.payload.decode('utf-8')
-                dataDict = json.loads(msgData)
+            if client.userdata.get("printer_type") == "A1_P1S":
                 device_id = dataDict.get("device_id")
                 if device_id not in connected_cloud_printers:
                     logging.warning(f"Received message for unknown cloud printer: {device_id}")
@@ -358,8 +356,6 @@ async def on_message(client, message):
             else:
                 device_id = userdata['device_id'] 
                 
-                
-                device_id = userdata['device_id']
             if not device_id:
                 logging.error("Device ID not found in the message")
                 return
@@ -836,27 +832,30 @@ async def printer_loop(client):
     
     logging.info(f"Starting printer loop for {printer_type} printer...")
 
-    while True:
-        try:
-            async with client:
-                await on_connect(client)
-                async for message in client.messages:
-                    await on_message(client, message)
-        
-        except MqttError as error:
-            logging.error(f"MQTT Error for {printer_type} printer: {error}")
-            
-            if error.rc == 141:  # Keepalive timeout
-                logging.error(f"Keepalive timeout for {printer_type}. Reconnecting...")
-            else:
-                logging.error(f"Unexpected MQTT Error for {printer_type}: {error}")
+    try:
+        # Use the client context manager for the duration of the printer's connection lifecycle.
+        async with client:  # Ensures proper MQTT connection lifecycle management
+            await on_connect(client)  # Connect and subscribe to necessary topics
 
-            logging.info(f"Attempting reconnection for {printer_type} in 5 seconds...")
-            await asyncio.sleep(5)  # Wait before retrying connection
-        
-        except Exception as e:
-            logging.error(f"Unexpected error in printer_loop for {printer_type}: {e}")
-            await asyncio.sleep(5)  # Prevent immediate infinite loop on failure
+            # Process incoming messages for this printer
+            async for message in client.messages:
+                await on_message(client, message)
+
+    except MqttError as error:
+        # Catch MQTT-specific errors like connection issues or timeouts
+        logging.error(f"MQTT Error for {printer_type} printer: {error}")
+
+        # Handle specific error types (like keepalive timeout)
+        if error.rc == 141:  # Keepalive timeout
+            logging.error(f"Keepalive timeout for {printer_type}. Reconnecting...")
+
+        logging.info(f"Attempting reconnection for {printer_type} in 5 seconds...")
+        await asyncio.sleep(5)  # Wait before retrying connection
+
+    except Exception as e:
+        # Catch general exceptions to ensure robustness
+        logging.error(f"Unexpected error in printer_loop for {printer_type}: {e}")
+        await asyncio.sleep(5)  # Prevent immediate infinite loop on failure
 
 def is_code_expired(printer_id):
     try:
