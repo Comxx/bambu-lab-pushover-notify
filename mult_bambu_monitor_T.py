@@ -897,7 +897,7 @@ def store_email_code(printer_id, code, expires_at):
         logging.error(f"Error storing email code: {e}")
 
 
-async def authenticate_cloud_printers():
+async def authenticate_cloud_printers(broker):
     global Mqttpassword, Mqttuser
     for broker in brokers:
         bambu_cloud = BambuCloud(region="US", email=broker["user"], username='', auth_token='')
