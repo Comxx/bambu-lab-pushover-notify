@@ -2,6 +2,7 @@
 import asyncio
 import logging
 from math import e
+import re
 import ssl
 import tzlocal
 import signal
@@ -334,7 +335,7 @@ async def on_connect(client):
 async def on_message(client, message):
     global DASH, first_run, percent_notify, my_finish_datetime
     global previous_gcode_states, printer_states
-    global current_stage, printer_status
+    global current_stage, printer_status, connected_cloud_printers
     try:    
         userdata = client.userdata
         printer_type = userdata.get("printer_type", "Unknown")
@@ -671,39 +672,42 @@ async def search_error(error_code, error_list):
         logging.error(f"Unexpected error in search_error: {e}")
         return None
 
-async def connect_to_broker(broker):
+async def connect_to_broker(broker, bambu_cloud):
     global shared_mqtt_client, connected_cloud_printers, Mqttpassword, Mqttuser
 
     if broker["printer_type"] in ["A1", "P1S"]:
-        if shared_mqtt_client is not None:
-            # Already connected, just register the printer
-            connected_cloud_printers.add(broker["device_id"])
-            logging.info(f"Reusing shared connection for {broker['Printer_Title']}")
-            return shared_mqtt_client
+            if shared_mqtt_client is not None:
+                logging.info(f"Reusing shared MQTT connection for {broker['Printer_Title']}")
+                connected_cloud_printers.add(broker["device_id"])
+                return shared_mqtt_client  #  Reuse existing MQTT session
 
-        logging.info(f"Authenticating and creating shared MQTT connection for {broker['Printer_Title']}...")
+            logging.info(f"Creating shared MQTT connection for {broker['Printer_Title']}...")
 
-        # Create a shared MQTT connection for A1 & P1S
-        shared_mqtt_client = MQTTClient(
-            hostname=broker["host"],
-            port=broker["port"],
-            username=Mqttuser,
-            password=Mqttpassword,
-            keepalive=90,
-            tls_params=TLSParameters(
-                ca_certs=None,
-                certfile=None,
-                keyfile=None,
-                cert_reqs=ssl.CERT_NONE,
-                tls_version=ssl.PROTOCOL_TLS,
-                ciphers=None
+            if not bambu_cloud or not bambu_cloud.auth_token:
+                logging.error(f"Printer {broker['Printer_Title']} failed authentication, cannot connect to MQTT.")
+                return None  # Stop if authentication failed
+
+            #  Use the authenticated credentials
+            shared_mqtt_client = MQTTClient(
+                hostname=broker["host"],
+                port=broker["port"],
+                username=bambu_cloud.username,  #  Now it's properly set
+                password=bambu_cloud.auth_token,  #  Now it's properly set
+                keepalive=90,
+                tls_params=TLSParameters(
+                    ca_certs=None,
+                    certfile=None,
+                    keyfile=None,
+                    cert_reqs=ssl.CERT_NONE,
+                    tls_version=ssl.PROTOCOL_TLS,
+                    ciphers=None
+                )
             )
-        )
-        shared_mqtt_client.userdata = {"printer_type": "A1_P1S"}  # Mark it as a shared connection
-        connected_cloud_printers.add(broker["device_id"])
 
-        return shared_mqtt_client
-
+            async with shared_mqtt_client as client:
+                connected_cloud_printers.add(broker["device_id"])
+                logging.info(f"Shared MQTT connection established for {broker['Printer_Title']}")
+                return client  #  Return the shared client
     else:  # For X1C and other local printers, create **separate** connections
         logging.info(f"Connecting to MQTT broker for {broker['Printer_Title']} (local printer)...")
 
@@ -856,7 +860,6 @@ async def printer_loop(client):
         # Catch general exceptions to ensure robustness
         logging.error(f"Unexpected error in printer_loop for {printer_type}: {e}")
         await asyncio.sleep(5)  # Prevent immediate infinite loop on failure
-
 def is_code_expired(printer_id):
     try:
         with open(settings_file, 'r') as f:
@@ -907,10 +910,10 @@ async def authenticate_cloud_printers():
             try:
                 await bambu_cloud.login(region="US", email=broker["user"], password=broker["password"])
                 logging.info(f"Login successful for {broker['Printer_Title']}.")
-                
             except CodeRequiredError:
                 logging.info(f"Verification code required for {broker['Printer_Title']}.")
                 await handle_verification_code(bambu_cloud, broker)
+                
             except CodeExpiredError:
                 logging.info(f"Verification code expired for {broker['Printer_Title']}. Requesting a new code...")
                 await bambu_cloud._get_new_code()
@@ -920,10 +923,7 @@ async def authenticate_cloud_printers():
             except Exception as e:
                 logging.error(f"Failed to authenticate {broker['Printer_Title']}: {e}")
                 auth_states[broker['device_id']] = {"status": "error", "message": str(e)}
-            
-            Mqttpassword = bambu_cloud.auth_token
-            Mqttuser = bambu_cloud.username
-            logging.info(f"Global credentials set - User: {Mqttuser}, Password: {Mqttpassword}")
+                return
         else:
             logging.info(f"Skipping cloud authentication for {broker['Printer_Title']} (local printer).")
 
@@ -983,34 +983,38 @@ async def handle_verification_code(bambu_cloud, broker):
     logging.error(f"Max retries reached for {broker['Printer_Title']}. Authentication failed.")
     verification_state[user_email] = {'authenticated': False}
 
-async def start_or_restart_printer(broker_config):
+async def start_or_restart_printer(broker_config, authenticated_printers):
+    """
+    Restart a printer connection, ensuring it reuses existing authentication.
+    """
     device_id = broker_config['device_id']
-    
-    # Cancel existing task if it exists
+
+    # Stop any existing task for this printer
     if device_id in printer_tasks:
         printer_tasks[device_id].cancel()
         try:
             await printer_tasks[device_id]
         except asyncio.CancelledError:
             pass
-    
-    # Clear any existing auth state when restarting
-    if device_id in auth_states:
-        old_auth_state = auth_states[device_id]
-        if old_auth_state.get('bambu_cloud'):
-            await old_auth_state['bambu_cloud'].close()
-    
-    # Create new client and task
+
+    # Get authenticated credentials
+    bambu_cloud = authenticated_printers.get(device_id)
+
+    if not bambu_cloud or not bambu_cloud.auth_token:
+        logging.error(f"Cannot restart {broker_config['Printer_Title']} - Authentication failed.")
+        return
+
     try:
-        client = await connect_to_broker(broker_config)
+        client = await connect_to_broker(broker_config, bambu_cloud)
         if client:
             task = asyncio.create_task(printer_loop(client))
             printer_tasks[device_id] = task
             logging.info(f"Started/Restarted task for printer {device_id}")
         else:
-            logging.error(f"Failed to connect to broker for printer {device_id}")
+            logging.error(f"Failed to restart {broker_config['Printer_Title']} due to connection issues.")
     except Exception as e:
-        logging.error(f"Error connecting to broker for printer {device_id}: {e}")
+        logging.error(f"Error restarting printer {broker_config['Printer_Title']}: {e}")
+        logging.error(traceback.format_exc())
 
 async def shutdown(signal, loop):
     """Cleanup tasks tied to the service's shutdown."""
@@ -1037,24 +1041,33 @@ async def shutdown(signal, loop):
 
 async def main():
     try:
+
         setup_logging()
         logging.info("Starting Bambu Monitor")
 
-        # Authenticate cloud printers before any connections
+        # Authenticate cloud printers first
         logging.info("Authenticating cloud printers...")
-        await authenticate_cloud_printers()
-
-        # Connect to cloud printers first
-        logging.info("Connecting cloud printers...")
+        
+        authenticated_printers = {}  # Store authenticated printers
         for broker in brokers:
-            if broker['printer_type'] in ['A1', 'P1S']:
-                await start_or_restart_printer(broker)
+            if broker["printer_type"] in ["A1", "P1S"]:
+                bambu_cloud = await authenticate_cloud_printers(broker)
+                if bambu_cloud and bambu_cloud.auth_token:
+                    authenticated_printers[broker["device_id"]] = bambu_cloud  # Store authenticated instance
 
-        # Connect to local printers (X1)
+        # Connect or restart printers using the authenticated credentials
+        logging.info("Connecting or restarting cloud printers...")
+        for broker in brokers:
+            if broker["printer_type"] in ["A1", "P1S"]:
+                await start_or_restart_printer(broker, authenticated_printers)
+
+        # Connect local printers (X1C)
         logging.info("Connecting local printers...")
         for broker in brokers:
-            if broker['printer_type'] == 'X1C':
-                await start_or_restart_printer(broker)
+            if broker["printer_type"] == "X1C":
+                await connect_to_broker(broker, None)  # No cloud authentication needed for local printers
+
+        logging.info("All printers initialized.")
 
         # Start the web server
         logging.info("Starting web server...")
