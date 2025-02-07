@@ -672,42 +672,42 @@ async def search_error(error_code, error_list):
         logging.error(f"Unexpected error in search_error: {e}")
         return None
 
-async def connect_to_broker(broker, bambu_cloud):
+async def connect_to_broker(broker):
     global shared_mqtt_client, connected_cloud_printers, Mqttpassword, Mqttuser
 
-    if broker["printer_type"] in ["A1", "P1S"]:
-            if shared_mqtt_client is not None:
-                logging.info(f"Reusing shared MQTT connection for {broker['Printer_Title']}")
-                connected_cloud_printers.add(broker["device_id"])
-                return shared_mqtt_client  #  Reuse existing MQTT session
+ if broker["printer_type"] in ["A1", "P1S"]:
+        if shared_mqtt_client is not None:
+            logging.info(f"Reusing shared MQTT connection for {broker['Printer_Title']}")
+            connected_cloud_printers.add(broker["device_id"])
+            return shared_mqtt_client  # ✅ Reuse existing MQTT session
 
-            logging.info(f"Creating shared MQTT connection for {broker['Printer_Title']}...")
+        logging.info(f"Creating shared MQTT connection for {broker['Printer_Title']}...")
 
-            if not bambu_cloud or not bambu_cloud.auth_token:
-                logging.error(f"Printer {broker['Printer_Title']} failed authentication, cannot connect to MQTT.")
-                return None  # Stop if authentication failed
+        if not bambu_cloud or not bambu_cloud.auth_token:
+            logging.error(f"Printer {broker['Printer_Title']} failed authentication, cannot connect to MQTT.")
+            return None  # Stop if authentication failed
 
-            #  Use the authenticated credentials
-            shared_mqtt_client = MQTTClient(
-                hostname=broker["host"],
-                port=broker["port"],
-                username=bambu_cloud.username,  #  Now it's properly set
-                password=bambu_cloud.auth_token,  #  Now it's properly set
-                keepalive=90,
-                tls_params=TLSParameters(
-                    ca_certs=None,
-                    certfile=None,
-                    keyfile=None,
-                    cert_reqs=ssl.CERT_NONE,
-                    tls_version=ssl.PROTOCOL_TLS,
-                    ciphers=None
-                )
+        # ✅ Use the authenticated credentials
+        shared_mqtt_client = MQTTClient(
+            hostname=broker["host"],
+            port=broker["port"],
+            username=bambu_cloud.username,  # ✅ Now it's properly set
+            password=bambu_cloud.auth_token,  # ✅ Now it's properly set
+            keepalive=90,
+            tls_params=TLSParameters(
+                ca_certs=None,
+                certfile=None,
+                keyfile=None,
+                cert_reqs=ssl.CERT_NONE,
+                tls_version=ssl.PROTOCOL_TLS,
+                ciphers=None
             )
+        )
 
-            async with shared_mqtt_client as client:
-                connected_cloud_printers.add(broker["device_id"])
-                logging.info(f"Shared MQTT connection established for {broker['Printer_Title']}")
-                return client  #  Return the shared client
+        async with shared_mqtt_client as client:
+            connected_cloud_printers.add(broker["device_id"])
+            logging.info(f"Shared MQTT connection established for {broker['Printer_Title']}")
+            return client  # ✅ Return the shared client
     else:  # For X1C and other local printers, create **separate** connections
         logging.info(f"Connecting to MQTT broker for {broker['Printer_Title']} (local printer)...")
 
@@ -1051,7 +1051,7 @@ async def main():
         authenticated_printers = {}  # Store authenticated printers
         for broker in brokers:
             if broker["printer_type"] in ["A1", "P1S"]:
-                bambu_cloud = await authenticate_cloud_printers(broker)
+                bambu_cloud = await authenticate_cloud_printer(broker)
                 if bambu_cloud and bambu_cloud.auth_token:
                     authenticated_printers[broker["device_id"]] = bambu_cloud  # Store authenticated instance
 
