@@ -386,7 +386,6 @@ async def on_message(client, message):
                 'mc_remaining_time': print_data.get("mc_remaining_time", printer_status[device_id]['mc_remaining_time']),
                 'mc_print_stage': print_data.get("mc_print_stage", printer_status[device_id]['mc_print_stage'])
             })
-            # ... (rest of the on_message function)
             print_data = dataDict['print']
             current_stage = get_current_stage_name(printer_status[device_id]['mc_print_stage'])
             
@@ -830,27 +829,26 @@ async def printer_loop(client):
     
     logging.info(f"Starting printer loop for {printer_type} printer...")
 
-    while True:
-        try:
-            async with client:
-                await on_connect(client)
-                async for message in client.messages:
-                    await on_message(client, message)
-        
-        except MqttError as error:
-            logging.error(f"MQTT Error for {printer_type} printer: {error}")
-            
-            if error.rc == 141:  # Keepalive timeout
-                logging.error(f"Keepalive timeout for {printer_type}. Reconnecting...")
-            else:
-                logging.error(f"Unexpected MQTT Error for {printer_type}: {error}")
+    try:
+        async with client:
+            await on_connect(client)
+            async for message in client.messages:
+                await on_message(client, message)
 
-            logging.info(f"Attempting reconnection for {printer_type} in 5 seconds...")
-            await asyncio.sleep(5)  # Wait before retrying connection
+    except MqttError as error:
+        logging.error(f"MQTT Error for {printer_type} printer: {error}")
         
-        except Exception as e:
-            logging.error(f"Unexpected error in printer_loop for {printer_type}: {e}")
-            await asyncio.sleep(5)  # Prevent immediate infinite loop on failure
+        if error.rc == 141:  # Keepalive timeout
+            logging.error(f"Keepalive timeout for {printer_type}. Reconnecting...")
+        else:
+            logging.error(f"Unexpected MQTT Error for {printer_type}: {error}")
+
+        logging.info(f"Attempting reconnection for {printer_type} in 5 seconds...")
+        await asyncio.sleep(5)  # Wait before retrying connection
+    
+    except Exception as e:
+        logging.error(f"Unexpected error in printer_loop for {printer_type}: {e}")
+        await asyncio.sleep(5)  # Prevent immediate infinite loop on failure
 
 def is_code_expired(printer_id):
     try:
@@ -1001,7 +999,7 @@ async def start_or_restart_printer(broker_config):
             logging.error(f"Failed to connect to broker for printer {device_id}")
     except Exception as e:
         logging.error(f"Error connecting to broker for printer {device_id}: {e}")
-
+        
 async def shutdown(signal, loop):
     """Cleanup tasks tied to the service's shutdown."""
     logging.info(f"Received exit signal {signal.name}...")
