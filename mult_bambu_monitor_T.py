@@ -660,61 +660,21 @@ async def search_error(error_code, error_list):
 async def connect_to_broker(broker):
     global Mqttpassword, Mqttuser
     try:
-        #device_id = broker["device_id"]
-
+ # Load settings from the JSON file
+        with open(settings_file, 'r') as f:
+            settings = json.load(f)
+        
         # Initialize BambuCloud instance
-       # bambu_cloud = BambuCloud(region="US", email=broker["user"], username='', auth_token='')
-
         if broker["printer_type"] in ["A1", "P1S"]:
-            logging.info(f"Using global credentials to log in cloud for {broker['Printer_Title']}")
-            logging.info(f"Using global credentials - User: {Mqttuser}, Password: {Mqttpassword}")
-            # try:
-            #     # Attempt to login using email and password
-            #     await bambu_cloud.login(region="US", email=broker["user"], password=broker["password"])
-            # except CodeRequiredError:
-            #     logging.info(f"Verification code required for {broker['Printer_Title']}.")
-
-            #     # Check if stored code is available and valid
-            #     if not is_code_expired(broker['device_id']):
-            #         logging.info(f"Using stored code for {broker['Printer_Title']}.")
-            #         with open(settings_file, 'r') as f:
-            #             settings = json.load(f)
-            #         code_data = next(
-            #             (item for item in settings if item['device_id'] == broker['device_id']), {}
-            #         ).get('email_code_data', {})
-            #         code = code_data.get('code')
-            #     else:
-            #         code = input(f"Verification code sent to {broker['user']}. Enter the code: ").strip()
-
-            #     try:
-            #         # Attempt to login with the verification code
-            #         await bambu_cloud.login_with_verification_code(code)
-            #         logging.info(f"Verification successful for {broker['Printer_Title']}.")
-
-            #         # Store the email code and set expiration
-            #         expires_at = datetime.now() + timedelta(minutes=5)  # Assuming a 5-minute code validity
-            #         store_email_code(broker['device_id'], code, expires_at)
-            #     except CodeExpiredError:
-            #         logging.error(f"Verification code expired for {broker['Printer_Title']}. Requesting a new code...")
-            #         await bambu_cloud._get_email_verification_code()
-            #         code = input(f"New verification code sent to {broker['user']}. Enter the code: ").strip()
-
-            #         await bambu_cloud.login_with_verification_code(code)
-            #         logging.info(f"Verification successful with new code for {broker['Printer_Title']}.")
-
-            #         # Store the updated email code and set expiration
-            #         expires_at = datetime.now() + timedelta(minutes=5)
-            #         store_email_code(broker['device_id'], code, expires_at)
-            #     except Exception as e:
-            #         logging.error(f"Failed to verify {broker['Printer_Title']} with the provided code: {e}")
-            #         raise e
-            # except Exception as e:
-            #     logging.error(f"Login failed for {broker['Printer_Title']}: {str(e)}")
-            #     auth_states[device_id] = {"status": "error", "message": str(e)}
-            #     return None
-
-            # Mqttpassword = bambu_cloud.auth_token
-            # Mqttuser = bambu_cloud.username
+            # Find the saved credentials for the device
+            device_settings = next((item for item in settings if item['device_id'] == broker['device_id']), None)
+            if device_settings:
+                Mqttpassword = device_settings.get('mqtt_password', '')
+                Mqttuser = device_settings.get('mqtt_user', '')
+                logging.info(f"Using saved credentials for {broker['Printer_Title']} - User: {Mqttuser}, Password: {Mqttpassword}")
+            else:
+                logging.error(f"No saved credentials found for {broker['Printer_Title']}")
+                return None
         else:
             Mqttpassword = broker["password"]
             Mqttuser = broker["user"]
@@ -777,44 +737,6 @@ async def printer_loop(client):
     if device_id in printer_tasks:
         del printer_tasks[device_id]
 
-
-def is_code_expired(printer_id):
-    try:
-        with open(settings_file, 'r') as f:
-            settings = json.load(f)
-        code_data = next((item for item in settings if item['device_id'] == printer_id), {}).get('email_code_data')
-        if not code_data:
-            return True
-        return datetime.now() > datetime.fromisoformat(code_data['expires_at'])
-    except Exception as e:
-        logging.error(f"Error checking code expiration: {e}")
-        return True
-    
-def store_email_code(printer_id, code, expires_at):
-    try:
-        with open(settings_file, 'r') as f:
-            settings = json.load(f)
-        for item in settings:
-            if item['device_id'] == printer_id:
-                item['email_code_data'] = {
-                    'code': code,
-                    'expires_at': expires_at.isoformat()
-                }
-                break
-        else:
-            settings.append({
-                'device_id': printer_id,
-                'email_code_data': {
-                    'code': code,
-                    'expires_at': expires_at.isoformat()
-                }
-            })
-        with open(settings_file, 'w') as f:
-            json.dump(settings, f, indent=4)
-    except Exception as e:
-        logging.error(f"Error storing email code: {e}")
-
-
 async def authenticate_cloud_printers():
     global Mqttpassword, Mqttuser
     for broker in brokers:
@@ -850,6 +772,10 @@ async def authenticate_cloud_printers():
             logging.info(f"Skipping cloud authentication for {broker['Printer_Title']} (local printer).")
 
 
+import json
+
+# ...existing code...
+
 async def handle_verification_code(bambu_cloud, broker):
     """
     Handles the email verification process.
@@ -857,6 +783,18 @@ async def handle_verification_code(bambu_cloud, broker):
     max_retries = 5
     retry_delay = 10  # Seconds to wait between retries
     retries = 0
+
+    # Load settings from the JSON file
+    with open(settings_file, 'r') as f:
+        settings = json.load(f)
+
+    # Check if there are stored credentials for the device
+    device_settings = next((item for item in settings if item['device_id'] == broker['device_id']), None)
+    if device_settings and device_settings.get('mqtt_password') and device_settings.get('mqtt_user'):
+        logging.info(f"Using stored credentials for {broker['Printer_Title']}")
+        bambu_cloud.auth_token = device_settings['mqtt_password']
+        bambu_cloud.username = device_settings['mqtt_user']
+        return
 
     while retries < max_retries:
         try:
@@ -872,6 +810,10 @@ async def handle_verification_code(bambu_cloud, broker):
             # Try to authenticate with the new code
             await bambu_cloud.login_with_verification_code(code)
             logging.info(f"Verification successful for {broker['Printer_Title']}.")
+
+            # Save Mqttpassword and Mqttuser to JSON file if printer type is A1 or P1S
+            if broker["printer_type"] in ["A1", "P1S"]:
+                save_mqtt_credentials(broker['device_id'], bambu_cloud.auth_token, bambu_cloud.username)
             return  # Exit on successful authentication
 
         except CodeExpiredError:
@@ -890,6 +832,27 @@ async def handle_verification_code(bambu_cloud, broker):
 
     # If the maximum retries are reached
     logging.error(f"Max retries reached for {broker['Printer_Title']}. Authentication failed.")
+
+def save_mqtt_credentials(device_id, password, user):
+    try:
+        with open(settings_file, 'r') as f:
+            settings = json.load(f)
+        for item in settings:
+            if item['device_id'] == device_id:
+                item['mqtt_password'] = password
+                item['mqtt_user'] = user
+                break
+        else:
+            settings.append({
+                'device_id': device_id,
+                'mqtt_password': password,
+                'mqtt_user': user
+            })
+        with open(settings_file, 'w') as f:
+            json.dump(settings, f, indent=4)
+    except Exception as e:
+        logging.error(f"Error saving MQTT credentials: {e}")
+
 
 async def start_or_restart_printer(broker_config):
     device_id = broker_config['device_id']
