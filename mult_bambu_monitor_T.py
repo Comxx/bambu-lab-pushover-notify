@@ -335,13 +335,13 @@ async def on_message(client, message):
     global DASH, first_run, percent_notify, my_finish_datetime
     global previous_gcode_states, printer_states
     global current_stage, printer_status
-    try:    
+    try:
         userdata = client.userdata
         printer_type = userdata.get("printer_type", "Unknown")
         po_app = Application(userdata['my_pushover_app'])
         po_user = po_app.get_user(userdata['my_pushover_user'])
         server_identifier = (userdata['password'], userdata['device_id'])
-        prev_state = previous_gcode_states.get(server_identifier, {'state': None})          
+        prev_state = previous_gcode_states.get(server_identifier, {'state': None})
         if message.payload is None:
             logging.error("No message received from Printer")
             return
@@ -349,16 +349,11 @@ async def on_message(client, message):
         dataDict = json.loads(msgData)
         if 'print' in dataDict:
             if printer_type in ["A1", "P1S"]:
-                msgData = message.payload.decode('utf-8')
-                dataDict = json.loads(msgData)
                 device_id = dataDict.get("device_id")
                 if device_id not in connected_cloud_printers:
                     logging.warning(f"Received message for unknown cloud printer: {device_id}")
                     return
             else:
-                device_id = userdata['device_id'] 
-                
-                
                 device_id = userdata['device_id']
             if not device_id:
                 logging.error("Device ID not found in the message")
@@ -376,7 +371,7 @@ async def on_message(client, message):
                     'percent_done': 0,
                     'mc_print_stage': 'unknown'
                 }
-            
+
             # Extract data from dataDict
             print_data = dataDict['print']
             printer_status[device_id].update({
@@ -391,6 +386,7 @@ async def on_message(client, message):
                 'mc_remaining_time': print_data.get("mc_remaining_time", printer_status[device_id]['mc_remaining_time']),
                 'mc_print_stage': print_data.get("mc_print_stage", printer_status[device_id]['mc_print_stage'])
             })
+            # ... (rest of the on_message function)
             print_data = dataDict['print']
             current_stage = get_current_stage_name(printer_status[device_id]['mc_print_stage'])
             
@@ -680,14 +676,12 @@ async def connect_to_broker(broker):
 
     if broker["printer_type"] in ["A1", "P1S"]:
         if shared_mqtt_client is not None:
-            # Already connected, just register the printer
             connected_cloud_printers.add(broker["device_id"])
             logging.info(f"Reusing shared connection for {broker['Printer_Title']}")
             return shared_mqtt_client
 
         logging.info(f"Authenticating and creating shared MQTT connection for {broker['Printer_Title']}...")
 
-        # Create a shared MQTT connection for A1 & P1S
         shared_mqtt_client = MQTTClient(
             hostname=broker["host"],
             port=broker["port"],
@@ -703,12 +697,12 @@ async def connect_to_broker(broker):
                 ciphers=None
             )
         )
-        shared_mqtt_client.userdata = {"printer_type": "A1_P1S"}  # Mark it as a shared connection
+        shared_mqtt_client.userdata = {"printer_type": "A1_P1S"}
         connected_cloud_printers.add(broker["device_id"])
 
         return shared_mqtt_client
 
-    else:  # For X1C and other local printers, create **separate** connections
+    else:
         logging.info(f"Connecting to MQTT broker for {broker['Printer_Title']} (local printer)...")
 
         client = MQTTClient(
@@ -726,7 +720,7 @@ async def connect_to_broker(broker):
                 ciphers=None
             )
         )
-        client.userdata = broker  # Set per-device data
+        client.userdata = broker
 
         return client
             
@@ -898,73 +892,69 @@ def store_email_code(printer_id, code, expires_at):
 async def authenticate_cloud_printers():
     global Mqttpassword, Mqttuser
     for broker in brokers:
-        bambu_cloud = BambuCloud(region="US", email=broker["user"], username='', auth_token='')
-
         if broker["printer_type"] in ["A1", "P1S"]:
-            if bambu_cloud.bambu_connected:
-                logging.info(f"Already authenticated for {broker['Printer_Title']}. Skipping login.")
-                continue  # Skip login if already authenticated
-                
+            if Mqttpassword and Mqttuser:
+                logging.info(f"Using existing global credentials for {broker['Printer_Title']}")
+                continue  # Skip login if global credentials are already set
+
+            bambu_cloud = BambuCloud(region="US", email=broker["user"], username='', auth_token='')
+
             try:
                 await bambu_cloud.login(region="US", email=broker["user"], password=broker["password"])
-                logging.info(f"Login successful for {broker['Printer_Title']}.")
-                
+                logging.info(f"Login successful for {broker['Printer_Title']}")
+
             except CodeRequiredError:
-                logging.info(f"Verification code required for {broker['Printer_Title']}.")
+                logging.info(f"Verification code required for {broker['Printer_Title']}")
                 await handle_verification_code(bambu_cloud, broker)
             except CodeExpiredError:
                 logging.info(f"Verification code expired for {broker['Printer_Title']}. Requesting a new code...")
                 await bambu_cloud._get_new_code()
             except CodeIncorrectError:
-                logging.info(f"Incorrect verification code for {broker['Printer_Title']}.")
-                await handle_verification_code(bambu_cloud, broker)        
+                logging.info(f"Incorrect verification code for {broker['Printer_Title']}")
+                await handle_verification_code(bambu_cloud, broker)
             except Exception as e:
                 logging.error(f"Failed to authenticate {broker['Printer_Title']}: {e}")
                 auth_states[broker['device_id']] = {"status": "error", "message": str(e)}
-            
+
+            # Set global credentials after handling verification code
             Mqttpassword = bambu_cloud.auth_token
             Mqttuser = bambu_cloud.username
             logging.info(f"Global credentials set - User: {Mqttuser}, Password: {Mqttpassword}")
         else:
             logging.info(f"Skipping cloud authentication for {broker['Printer_Title']} (local printer).")
 
-
 async def handle_verification_code(bambu_cloud, broker):
-    """
-    Handles the email verification process.
-    """
-    # Get the user's email (or phone number if applicable) to track their state
     user_email = broker['user']
 
-    # Check if the user has already been authenticated (using the same verification code)
     if user_email in verification_state and verification_state[user_email].get('authenticated', False):
         logging.info(f"{broker['Printer_Title']} is already authenticated.")
-        return  # Skip the login and verification if already authenticated
+        return
 
     max_retries = 5
-    retry_delay = 10  # Seconds to wait between retries
+    retry_delay = 10
     retries = 0
 
     while retries < max_retries:
         try:
-            # If this is the first time the user is attempting authentication, prompt for verification code
             if user_email not in verification_state or not verification_state[user_email].get('authenticated', False):
                 resend_choice = input(f"Do you want to resend the verification code for {broker['Printer_Title']}? (yes/no): ").strip().lower()
                 if resend_choice in ["yes", "y"]:
                     await bambu_cloud._get_new_code()
-                    logging.info(f"New verification code sent to {broker['user']}.")
+                    logging.info(f"New verification code sent to {broker['user']}")
 
-            # Prompt the user for the new code (only once for the user, not for each printer)
             code = input(f"Enter the verification code sent to {broker['user']}: ").strip()
-
-            # Try to authenticate with the new code
             await bambu_cloud.login_with_verification_code(code)
-            logging.info(f"Verification successful for {broker['Printer_Title']}.")
+            logging.info(f"Verification successful for {broker['Printer_Title']}")
 
-            # Mark the user as authenticated globally
             verification_state[user_email] = {'authenticated': True}
 
-            return  # Exit on successful authentication
+            # Set global credentials after handling verification code
+            global Mqttpassword, Mqttuser
+            Mqttpassword = bambu_cloud.auth_token
+            Mqttuser = bambu_cloud.username
+            logging.info(f"Global credentials set - User: {Mqttuser}, Password: {Mqttpassword}")
+
+            return
 
         except CodeExpiredError:
             retries += 1
@@ -980,7 +970,6 @@ async def handle_verification_code(bambu_cloud, broker):
             logging.error(f"Unexpected error during verification for {broker['Printer_Title']}: {e}")
             raise e
 
-    # If the maximum retries are reached
     logging.error(f"Max retries reached for {broker['Printer_Title']}. Authentication failed.")
     verification_state[user_email] = {'authenticated': False}
 
