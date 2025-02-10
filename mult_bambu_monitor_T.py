@@ -849,7 +849,6 @@ async def printer_loop(client):
     except Exception as e:
         logging.error(f"Unexpected error in printer_loop for {printer_type}: {e}")
         await asyncio.sleep(5)  # Prevent immediate infinite loop on failure
-
 def is_code_expired(printer_id):
     try:
         with open(settings_file, 'r') as f:
@@ -1060,8 +1059,5 @@ async def main():
     except Exception as e:
         logging.error(f"Fatal error: {e}")
         raise e
-
-
-
 if __name__ == "__main__":
     asyncio.run(main())
