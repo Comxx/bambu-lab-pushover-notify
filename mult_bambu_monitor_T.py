@@ -322,7 +322,7 @@ async def verify_2fa():
 async def on_connect(client):
     try:
         if client.userdata.get("printer_type") == "A1_P1S":
-            for device_id in connected_cloud_printers:
+            for device_id in client.userdata["printers"]:
                 await client.subscribe(f"device/{device_id}/report")
                 getInfo = {"info": {"sequence_id": "0", "command": "get_version"}}
                 payloadvesion = json.dumps(getInfo)
@@ -364,7 +364,7 @@ async def on_message(client, message):
         dataDict = json.loads(msgData)
         if 'print' in dataDict:
             if printer_type == "A1_P1S":
-                device_id = message.topic.split('/')[1]
+                device_id = userdata["printers"].get(device_id)
                 if device_id not in connected_cloud_printers:
                     logging.warning(f"Received message for unknown cloud printer: {device_id}")
                     return
@@ -689,29 +689,34 @@ async def connect_to_broker(broker):
     global shared_mqtt_client, connected_cloud_printers, Mqttpassword, Mqttuser
 
     if broker["printer_type"] in ["A1", "P1S"]:
-        if shared_mqtt_client is not None:
-            connected_cloud_printers.add(broker["device_id"])
-            logging.info(f"Reusing shared connection for {broker['Printer_Title']}")
-            return shared_mqtt_client
-
-        logging.info(f"Authenticating and creating shared MQTT connection for {broker['Printer_Title']}...")
-
-        shared_mqtt_client = MQTTClient(
-            hostname=broker["host"],
-            port=broker["port"],
-            username=Mqttuser,
-            password=Mqttpassword,
-            keepalive=90,
-            tls_params=TLSParameters(
-                ca_certs=None,
-                certfile=None,
-                keyfile=None,
-                cert_reqs=ssl.CERT_NONE,
-                tls_version=ssl.PROTOCOL_TLS,
-                ciphers=None
+        if shared_mqtt_client is None:
+            shared_mqtt_client = MQTTClient(
+                hostname=broker["host"],
+                port=broker["port"],
+                username=Mqttuser,
+                password=Mqttpassword,
+                keepalive=90,
+                tls_params=TLSParameters(
+                    ca_certs=None,
+                    certfile=None,
+                    keyfile=None,
+                    cert_reqs=ssl.CERT_NONE,
+                    tls_version=ssl.PROTOCOL_TLS,
+                    ciphers=None
+                )
             )
-        )
-        shared_mqtt_client.userdata = {"printer_type": "A1_P1S"}
+            shared_mqtt_client.userdata = {"printer_type": "A1_P1S", "printers": {}}
+
+        # Store printer data inside `userdata["printers"]`
+        shared_mqtt_client.userdata["printers"][broker["device_id"]] = {
+            "device_id": broker["device_id"],
+            "Printer_Title": broker["Printer_Title"],
+            "my_pushover_app": broker.get("my_pushover_app", ""),
+            "my_pushover_user": broker.get("my_pushover_user", ""),
+            "ledlight": broker.get("ledlight", False),
+            "wled_ip": broker.get("wled_ip", ""),
+        }
+
         connected_cloud_printers.add(broker["device_id"])
 
         return shared_mqtt_client
@@ -933,6 +938,9 @@ async def authenticate_cloud_printers():
             Mqttpassword = bambu_cloud.auth_token
             Mqttuser = bambu_cloud.username
             logging.info(f"Global credentials set - User: {Mqttuser}, Password: {Mqttpassword}")
+            # Store the broker configuration in the shared MQTT client's userdata
+            if shared_mqtt_client:
+                shared_mqtt_client.userdata["printers"][broker["device_id"]] = broker
         else:
             logging.info(f"Skipping cloud authentication for {broker['Printer_Title']} (local printer).")
 
