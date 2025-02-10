@@ -44,11 +44,6 @@ token_refresh_tasks = {}  # Track token refresh tasks per printer
 settings_file = 'settings.json'
 Mqttpassword = ''
 Mqttuser = ''
-shared_mqtt_client = None  # Single MQTT Client for A1 & P1S
-connected_cloud_printers = set()  # Track connected cloud printers
-verification_state = {}  # Track verification states for printers
-
-
 class TokenManager:
     def __init__(self, device_id: str, broker_config: dict):
         self.device_id = device_id
@@ -180,9 +175,7 @@ async def get_printers():
 @app.errorhandler(404)
 async def not_found(e):
     return jsonify({"error": "Not found"}), 404
-@sio.event
-async def disconnect(sid):
-    logging.info(f"Client {sid} disconnected")
+
 @app.errorhandler(500)
 async def server_error(e):
     return jsonify({"error": "Internal server error"}), 500
@@ -321,28 +314,13 @@ async def verify_2fa():
 
 async def on_connect(client):
     try:
-        if client.userdata.get("printer_type") == "A1_P1S":
-            for device_id in client.userdata["printers"]:
-                await client.subscribe(f"device/{device_id}/report")
-                getInfo = {"info": {"sequence_id": "0", "command": "get_version"}}
-                payloadvesion = json.dumps(getInfo)
-                await client.publish(f"device/{device_id}/request", payloadvesion)
-                pushAll = {"pushing": {"sequence_id": "1", "command": "pushall"}, "user_id": "1234567890"}
-                payloadpushall = json.dumps(pushAll)
-                await client.publish(f"device/{device_id}/request", payloadpushall)
-        else:
-            device_id = client.userdata.get('device_id')
-            if not device_id:
-                logging.error("Device ID not found in userdata")
-                return
-
-            await client.subscribe(f"device/{device_id}/report")
-            getInfo = {"info": {"sequence_id": "0", "command": "get_version"}}
-            payloadvesion = json.dumps(getInfo)
-            await client.publish(f"device/{device_id}/request", payloadvesion)
-            pushAll = {"pushing": {"sequence_id": "1", "command": "pushall"}, "user_id": "1234567890"}
-            payloadpushall = json.dumps(pushAll)
-            await client.publish(f"device/{device_id}/request", payloadpushall)
+        await client.subscribe(f"device/{client.userdata['device_id']}/report")
+        getInfo = {"info": {"sequence_id": "0", "command": "get_version"}}
+        payloadvesion = json.dumps(getInfo)
+        await client.publish(f"device/{client.userdata['device_id']}/request", payloadvesion)
+        pushAll = {"pushing": {"sequence_id": "1", "command": "pushall"}, "user_id": "1234567890"}
+        payloadpushall = json.dumps(pushAll)
+        await client.publish(f"device/{client.userdata['device_id']}/request", payloadpushall)
     except Exception as e:
         logging.error(f"Error in on_connect: {e}")
 
@@ -350,27 +328,20 @@ async def on_message(client, message):
     global DASH, first_run, percent_notify, my_finish_datetime
     global previous_gcode_states, printer_states
     global current_stage, printer_status
-    try:
+    try:    
         userdata = client.userdata
-        printer_type = userdata.get("printer_type", "Unknown")
         po_app = Application(userdata['my_pushover_app'])
         po_user = po_app.get_user(userdata['my_pushover_user'])
         server_identifier = (userdata['password'], userdata['device_id'])
         prev_state = previous_gcode_states.get(server_identifier, {'state': None})
-        logging.info(f"userdata: {userdata} and printers: {userdata.get('printers', 'No printers key')}")
+        
         if message.payload is None:
             logging.error("No message received from Printer")
             return
         msgData = message.payload.decode('utf-8')
         dataDict = json.loads(msgData)
         if 'print' in dataDict:
-            if printer_type == "A1_P1S":
-                device_id = userdata["printers"].get(device_id)
-                if device_id not in connected_cloud_printers:
-                    logging.warning(f"Received message for unknown cloud printer: {device_id}")
-                    return
-            else:
-                device_id = userdata['device_id']
+            device_id = userdata['device_id']
             if not device_id:
                 logging.error("Device ID not found in the message")
                 return
@@ -387,7 +358,7 @@ async def on_message(client, message):
                     'percent_done': 0,
                     'mc_print_stage': 'unknown'
                 }
-
+            
             # Extract data from dataDict
             print_data = dataDict['print']
             printer_status[device_id].update({
@@ -685,51 +656,75 @@ async def search_error(error_code, error_list):
     except Exception as e:
         logging.error(f"Unexpected error in search_error: {e}")
         return None
-
+            
 async def connect_to_broker(broker):
-    global shared_mqtt_client, connected_cloud_printers, Mqttpassword, Mqttuser
+    global Mqttpassword, Mqttuser
+    try:
+        #device_id = broker["device_id"]
 
-    if broker["printer_type"] in ["A1", "P1S"]:
-        if shared_mqtt_client is None:
-            shared_mqtt_client = MQTTClient(
-                hostname=broker["host"],
-                port=broker["port"],
-                username=Mqttuser,
-                password=Mqttpassword,
-                keepalive=90,
-                tls_params=TLSParameters(
-                    ca_certs=None,
-                    certfile=None,
-                    keyfile=None,
-                    cert_reqs=ssl.CERT_NONE,
-                    tls_version=ssl.PROTOCOL_TLS,
-                    ciphers=None
-                )
-            )
-            # Initialize userdata for shared_mqtt_client
-            shared_mqtt_client.userdata = {"printer_type": "A1_P1S", "printers": {}}
+        # Initialize BambuCloud instance
+       # bambu_cloud = BambuCloud(region="US", email=broker["user"], username='', auth_token='')
 
-        # Store printer data inside `userdata["printers"]`
-        shared_mqtt_client.userdata["printers"][broker["device_id"]] = {
-            "device_id": broker["device_id"],
-            "Printer_Title": broker["Printer_Title"],
-            "my_pushover_app": broker.get("my_pushover_app", ""),
-            "my_pushover_user": broker.get("my_pushover_user", ""),
-            "ledlight": broker.get("ledlight", False),
-            "wled_ip": broker.get("wled_ip", ""),
-        }
+        if broker["printer_type"] in ["A1", "P1S"]:
+            logging.info(f"Using global credentials to log in cloud for {broker['Printer_Title']}")
+            logging.info(f"Using global credentials - User: {Mqttuser}, Password: {Mqttpassword}")
+            # try:
+            #     # Attempt to login using email and password
+            #     await bambu_cloud.login(region="US", email=broker["user"], password=broker["password"])
+            # except CodeRequiredError:
+            #     logging.info(f"Verification code required for {broker['Printer_Title']}.")
 
-        connected_cloud_printers.add(broker["device_id"])
+            #     # Check if stored code is available and valid
+            #     if not is_code_expired(broker['device_id']):
+            #         logging.info(f"Using stored code for {broker['Printer_Title']}.")
+            #         with open(settings_file, 'r') as f:
+            #             settings = json.load(f)
+            #         code_data = next(
+            #             (item for item in settings if item['device_id'] == broker['device_id']), {}
+            #         ).get('email_code_data', {})
+            #         code = code_data.get('code')
+            #     else:
+            #         code = input(f"Verification code sent to {broker['user']}. Enter the code: ").strip()
 
-        client = shared_mqtt_client
-    else:
-        logging.info(f"Connecting to MQTT broker for {broker['Printer_Title']} (local printer)...")
+            #     try:
+            #         # Attempt to login with the verification code
+            #         await bambu_cloud.login_with_verification_code(code)
+            #         logging.info(f"Verification successful for {broker['Printer_Title']}.")
 
+            #         # Store the email code and set expiration
+            #         expires_at = datetime.now() + timedelta(minutes=5)  # Assuming a 5-minute code validity
+            #         store_email_code(broker['device_id'], code, expires_at)
+            #     except CodeExpiredError:
+            #         logging.error(f"Verification code expired for {broker['Printer_Title']}. Requesting a new code...")
+            #         await bambu_cloud._get_email_verification_code()
+            #         code = input(f"New verification code sent to {broker['user']}. Enter the code: ").strip()
+
+            #         await bambu_cloud.login_with_verification_code(code)
+            #         logging.info(f"Verification successful with new code for {broker['Printer_Title']}.")
+
+            #         # Store the updated email code and set expiration
+            #         expires_at = datetime.now() + timedelta(minutes=5)
+            #         store_email_code(broker['device_id'], code, expires_at)
+            #     except Exception as e:
+            #         logging.error(f"Failed to verify {broker['Printer_Title']} with the provided code: {e}")
+            #         raise e
+            # except Exception as e:
+            #     logging.error(f"Login failed for {broker['Printer_Title']}: {str(e)}")
+            #     auth_states[device_id] = {"status": "error", "message": str(e)}
+            #     return None
+
+            # Mqttpassword = bambu_cloud.auth_token
+            # Mqttuser = bambu_cloud.username
+        else:
+            Mqttpassword = broker["password"]
+            Mqttuser = broker["user"]
+
+        logging.info(f"Connecting to MQTT broker for {broker['Printer_Title']}...")
         client = MQTTClient(
             hostname=broker["host"],
             port=broker["port"],
-            username=broker["user"],
-            password=broker["password"],
+            username=Mqttuser,
+            password=Mqttpassword,
             keepalive=90,
             tls_params=TLSParameters(
                 ca_certs=None,
@@ -741,110 +736,12 @@ async def connect_to_broker(broker):
             )
         )
         client.userdata = broker
-
-    try:
-        async with client:
-            await on_connect(client)
-            async for message in client.messages:
-                await on_message(client, message)
-    except MqttError as error:
-        logging.error(f"MQTT Error for {broker['Printer_Title']} printer: {error}")
-        if error.rc == 141:  # Keepalive timeout
-            logging.error(f"Keepalive timeout for {broker['Printer_Title']}. Reconnecting...")
-        else:
-            logging.error(f"Unexpected MQTT Error for {broker['Printer_Title']}: {error}")
-        logging.info(f"Attempting reconnection for {broker['Printer_Title']} in 5 seconds...")
-        await asyncio.sleep(5)  # Wait before retrying connection
+        logging.info(f"Successfully created MQTT client for {broker['Printer_Title']}")
+        return client
     except Exception as e:
-        logging.error(f"Unexpected error in connect_to_broker for {broker['Printer_Title']}: {e}")
-        await asyncio.sleep(5)  # Prevent immediate infinite loop on failure
-
-    return client
-# async def connect_to_broker(broker):
-#     global Mqttpassword, Mqttuser
-#     try:
-#         #device_id = broker["device_id"]
-
-#         # Initialize BambuCloud instance
-#        # bambu_cloud = BambuCloud(region="US", email=broker["user"], username='', auth_token='')
-
-#         if broker["printer_type"] in ["A1", "P1S"]:
-#             logging.info(f"Using global credentials to log in cloud for {broker['Printer_Title']}")
-#             logging.info(f"Using global credentials - User: {Mqttuser}, Password: {Mqttpassword}")
-#             # try:
-#             #     # Attempt to login using email and password
-#             #     await bambu_cloud.login(region="US", email=broker["user"], password=broker["password"])
-#             # except CodeRequiredError:
-#             #     logging.info(f"Verification code required for {broker['Printer_Title']}.")
-
-#             #     # Check if stored code is available and valid
-#             #     if not is_code_expired(broker['device_id']):
-#             #         logging.info(f"Using stored code for {broker['Printer_Title']}.")
-#             #         with open(settings_file, 'r') as f:
-#             #             settings = json.load(f)
-#             #         code_data = next(
-#             #             (item for item in settings if item['device_id'] == broker['device_id']), {}
-#             #         ).get('email_code_data', {})
-#             #         code = code_data.get('code')
-#             #     else:
-#             #         code = input(f"Verification code sent to {broker['user']}. Enter the code: ").strip()
-
-#             #     try:
-#             #         # Attempt to login with the verification code
-#             #         await bambu_cloud.login_with_verification_code(code)
-#             #         logging.info(f"Verification successful for {broker['Printer_Title']}.")
-
-#             #         # Store the email code and set expiration
-#             #         expires_at = datetime.now() + timedelta(minutes=5)  # Assuming a 5-minute code validity
-#             #         store_email_code(broker['device_id'], code, expires_at)
-#             #     except CodeExpiredError:
-#             #         logging.error(f"Verification code expired for {broker['Printer_Title']}. Requesting a new code...")
-#             #         await bambu_cloud._get_email_verification_code()
-#             #         code = input(f"New verification code sent to {broker['user']}. Enter the code: ").strip()
-
-#             #         await bambu_cloud.login_with_verification_code(code)
-#             #         logging.info(f"Verification successful with new code for {broker['Printer_Title']}.")
-
-#             #         # Store the updated email code and set expiration
-#             #         expires_at = datetime.now() + timedelta(minutes=5)
-#             #         store_email_code(broker['device_id'], code, expires_at)
-#             #     except Exception as e:
-#             #         logging.error(f"Failed to verify {broker['Printer_Title']} with the provided code: {e}")
-#             #         raise e
-#             # except Exception as e:
-#             #     logging.error(f"Login failed for {broker['Printer_Title']}: {str(e)}")
-#             #     auth_states[device_id] = {"status": "error", "message": str(e)}
-#             #     return None
-
-#             # Mqttpassword = bambu_cloud.auth_token
-#             # Mqttuser = bambu_cloud.username
-#         else:
-#             Mqttpassword = broker["password"]
-#             Mqttuser = broker["user"]
-
-#         logging.info(f"Connecting to MQTT broker for {broker['Printer_Title']}...")
-#         client = MQTTClient(
-#             hostname=broker["host"],
-#             port=broker["port"],
-#             username=Mqttuser,
-#             password=Mqttpassword,
-#             keepalive=90,
-#             tls_params=TLSParameters(
-#                 ca_certs=None,
-#                 certfile=None,
-#                 keyfile=None,
-#                 cert_reqs=ssl.CERT_NONE,
-#                 tls_version=ssl.PROTOCOL_TLS,
-#                 ciphers=None
-#             )
-#         )
-#         client.userdata = broker
-#         logging.info(f"Successfully created MQTT client for {broker['Printer_Title']}")
-#         return client
-#     except Exception as e:
-#         logging.error(f"Error in connect_to_broker for {broker['Printer_Title']}: {e}")
-#         logging.error(traceback.format_exc())
-#         return None
+        logging.error(f"Error in connect_to_broker for {broker['Printer_Title']}: {e}")
+        logging.error(traceback.format_exc())
+        return None
 
 
 @app.route('/auth_status/<printer_id>', methods=['GET'])
@@ -855,6 +752,31 @@ async def start_server():
     config = HyperConfig()
     config.bind = ["0.0.0.0:5000"]
     await serve(asgi_app, config)
+
+async def printer_loop(client):
+    while True:
+        try:
+            async with client:
+                await on_connect(client)
+                async for message in client.messages:
+                    await on_message(client, message)
+        except MqttError as error:
+            if error.rc == 141:  # Keepalive timeout
+                logging.error(f"Keepalive timeout for {client.userdata['Printer_Title']}. aiomqtt will attempt to reconnect.")
+            else:
+                logging.error(f'MQTT Error for {client.userdata["Printer_Title"]}: {error}')
+            logging.info(f'aiomqtt will attempt to reconnect automatically for {client.userdata["Printer_Title"]}')
+        except Exception as e:
+            logging.error(f"Unexpected error in printer_loop for {client.userdata['Printer_Title']}: {e}")
+        
+        # Add a small delay before the next iteration
+        await asyncio.sleep(5)
+    
+    # This part will only be reached if the while loop is explicitly broken
+    device_id = client.userdata['device_id']
+    if device_id in printer_tasks:
+        del printer_tasks[device_id]
+
 
 def is_code_expired(printer_id):
     try:
@@ -896,72 +818,61 @@ def store_email_code(printer_id, code, expires_at):
 async def authenticate_cloud_printers():
     global Mqttpassword, Mqttuser
     for broker in brokers:
+        bambu_cloud = BambuCloud(region="US", email=broker["user"], username='', auth_token='')
+
         if broker["printer_type"] in ["A1", "P1S"]:
-            if Mqttpassword and Mqttuser:
-                logging.info(f"Using existing global credentials for {broker['Printer_Title']}")
-                continue  # Skip login if global credentials are already set
-
-            bambu_cloud = BambuCloud(region="US", email=broker["user"], username='', auth_token='')
-
+        
             try:
                 await bambu_cloud.login(region="US", email=broker["user"], password=broker["password"])
-                logging.info(f"Login successful for {broker['Printer_Title']}")
-
+                logging.info(f"Login successful for {broker['Printer_Title']}.")
+                
             except CodeRequiredError:
-                logging.info(f"Verification code required for {broker['Printer_Title']}")
-                await handle_verification_code(bambu_cloud, broker)
+                    logging.info(f"Verification code required for {broker['Printer_Title']}.")
+                    await handle_verification_code(bambu_cloud, broker)
             except CodeExpiredError:
-                logging.info(f"Verification code expired for {broker['Printer_Title']}. Requesting a new code...")
-                await bambu_cloud._get_new_code()
+                    logging.info(f"Verification code expired for {broker['Printer_Title']}. Requesting a new code...")
+                    await bambu_cloud._get_new_code()
             except CodeIncorrectError:
-                logging.info(f"Incorrect verification code for {broker['Printer_Title']}")
-                await handle_verification_code(bambu_cloud, broker)
+                    logging.info(f"Incorrect verification code for {broker['Printer_Title']}.")
+                    await handle_verification_code(bambu_cloud, broker)        
             except Exception as e:
-                logging.error(f"Failed to authenticate {broker['Printer_Title']}: {e}")
-                auth_states[broker['device_id']] = {"status": "error", "message": str(e)}
+                    logging.error(f"Failed to authenticate {broker['Printer_Title']}: {e}")
+                    auth_states[broker['device_id']] = {"status": "error", "message": str(e)}
+            
+            
+            
 
-            # Set global credentials after handling verification code
+            # Update global credentials
             Mqttpassword = bambu_cloud.auth_token
             Mqttuser = bambu_cloud.username
             logging.info(f"Global credentials set - User: {Mqttuser}, Password: {Mqttpassword}")
-            # Store the broker configuration in the shared MQTT client's userdata
-            if shared_mqtt_client:
-                shared_mqtt_client.userdata["printers"][broker["device_id"]] = broker
         else:
             logging.info(f"Skipping cloud authentication for {broker['Printer_Title']} (local printer).")
 
+
 async def handle_verification_code(bambu_cloud, broker):
-    user_email = broker['user']
-
-    if user_email in verification_state and verification_state[user_email].get('authenticated', False):
-        logging.info(f"{broker['Printer_Title']} is already authenticated.")
-        return
-
+    """
+    Handles the email verification process.
+    """
     max_retries = 5
-    retry_delay = 10
+    retry_delay = 10  # Seconds to wait between retries
     retries = 0
 
     while retries < max_retries:
         try:
-            if user_email not in verification_state or not verification_state[user_email].get('authenticated', False):
-                resend_choice = input(f"Do you want to resend the verification code for {broker['Printer_Title']}? (yes/no): ").strip().lower()
-                if resend_choice in ["yes", "y"]:
-                    await bambu_cloud._get_new_code()
-                    logging.info(f"New verification code sent to {broker['user']}")
+            # Prompt user to resend the verification code
+            resend_choice = input(f"Do you want to resend the verification code for {broker['Printer_Title']}? (yes/no): ").strip().lower()
+            if resend_choice in ["yes", "y"]:
+                await bambu_cloud._get_new_code()
+                logging.info(f"New verification code sent to {broker['user']}.")
 
+            # Prompt the user for the new code
             code = input(f"Enter the verification code sent to {broker['user']}: ").strip()
+
+            # Try to authenticate with the new code
             await bambu_cloud.login_with_verification_code(code)
-            logging.info(f"Verification successful for {broker['Printer_Title']}")
-
-            verification_state[user_email] = {'authenticated': True}
-
-            # Set global credentials after handling verification code
-            global Mqttpassword, Mqttuser
-            Mqttpassword = bambu_cloud.auth_token
-            Mqttuser = bambu_cloud.username
-            logging.info(f"Global credentials set - User: {Mqttuser}, Password: {Mqttpassword}")
-
-            return
+            logging.info(f"Verification successful for {broker['Printer_Title']}.")
+            return  # Exit on successful authentication
 
         except CodeExpiredError:
             retries += 1
@@ -977,8 +888,8 @@ async def handle_verification_code(bambu_cloud, broker):
             logging.error(f"Unexpected error during verification for {broker['Printer_Title']}: {e}")
             raise e
 
+    # If the maximum retries are reached
     logging.error(f"Max retries reached for {broker['Printer_Title']}. Authentication failed.")
-    verification_state[user_email] = {'authenticated': False}
 
 async def start_or_restart_printer(broker_config):
     device_id = broker_config['device_id']
@@ -1001,21 +912,14 @@ async def start_or_restart_printer(broker_config):
     try:
         client = await connect_to_broker(broker_config)
         if client:
-            if broker_config["printer_type"] in ["A1", "P1S"]:
-                # Use a single task for the shared MQTT client
-                if "A1_P1S_shared_task" not in printer_tasks:
-                    task = asyncio.create_task(connect_to_broker(broker_config))
-                    printer_tasks["A1_P1S_shared_task"] = task
-                    logging.info(f"Started/Restarted shared task for A1 and P1S printers")
-            else:
-                task = asyncio.create_task(connect_to_broker(broker_config))
-                printer_tasks[device_id] = task
-                logging.info(f"Started/Restarted task for printer {device_id}")
+            task = asyncio.create_task(printer_loop(client))
+            printer_tasks[device_id] = task
+            logging.info(f"Started/Restarted task for printer {device_id}")
         else:
             logging.error(f"Failed to connect to broker for printer {device_id}")
     except Exception as e:
         logging.error(f"Error connecting to broker for printer {device_id}: {e}")
-        
+
 async def shutdown(signal, loop):
     """Cleanup tasks tied to the service's shutdown."""
     logging.info(f"Received exit signal {signal.name}...")
@@ -1076,5 +980,8 @@ async def main():
     except Exception as e:
         logging.error(f"Fatal error: {e}")
         raise e
+
+
+
 if __name__ == "__main__":
     asyncio.run(main())
