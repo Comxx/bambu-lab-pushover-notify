@@ -357,7 +357,7 @@ async def on_message(client, message):
         po_user = po_app.get_user(userdata['my_pushover_user'])
         server_identifier = (userdata['password'], userdata['device_id'])
         prev_state = previous_gcode_states.get(server_identifier, {'state': None})
-        logging.info(f"userdata: {userdata}")
+        logging.info(f"userdata: {userdata} and printers: {userdata.get('printers', 'No printers key')}")
         if message.payload is None:
             logging.error("No message received from Printer")
             return
