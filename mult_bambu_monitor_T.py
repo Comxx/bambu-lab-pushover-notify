@@ -321,13 +321,18 @@ async def verify_2fa():
 
 async def on_connect(client):
     try:
-        await client.subscribe(f"device/{client.userdata['device_id']}/report")
+        device_id = client.userdata.get('device_id')
+        if not device_id:
+            logging.error("Device ID not found in userdata")
+            return
+
+        await client.subscribe(f"device/{device_id}/report")
         getInfo = {"info": {"sequence_id": "0", "command": "get_version"}}
         payloadvesion = json.dumps(getInfo)
-        await client.publish(f"device/{client.userdata['device_id']}/request", payloadvesion)
+        await client.publish(f"device/{device_id}/request", payloadvesion)
         pushAll = {"pushing": {"sequence_id": "1", "command": "pushall"}, "user_id": "1234567890"}
         payloadpushall = json.dumps(pushAll)
-        await client.publish(f"device/{client.userdata['device_id']}/request", payloadpushall)
+        await client.publish(f"device/{device_id}/request", payloadpushall)
     except Exception as e:
         logging.error(f"Error in on_connect: {e}")
 
