@@ -681,7 +681,28 @@ async def authenticate_cloud_printers():
     global Mqttpassword, Mqttuser
     for broker in brokers:
         bambu_cloud = BambuCloud(region="US", email=broker["user"], username='', auth_token='')
+        # Load settings from the JSON file
+        with open(settings_file, 'r') as f:
+            settings = json.load(f)
 
+        # Check if there are stored credentials for the device
+        device_settings = next((item for item in settings if item['device_id'] == broker['device_id']), None)
+        if device_settings and device_settings.get('mqtt_password') and device_settings.get('mqtt_user'):
+            logging.info(f"Using stored credentials for {broker['Printer_Title']}")
+            Mqttpassword = device_settings['mqtt_password']
+            Mqttuser = device_settings['mqtt_user']
+            
+            # Attempt to connect to the MQTT broker using stored credentials
+            try:
+                client = await connect_to_broker(broker)
+                if client:
+                    logging.info(f"Successfully connected to MQTT broker for {broker['Printer_Title']} using stored credentials.")
+                    continue  # Skip to the next broker if connection is successful
+                else:
+                    logging.warning(f"Failed to connect to MQTT broker for {broker['Printer_Title']} using stored credentials.")
+            except Exception as e:
+                logging.error(f"Error connecting to MQTT broker for {broker['Printer_Title']} using stored credentials: {e}")
+        
         if broker["printer_type"] in ["A1", "P1S"]:
         
             try:
@@ -724,28 +745,6 @@ async def handle_verification_code(bambu_cloud, broker):
     max_retries = 5
     retry_delay = 10  # Seconds to wait between retries
     retries = 0
-
-    # Load settings from the JSON file
-    with open(settings_file, 'r') as f:
-        settings = json.load(f)
-
-    # Check if there are stored credentials for the device
-    device_settings = next((item for item in settings if item['device_id'] == broker['device_id']), None)
-    if device_settings and device_settings.get('mqtt_password') and device_settings.get('mqtt_user'):
-        logging.info(f"Using stored credentials for {broker['Printer_Title']}")
-        Mqttpassword = device_settings['mqtt_password']
-        Mqttuser = device_settings['mqtt_user']
-        
-        # Attempt to connect to the MQTT broker using stored credentials
-        try:
-            client = await connect_to_broker(broker)
-            if client:
-                logging.info(f"Successfully connected to MQTT broker for {broker['Printer_Title']} using stored credentials.")
-                return  # Exit if connection is successful
-            else:
-                logging.warning(f"Failed to connect to MQTT broker for {broker['Printer_Title']} using stored credentials.")
-        except Exception as e:
-            logging.error(f"Error connecting to MQTT broker for {broker['Printer_Title']} using stored credentials: {e}")
 
     while retries < max_retries:
         try:
