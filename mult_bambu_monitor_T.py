@@ -720,6 +720,7 @@ async def handle_verification_code(bambu_cloud, broker):
     """
     Handles the email verification process.
     """
+    global Mqttpassword, Mqttuser
     max_retries = 5
     retry_delay = 10  # Seconds to wait between retries
     retries = 0
@@ -732,8 +733,8 @@ async def handle_verification_code(bambu_cloud, broker):
     device_settings = next((item for item in settings if item['device_id'] == broker['device_id']), None)
     if device_settings and device_settings.get('mqtt_password') and device_settings.get('mqtt_user'):
         logging.info(f"Using stored credentials for {broker['Printer_Title']}")
-        bambu_cloud.auth_token = device_settings['mqtt_password']
-        bambu_cloud.username = device_settings['mqtt_user']
+        Mqttpassword = device_settings['mqtt_password']
+        Mqttuser = device_settings['mqtt_user']
         
         # Attempt to connect to the MQTT broker using stored credentials
         try:
