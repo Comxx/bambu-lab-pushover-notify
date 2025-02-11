@@ -41,6 +41,13 @@ settings_file = 'settings.json'
 Mqttpassword = ''
 Mqttuser = ''                                                                 
 
+
+try:
+    with open('settings.json', 'r') as f:
+        brokers = json.load(f)
+except FileNotFoundError:
+    brokers = []
+    
 # Setup logging
 def setup_logging():
     local_timezone = tzlocal.get_localzone()
@@ -63,15 +70,9 @@ sio = socketio.AsyncServer(async_mode='asgi')
 asgi_app = socketio.ASGIApp(sio, app)
 
 def get_current_stage_name(stage_id):
-    if stage_id is None:
+    if stage_id is not None:
         return CURRENT_STAGE_IDS.get(int(stage_id), "unknown")
     return "unknown"
-# Load initial printer settings from a file
-try:
-    with open('settings.json', 'r') as f:
-        brokers = json.load(f)
-except FileNotFoundError:
-    brokers = []
 
 @app.route('/')
 async def home():
