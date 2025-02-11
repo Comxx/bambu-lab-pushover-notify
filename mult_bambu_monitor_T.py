@@ -1,7 +1,6 @@
 #!/usr/bin/python
 import asyncio
 import logging
-from math import e
 import ssl
 import tzlocal
 import signal
@@ -12,17 +11,14 @@ import json
 import aiohttp
 import time
 import wled_t
-from quart import Quart, request, render_template, jsonify, send_file, send_from_directory
+from quart import Quart, request, render_template, jsonify, send_from_directory
 import socketio
 from bambu_cloud_t import BambuCloud, CloudflareError, CodeRequiredError, TfaCodeRequiredError, CodeExpiredError, CodeIncorrectError
 import traceback
 from constants import CURRENT_STAGE_IDS
 from aiomqtt import Client as MQTTClient, TLSParameters, MqttError
 from hypercorn.asyncio import serve
-from hypercorn.config import Config as HyperConfig
-from collections import defaultdict
-from quart_cors import cors
-from typing import Dict, Any, Optional
+from hypercorn.config import Config as HyperConfig                               
 
 DASH = '\n-------------------------------------------\n'
 
@@ -44,80 +40,8 @@ token_refresh_tasks = {}  # Track token refresh tasks per printer
 settings_file = 'settings.json'
 Mqttpassword = ''
 Mqttuser = ''
-class TokenManager:
-    def __init__(self, device_id: str, broker_config: dict):
-        self.device_id = device_id
-        self.broker_config = broker_config
-        self.access_token = None
-        self.refresh_token = None
-        self.expires_at = None
-        self.refresh_expires_at = None
 
-    async def initialize_tokens(self, bambu_cloud: BambuCloud):
-        """Initialize tokens from successful login"""
-        self.access_token = bambu_cloud.auth_token
-        self.refresh_token = bambu_cloud.refresh_token  # You'll need to add this property to BambuCloud
-        self.expires_at = datetime.now() + timedelta(seconds=7776000)  # Default 90 days
-        self.refresh_expires_at = self.expires_at
 
-    async def refresh_tokens(self):
-        """Refresh tokens before they expire"""
-        if not self.refresh_token:
-            return False
-
-        try:
-            async with aiohttp.ClientSession() as session:
-                url = "https://api.bambulab.com/v1/user-service/user/refreshtoken"
-                data = {"refreshToken": self.refresh_token}
-                async with session.post(url, json=data) as response:
-                    if response.status == 200:
-                        result = await response.json()
-                        self.access_token = result["accessToken"]
-                        self.refresh_token = result["refreshToken"]
-                        self.expires_at = datetime.now() + timedelta(seconds=result["expiresIn"])
-                        self.refresh_expires_at = datetime.now() + timedelta(seconds=result["refreshExpiresIn"])
-                        return True
-                    else:
-                        logging.error(f"Token refresh failed for {self.device_id}: {await response.text()}")
-                        return False
-        except Exception as e:
-            logging.error(f"Error refreshing tokens for {self.device_id}: {e}")
-            return False
-
-async def token_refresh_loop(token_manager: TokenManager):
-    """Background task to refresh tokens before expiration"""
-    while True:
-        try:
-            # Refresh when less than 1 day remaining
-            if token_manager.expires_at:
-                time_until_expiry = token_manager.expires_at - datetime.now()
-                if time_until_expiry < timedelta(days=1):
-                    if await token_manager.refresh_tokens():
-                        logging.info(f"Successfully refreshed tokens for {token_manager.device_id}")
-                    else:
-                        logging.error(f"Failed to refresh tokens for {token_manager.device_id}")
-            
-            # Sleep for 6 hours before checking again
-            await asyncio.sleep(21600)
-        except Exception as e:
-            logging.error(f"Error in token refresh loop for {token_manager.device_id}: {e}")
-            await asyncio.sleep(300)  # Sleep for 5 minutes on error
-
-def setup_logging():
-    local_timezone = tzlocal.get_localzone()
-    current_datetime = datetime.now(local_timezone)
-    datetime_str = current_datetime.strftime("%Y-%m-%d_%I-%M-%S%p")
-    logfile_path = "logs/"
-    logfile_name = f"{logfile_path}output_{datetime_str}.log"
-    log_formatter = logging.Formatter('%(asctime)s %(levelname)s: %(message)s', datefmt='%m-%d-%Y %I:%M:%S %p')
-    
-    rotating_handler = RotatingFileHandler(logfile_name, maxBytes=1024*1024, backupCount=5)
-    rotating_handler.setFormatter(log_formatter)
-    
-    logger = logging.getLogger()
-    logger.setLevel(logging.INFO)
-    logger.addHandler(rotating_handler)
-    
 # Initialize Quart app and SocketIO
 app = Quart(__name__)
 sio = socketio.AsyncServer(async_mode='asgi')
@@ -794,7 +718,17 @@ async def handle_verification_code(bambu_cloud, broker):
         logging.info(f"Using stored credentials for {broker['Printer_Title']}")
         bambu_cloud.auth_token = device_settings['mqtt_password']
         bambu_cloud.username = device_settings['mqtt_user']
-        return
+        
+        # Attempt to connect to the MQTT broker using stored credentials
+        try:
+            client = await connect_to_broker(broker)
+            if client:
+                logging.info(f"Successfully connected to MQTT broker for {broker['Printer_Title']} using stored credentials.")
+                return  # Exit if connection is successful
+            else:
+                logging.warning(f"Failed to connect to MQTT broker for {broker['Printer_Title']} using stored credentials.")
+        except Exception as e:
+            logging.error(f"Error connecting to MQTT broker for {broker['Printer_Title']} using stored credentials: {e}")
 
     while retries < max_retries:
         try:
