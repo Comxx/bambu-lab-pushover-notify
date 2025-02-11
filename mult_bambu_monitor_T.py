@@ -39,9 +39,24 @@ auth_states = {}  # Track authentication states for printers
 token_refresh_tasks = {}  # Track token refresh tasks per printer
 settings_file = 'settings.json'
 Mqttpassword = ''
-Mqttuser = ''
+Mqttuser = ''                                                                 
 
-
+# Setup logging
+def setup_logging():
+    local_timezone = tzlocal.get_localzone()
+    current_datetime = datetime.now(local_timezone)
+    datetime_str = current_datetime.strftime("%Y-%m-%d_%I-%M-%S%p")
+    logfile_path = "logs/"
+    logfile_name = f"{logfile_path}output_{datetime_str}.log"
+    log_formatter = logging.Formatter('%(asctime)s %(levelname)s: %(message)s', datefmt='%m-%d-%Y %I:%M:%S %p')
+    
+    rotating_handler = RotatingFileHandler(logfile_name, maxBytes=1024*1024, backupCount=5)
+    rotating_handler.setFormatter(log_formatter)
+    
+    logger = logging.getLogger()
+    logger.setLevel(logging.INFO)
+    logger.addHandler(rotating_handler)
+    
 # Initialize Quart app and SocketIO
 app = Quart(__name__)
 sio = socketio.AsyncServer(async_mode='asgi')
