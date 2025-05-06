@@ -1,55 +1,50 @@
 @echo off
 setlocal enabledelayedexpansion
 
-:: Step 1: Organize Files
-call :move_files
+:: === CONFIG ===
+set "SRC=src"
+set "ARCHIVE=archive"
 
-:: Step 2: Commit and Push
-echo  Committing changes...
-git add .
-git commit -m " Clean up and reorganize repo structure"
-echo  Pushing to GitHub...
-git push
-
-:: Step 3: Optional — Create a Pull Request if on a branch
-for /f "tokens=*" %%i in ('git rev-parse --abbrev-ref HEAD') do set BRANCH=%%i
-if not "%BRANCH%"=="main" (
-    echo  Creating Pull Request via GitHub CLI...
-    gh pr create --fill
-)
-
-exit /b
-
-:move_files
-echo Cleaning and organizing your Bambu Lab Pushover Notify repo...
-
-mkdir app 2>nul
+:: === Step 1: Create folder structure ===
+mkdir %SRC% 2>nul
 mkdir templates 2>nul
 mkdir static 2>nul
 mkdir logs 2>nul
-mkdir archive 2>nul
+mkdir %ARCHIVE% 2>nul
 
-move mult_bambu_monitor_T.py app\bambu_monitor.py >nul 2>&1
-move bambu_cloud_t.py app\bambu_cloud.py >nul 2>&1
-move wled_t.py app\wled.py >nul 2>&1
-move utils.py app\utils.py >nul 2>&1
-move constants.py app\constants.py >nul 2>&1
-move settings.json app\settings.json >nul 2>&1
+echo 🧹 Moving updated files to %SRC%...
 
-if exist index.html move index.html templates\ >nul 2>&1
+:: Move updated source files
+move /Y mult_bambu_monitor_T.py %SRC%\bambu_monitor.py >nul 2>&1
+move /Y bambu_cloud_t.py %SRC%\main.py >nul 2>&1
+move /Y wled_t.py %SRC%\wled.py >nul 2>&1
+move /Y utils.py %SRC%\utils.py >nul 2>&1
+move /Y constants.py %SRC%\constants.py >nul 2>&1
+move /Y settings.json %SRC%\settings.json >nul 2>&1
 
-for %%f in (*_T.py *.bak *.old) do (
-    if exist "%%f" move "%%f" archive\
+:: Move template if present
+if exist index.html move /Y index.html templates\ >nul 2>&1
+
+:: === Step 2: Archive any other .py or .json files ===
+for %%f in (*.py *.json) do (
+    if not "%%f"=="cleanup_and_push.bat" (
+        echo Archiving: %%f
+        move /Y "%%f" %ARCHIVE%\
+    )
 )
 
-(
-echo __pycache__/
-echo *.pyc
-echo logs/
-echo .env
-echo *.log
-) > .gitignore
+:: === Step 3: Create .gitignore if needed ===
+if not exist .gitignore (
+    (
+    echo __pycache__/
+    echo *.pyc
+    echo logs/
+    echo .env
+    echo *.log
+    ) > .gitignore
+)
 
+:: === Step 4: Create requirements.txt if missing ===
 if not exist requirements.txt (
     (
     echo aiohttp
@@ -62,15 +57,29 @@ if not exist requirements.txt (
     ) > requirements.txt
 )
 
+:: === Step 5: Create run.py pointing to main.py ===
 if not exist run.py (
     (
-    echo from app import bambu_monitor
+    echo from src import main
     echo.
     echo if __name__ == "__main__":
     echo     import asyncio
-    echo     asyncio.run(bambu_monitor.main())
+    echo     asyncio.run(main.main())
     ) > run.py
 )
 
-echo  Files organized.
-exit /b
+:: === Step 6: Git commit & push ===
+echo 📝 Committing changes...
+git add .
+git commit -m "🚚 Refactor: move to src/, rename bambu_cloud_t.py to main.py"
+git push
+
+:: === Step 7: PR if not on main branch ===
+for /f "tokens=*" %%i in ('git rev-parse --abbrev-ref HEAD') do set BRANCH=%%i
+if not "!BRANCH!"=="main" (
+    echo 🔄 Creating Pull Request via GitHub CLI...
+    gh pr create --fill
+)
+
+echo ✅ Repo cleanup complete.
+pause
