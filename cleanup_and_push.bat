@@ -1,24 +1,23 @@
 @echo off
 setlocal enabledelayedexpansion
 
+:: === Configuration ===
 set "SRC=src"
 set "ARCHIVE=archive"
 
-echo 🛠 Preparing folders...
-:: Rename app/ to src/ if it exists
+:: === Step 1: Rename 'app' to 'src' if it exists ===
 if exist app (
     ren app src
 )
 
-:: Ensure required folders exist
+:: === Step 2: Ensure required directories exist ===
 mkdir %SRC% 2>nul
 mkdir templates 2>nul
 mkdir static 2>nul
 mkdir logs 2>nul
 mkdir %ARCHIVE% 2>nul
 
-echo 🧹 Moving updated files to %SRC%...
-
+:: === Step 3: Move updated files into 'src' ===
 move /Y mult_bambu_monitor_T.py %SRC%\bambu_monitor.py >nul 2>&1
 move /Y bambu_cloud_t.py %SRC%\main.py >nul 2>&1
 move /Y wled_t.py %SRC%\wled.py >nul 2>&1
@@ -26,11 +25,10 @@ move /Y utils.py %SRC%\utils.py >nul 2>&1
 move /Y constants.py %SRC%\constants.py >nul 2>&1
 move /Y settings.json %SRC%\settings.json >nul 2>&1
 
-:: Move template if exists
+:: === Step 4: Move 'index.html' to 'templates' if it exists ===
 if exist index.html move /Y index.html templates\ >nul 2>&1
 
-:: 🔐 Archive all other .py/.json files in the root (excluding this script)
-echo 🗃 Archiving unused .py/.json files...
+:: === Step 5: Archive unused .py and .json files ===
 for %%f in (*.py *.json) do (
     if /I not "%%f"=="cleanup_and_push.bat" (
         echo Archiving: %%f
@@ -38,7 +36,7 @@ for %%f in (*.py *.json) do (
     )
 )
 
-:: Create .gitignore if needed
+:: === Step 6: Create '.gitignore' if it doesn't exist ===
 if not exist .gitignore (
     (
     echo __pycache__/
@@ -49,7 +47,7 @@ if not exist .gitignore (
     ) > .gitignore
 )
 
-:: Create requirements.txt if missing
+:: === Step 7: Create 'requirements.txt' if it doesn't exist ===
 if not exist requirements.txt (
     (
     echo aiohttp
@@ -62,7 +60,7 @@ if not exist requirements.txt (
     ) > requirements.txt
 )
 
-:: Create run.py pointing to main.py
+:: === Step 8: Create 'run.py' pointing to 'main.py' ===
 if not exist run.py (
     (
     echo from src import main
@@ -73,18 +71,16 @@ if not exist run.py (
     ) > run.py
 )
 
-:: ✅ GitHub CLI section
-echo 🔧 Committing cleanup...
+:: === Step 9: Git commit and push ===
 git add .
-git commit -m "♻️ Cleanup: rename app to src, archive unused files"
+git commit -m "Refactor: rename app to src, archive unused files"
 git push
 
-:: 🔁 Create PR if not on main
+:: === Step 10: Create a pull request if not on 'main' branch ===
 for /f "tokens=*" %%i in ('git rev-parse --abbrev-ref HEAD') do set BRANCH=%%i
 if /I not "!BRANCH!"=="main" (
-    echo 🚀 Creating Pull Request via GitHub CLI...
     gh pr create --fill
 )
 
-echo ✅ Cleanup complete.
+echo Cleanup and push complete.
 pause
