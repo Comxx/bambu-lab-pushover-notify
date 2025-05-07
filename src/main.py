@@ -2,6 +2,7 @@
 import asyncio
 import logging
 import ssl
+from src.hms_notification import HMSNotification
 import tzlocal
 import signal
 from datetime import datetime, timedelta
@@ -10,10 +11,10 @@ from chump import Application
 import json
 import aiohttp
 import time
-import wled_t
+import wled
 from quart import Quart, request, render_template, jsonify, send_from_directory
 import socketio
-from bambu_cloud_t import BambuCloud, CloudflareError, CodeRequiredError, TfaCodeRequiredError, CodeExpiredError, CodeIncorrectError
+from bambu_cloud import BambuCloud, CloudflareError, CodeRequiredError, TfaCodeRequiredError, CodeExpiredError, CodeIncorrectError
 import traceback
 from constants import CURRENT_STAGE_IDS
 from aiomqtt import Client as MQTTClient, TLSParameters, MqttError
@@ -39,7 +40,8 @@ auth_states = {}  # Track authentication states for printers
 token_refresh_tasks = {}  # Track token refresh tasks per printer
 settings_file = 'settings.json'
 Mqttpassword = ''
-Mqttuser = ''                                                                 
+Mqttuser = ''
+HMS_ERRORS = {}  # Store HMS error codes and descriptions
 
 
 try:
@@ -331,19 +333,36 @@ async def on_message(client, message):
             # Process HMS data
             hms_data = print_data.get('hms', [{'attr': 0, 'code': 0}])
             hms_data = hms_data[0] if hms_data else {'attr': 0, 'code': 0}
-            attr, code = hms_data.get('attr', 0), hms_data.get('code', 0)
-            device__HMS_error_code = hms_code(attr, code)
+            try:
+                hms_obj = HMSNotification(user_language="en", attr=hms_data.get('attr', 0), code=hms_data.get('code', 0))
+                device__HMS_error_code = hms_obj.hms_code
+                hms_error_text = await hms_obj.hms_error
+                logging.debug(f"Processed HMS data - attr: {hms_data.get('attr')}, code: {hms_data.get('code')}, hms_code: {device__HMS_error_code}, error: {hms_error_text}")
+            except Exception as e:
+                logging.error(f"Error processing HMS data: {e}")
+                device__HMS_error_code = ""
+                hms_error_text = "Error processing HMS data"
+
+            # Initialize HMS_ERRORS if empty
+            if HMS_ERRORS == {}:
+                HMS_ERRORS.update(await fetch_english_errors() or {})
 
             # Fetch error information
-            english_errors = await fetch_english_errors() or []
-            error_code_to_hms_cleaned = str(device__HMS_error_code).replace('_', '')
-            found_hms_error = await search_error(error_code_to_hms_cleaned, english_errors)
-            hex_error_code = decimal_to_hex(printer_status[device_id]['print_error'])
-            device_errors = await fetch_device_errors() or []
-            log_cached_data()
-            found_device_error = await search_error(hex_error_code, device_errors)
-            found_hms_error = found_hms_error or {'intro': 'Unknown error'}
-            found_device_error = found_device_error or {'intro': 'Unknown error'}
+            try:
+                english_errors = await fetch_english_errors() or []
+                error_code_to_hms_cleaned = str(device__HMS_error_code).replace('_', '')
+                found_hms_error = await search_error(error_code_to_hms_cleaned, english_errors)
+                hex_error_code = decimal_to_hex(printer_status[device_id]['print_error'])
+                device_errors = await fetch_device_errors() or []
+                log_cached_data()
+                found_device_error = await search_error(hex_error_code, device_errors)
+                found_hms_error = found_hms_error or {'intro': 'Unknown error'}
+                found_device_error = found_device_error or {'intro': 'Unknown error'}
+                logging.debug(f"Found HMS error: {found_hms_error}, Device error: {found_device_error}")
+            except Exception as e:
+                logging.error(f"Error fetching error information: {e}")
+                found_hms_error = {'intro': 'Error fetching error information'}
+                found_device_error = {'intro': 'Error fetching error information'}
 
             # Process door state
             if "home_flag" in print_data:
@@ -354,13 +373,13 @@ async def on_message(client, message):
                     gcode_state = printer_status[device_id]['gcode_state']
                     if gcode_state in ["FINISH", "IDLE", "FAILED"]:
                         if door_state and not printer_state['doorlight'] and userdata['ledlight']:
-                            await wled_t.set_power(userdata['wled_ip'], True)
-                            await wled_t.set_brightness(userdata['wled_ip'], 255)
-                            await wled_t.set_color(userdata['wled_ip'], (255, 255, 255))
+                            await wled.set_power(userdata['wled_ip'], True)
+                            await wled.set_brightness(userdata['wled_ip'], 255)
+                            await wled.set_color(userdata['wled_ip'], (255, 255, 255))
                             logging.debug("Opened")
                             printer_state['doorlight'] = True
                         elif not door_state and printer_state['doorlight'] and userdata['ledlight']:
-                            await wled_t.set_power(userdata['wled_ip'], False)
+                            await wled.set_power(userdata['wled_ip'], False)
                             logging.debug("Closed")
                             printer_state['doorlight'] = False
 
@@ -379,18 +398,11 @@ async def on_message(client, message):
                     },
                     "user_id": "123456789"
                 }
-                Chamberlogo_off_data = {
-                    "print": {
-                        "sequence_id": "2026",
-                        "command": "gcode_line",
-                        "param": "M960 S5 P0 \n"
-                    },
-                    "user_id": "1234567890"
-                }
+                
                 payload = json.dumps(chamberlight_off_data)
-                payloadlogo = json.dumps(Chamberlogo_off_data)
+               
                 await client.publish(f"device/{userdata['device_id']}/request", payload)
-                await client.publish(f"device/{userdata['device_id']}/request", payloadlogo)
+             
                 message = po_user.create_message(
                     title=f"{userdata['Printer_Title']} Cancelled",
                     message="Print Cancelled",
@@ -438,10 +450,11 @@ async def on_message(client, message):
                     if printer_status[device_id]['print_error'] is not None:
                         msg_text += f"<li>print_error: {printer_status[device_id]['print_error']}</li>"
                     if device__HMS_error_code == "":
-                        msg_text += f"<li>Description: {found_device_error['intro']}</li>"
+                        msg_text += f"<li>Description: {hms_obj.hms_error}</li>"
                     elif device__HMS_error_code != "":
                         msg_text += f"<li>HMS code: {device__HMS_error_code}</li>"
-                        msg_text += f"<li>Description: {found_hms_error['intro']}</li>"
+                        msg_text += f"<li>Description: {hms_obj.hms_error}</li>"
+                        msg_text += f"<li>Severity: {hms_obj.severity}</li>"
                     priority = 1
                 msg_text += "</ul>"
                 
@@ -484,19 +497,6 @@ async def on_message(client, message):
     except Exception as e:
         logging.error(f"Unexpected error in on_message: {e}")
         logging.error(traceback.format_exc())
-def hms_code(attr, code):
-    try:
-        if not isinstance(attr, int) or attr < 0 or not isinstance(code, int) or code < 0:
-            raise ValueError("attr and code must be positive integers")
-
-        if attr > 0 and code > 0:
-            formatted_attr = f'{attr // 0x10000:0>4X}_{attr % 0x10000:0>4X}'
-            formatted_code = f'{code // 0x10000:0>4X}_{code % 0x10000:0>4X}'
-            return f'{formatted_attr}_{formatted_code}'
-        return ""
-    except Exception as e:
-        logging.error(f"Unexpected error in hms_code: {e}")
-        return ""
 
 async def fetch_english_errors():
     global last_fetch_time, cached_data
